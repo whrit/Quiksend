@@ -11,7 +11,7 @@ export default defineConfig({
   arrowParens: "always",
   endOfLine: "lf",
 
-  ignorePatterns: ["**/routeTree.gen.ts", "**/*.gen.ts", "**/.output/**", "**/dist/**", "CHANGELOG.md"],
+  ignorePatterns: ["**/routeTree.gen.ts", "**/*.gen.ts", "**/.output/**", "**/dist/**", "CHANGELOG.md", "oxfmt.config.ts", "oxlint.config.ts"],
 
   // We use Tailwind + shadcn heavily — oxfmt can sort classes (replaces
   // prettier-plugin-tailwindcss). The sorting options are experimental and the exact
