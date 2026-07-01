@@ -38,12 +38,12 @@
     },
     "runtime": {
       "name": "node",
-      "version": ">=22.18.0",
+      "version": ">=24.18.0",
       "onFail": "warn"
     }
   },
   "engines": {
-    "node": ">=22.18.0"
+    "node": ">=24.18.0"
   },
   "packageManager": "pnpm@11.9.0"
 }
