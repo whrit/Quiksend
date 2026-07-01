@@ -42,9 +42,7 @@
         "app_meta_key_unique": {
           "name": "app_meta_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "key"
-          ]
+          "columns": ["key"]
         }
       },
       "policies": {},

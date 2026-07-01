@@ -1,0 +1,25 @@
+{
+  "name": "@quiksend/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "auth:generate": "dotenv -e ../../.env -- pnpm dlx @better-auth/cli@latest generate --config ./src/auth.ts --output ../db/src/schema/auth.ts -y"
+  },
+  "dependencies": {
+    "@better-auth/api-key": "1.6.23",
+    "@better-auth/drizzle-adapter": "1.6.23",
+    "@quiksend/config": "workspace:*",
+    "@quiksend/db": "workspace:*",
+    "better-auth": "1.6.23"
+  },
+  "devDependencies": {
+    "dotenv-cli": "11.0.0"
+  }
+}

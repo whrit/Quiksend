@@ -1,5 +1,5 @@
 {
-  "name": "@relay/db",
+  "name": "@quiksend/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
     "studio": "dotenv -e ../../.env -- drizzle-kit studio"
   },
   "dependencies": {
-    "@relay/config": "workspace:*",
+    "@quiksend/config": "workspace:*",
     "drizzle-orm": "0.45.2",
     "postgres": "3.4.9"
   },

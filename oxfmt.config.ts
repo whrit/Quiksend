@@ -11,6 +11,8 @@ export default defineConfig({
   arrowParens: "always",
   endOfLine: "lf",
 
+  ignorePatterns: ["**/routeTree.gen.ts", "**/*.gen.ts", "**/.output/**", "**/dist/**"],
+
   // We use Tailwind + shadcn heavily — oxfmt can sort classes (replaces
   // prettier-plugin-tailwindcss). The sorting options are experimental and the exact
   // key follows an `experimental*` naming convention, so confirm it against

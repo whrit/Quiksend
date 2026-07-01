@@ -1,5 +1,9 @@
 import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
+// Better Auth tables (user, session, account, verification, organization, member,
+// invitation, apikey) — generated via `pnpm --filter @quiksend/auth auth:generate`.
+export * from "./auth.ts";
+
 /**
  * Baseline table so the first migration is non-empty and the migrate pipeline is
  * exercised end-to-end. Real domain tables (auth, mailboxes, sequences, ...) land

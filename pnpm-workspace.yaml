@@ -1,2 +1,13 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# esbuild ships a native binary via a build script (needed by tsx + vitest).
 allowBuilds:
+  "@prisma/client": false
+  better-sqlite3: false
   esbuild: true
+
+# Dependencies are exact-pinned with a committed lockfile, so pnpm 11's new-release
+# cooldown just adds churn here. Raise this (e.g. "7 days") to re-enable it.
+minimumReleaseAge: 0

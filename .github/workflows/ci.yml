@@ -13,28 +13,28 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg17
         env:
-          POSTGRES_USER: relay
-          POSTGRES_PASSWORD: relay
-          POSTGRES_DB: relay
+          POSTGRES_USER: quiksend
+          POSTGRES_PASSWORD: quiksend
+          POSTGRES_DB: quiksend
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U relay -d relay"
+          --health-cmd "pg_isready -U quiksend -d quiksend"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
 
     env:
-      DATABASE_URL: postgres://relay:relay@localhost:5432/relay
+      DATABASE_URL: postgres://quiksend:quiksend@localhost:5432/quiksend
       NODE_ENV: test
       LOG_LEVEL: silent
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
           cache: "pnpm"

@@ -14,9 +14,7 @@ build/
 .env.*
 !.env.example
 
-# generated
-**/routeTree.gen.ts
-**/*.gen.ts
+# generated route tree is COMMITTED (needed for typecheck); excluded from lint/format
 
 # logs & os
 *.log
