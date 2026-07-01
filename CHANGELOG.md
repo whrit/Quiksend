@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/whrit/Quiksend/compare/v1.0.2...v1.0.3) (2026-07-01)
+
+
+### Bug Fixes
+
+* **web:** update Node version, base color, and icon library ([#7](https://github.com/whrit/Quiksend/issues/7)) ([9259a48](https://github.com/whrit/Quiksend/commit/9259a488dff861ea7cb092f00a321a1745806f73))
+
 ## [1.0.2](https://github.com/whrit/Quiksend/compare/v1.0.1...v1.0.2) (2026-07-01)
 
 
