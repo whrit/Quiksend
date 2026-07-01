@@ -19,4 +19,5 @@ ENV NODE_ENV=production
 COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
+COPY tsconfig.base.json ./tsconfig.base.json
 CMD ["pnpm", "exec", "tsx", "apps/worker/src/index.ts"]
