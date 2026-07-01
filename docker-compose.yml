@@ -1,0 +1,31 @@
+services:
+  postgres:
+    # pgvector image so the extension is available when the AI phase lands (Phase 8).
+    image: pgvector/pgvector:pg17
+    container_name: relay-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: relay
+      POSTGRES_PASSWORD: relay
+      POSTGRES_DB: relay
+    ports:
+      - "5432:5432"
+    volumes:
+      - relay-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relay -d relay"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Local mail sink for testing the sending layer (Phase 4). UI at http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: relay-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # web UI
+
+volumes:
+  relay-pgdata:

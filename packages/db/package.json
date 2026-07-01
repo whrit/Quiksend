@@ -1,0 +1,29 @@
+{
+  "name": "@relay/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./client": "./src/client.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "generate": "dotenv -e ../../.env -- drizzle-kit generate",
+    "migrate": "dotenv -e ../../.env -- tsx src/migrate.ts",
+    "push": "dotenv -e ../../.env -- drizzle-kit push",
+    "studio": "dotenv -e ../../.env -- drizzle-kit studio"
+  },
+  "dependencies": {
+    "@relay/config": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "postgres": "3.4.9"
+  },
+  "devDependencies": {
+    "dotenv-cli": "11.0.0",
+    "drizzle-kit": "0.31.10",
+    "tsx": "4.22.4"
+  }
+}

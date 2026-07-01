@@ -1,0 +1,30 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+.output/
+.nitro/
+.turbo/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# generated
+**/routeTree.gen.ts
+**/*.gen.ts
+
+# logs & os
+*.log
+.DS_Store
+
+# editor
+.idea/
+*.tsbuildinfo
+
+# drizzle (keep committed migrations; ignore local meta scratch if any)
+# packages/db/drizzle/  <- migrations ARE committed; do not ignore
