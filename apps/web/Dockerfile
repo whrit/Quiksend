@@ -19,6 +19,7 @@ FROM base AS builder
 COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
+COPY tsconfig.base.json ./tsconfig.base.json
 RUN pnpm --filter @quiksend/web build
 
 # Runtime: Nitro's .output bundles its own deps.
