@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2](https://github.com/whrit/Quiksend/compare/v1.0.1...v1.0.2) (2026-07-01)
+
+
+### Bug Fixes
+
+* **web:** ensure tsconfig.base.json is copied during build ([#5](https://github.com/whrit/Quiksend/issues/5)) ([b78b668](https://github.com/whrit/Quiksend/commit/b78b668b917caa78a5d90662c4b4e1b4fdd1a3fc))
+* **worker:** ensure tsconfig.base.json is copied during build ([b78b668](https://github.com/whrit/Quiksend/commit/b78b668b917caa78a5d90662c4b4e1b4fdd1a3fc))
+
 ## [1.0.1](https://github.com/whrit/Quiksend/compare/v1.0.0...v1.0.1) (2026-07-01)
 
 
