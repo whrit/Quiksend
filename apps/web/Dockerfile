@@ -2,7 +2,7 @@
 # Web app image. Multi-stage: prune the monorepo to @quiksend/web, install +
 # build the Nitro output, then ship only .output (self-contained — no node_modules).
 
-FROM node:22-slim AS base
+FROM node:24-slim AS base
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0
@@ -11,9 +11,8 @@ WORKDIR /app
 
 # Prune to just @quiksend/web and the workspace packages it depends on.
 FROM base AS pruner
-RUN pnpm add -g turbo@2.10.2
 COPY . .
-RUN turbo prune @quiksend/web --docker
+RUN pnpm dlx turbo@2.10.2 prune @quiksend/web --docker    # web
 
 # Install (cached on the pruned lockfile), then build.
 FROM base AS builder
