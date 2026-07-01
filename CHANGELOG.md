@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1](https://github.com/whrit/Quiksend/compare/v1.0.0...v1.0.1) (2026-07-01)
+
+
+### Bug Fixes
+
+* **web:** update Node version and turbo pruning method ([#3](https://github.com/whrit/Quiksend/issues/3)) ([94f9be5](https://github.com/whrit/Quiksend/commit/94f9be5de8dd3e2b9972c240056253c9d3820417))
+* **worker:** update Node version and turbo pruning method ([94f9be5](https://github.com/whrit/Quiksend/commit/94f9be5de8dd3e2b9972c240056253c9d3820417))
+
 ## 1.0.0 (2026-07-01)
 
 
