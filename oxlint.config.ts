@@ -27,7 +27,15 @@ export default defineConfig({
       files: ["apps/web/**", "packages/ui/**"],
       plugins: ["react", "jsx-a11y"],
       env: { browser: true },
-      rules: { "no-console": "error" },
+      rules: {
+        "no-console": "error",
+        // automatic JSX runtime (jsx: "react-jsx") — no React import needed
+        "react/react-in-jsx-scope": "off",
+        // inner handlers/components are idiomatic in React
+        "unicorn/consistent-function-scoping": "off",
+        // Label is a thin wrapper component; association is used at call sites
+        "jsx-a11y/label-has-associated-control": "off",
+      },
     },
     {
       // Tests

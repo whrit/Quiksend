@@ -1,5 +1,5 @@
 {
-  "name": "@relay/worker",
+  "name": "@quiksend/worker",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "build": "tsc --noEmit"
   },
   "dependencies": {
-    "@relay/config": "workspace:*",
-    "@relay/db": "workspace:*",
+    "@quiksend/config": "workspace:*",
+    "@quiksend/db": "workspace:*",
     "drizzle-orm": "0.45.2"
   },
   "devDependencies": {

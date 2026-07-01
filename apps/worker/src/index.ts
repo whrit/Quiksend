@@ -1,5 +1,5 @@
-import { env, logger } from "@relay/config";
-import { client, db } from "@relay/db";
+import { env, logger } from "@quiksend/config";
+import { client, db } from "@quiksend/db";
 import { sql } from "drizzle-orm";
 
 /**
@@ -14,7 +14,7 @@ async function shutdown(signal: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  logger.info({ env: env.NODE_ENV }, "Relay worker starting");
+  logger.info({ env: env.NODE_ENV }, "Quiksend worker starting");
 
   await db.execute(sql`select 1`);
   logger.info("Database connection OK");

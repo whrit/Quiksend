@@ -1,13 +1,19 @@
 # Quiksend
 
-Open-source, self-hostable cold email platform — AI-personalized email sequences
-with Salesforce/HubSpot operations. An alternative to Outreach.io and
+Open-source, self-hostable sales engagement platform — AI-personalized email sequences
+with first-class Salesforce/HubSpot operations. An alternative to Outreach.io and
 Salesforge.ai.
+
+> **Phases 0–1 built.** The monorepo foundation (tooling, shared config, database, CI)
+> plus **auth & workspaces**: Better Auth (email/password + Google/Microsoft), the
+> `organization` plugin as multi-tenant workspaces, an `apiKey` plugin for the future
+> public API, and a TanStack Start app shell (login, protected dashboard, workspace
+> switcher). Product features (sequences, prospects, sending, inbox) land in Phases 2+.
 
 ## Stack
 
-TypeScript · pnpm workspaces · Turborepo · TanStack Start (Phase 1) · Better Auth (Phase 1) ·
-Nango.dev (Phase 3) · PostgreSQL + Drizzle · Oxlint + Oxfmt.
+TypeScript · pnpm workspaces · Turborepo · TanStack Start · Better Auth · PostgreSQL +
+Drizzle · Tailwind v4 + shadcn/ui · Nango.dev (Phase 3) · Oxlint + Oxfmt.
 
 ## Prerequisites
 
@@ -21,24 +27,43 @@ Nango.dev (Phase 3) · PostgreSQL + Drizzle · Oxlint + Oxfmt.
 # 1. install
 pnpm install
 
-# 2. env
+# 2. env — set a real BETTER_AUTH_SECRET (openssl rand -base64 32)
 cp .env.example .env
 
 # 3. infra (Postgres + Mailpit)
 docker compose up -d
 
-# 4. database: generate the first migration from the schema, then apply it
-pnpm db:generate
+# 4. database: apply migrations (auth tables land in 0001)
 pnpm db:migrate
 
 # 5. verify the whole gate
 pnpm check
 
-# 6. run the worker (boots, validates env, pings the DB, idles)
-pnpm worker:dev
+# 6. run the web app, then open http://localhost:3000
+pnpm web:dev
 ```
 
 Mailpit UI: <http://localhost:8025>. Drizzle Studio: `pnpm db:studio`.
+
+## Auth & workspaces (Phase 1)
+
+- `packages/auth` owns the Better Auth server instance (`auth`) and the browser client
+  (`@quiksend/auth/client`). Plugins: `organization` (→ workspaces), `apiKey`, and
+  `tanstackStartCookies` (kept last so cookie handling works with Start).
+- Auth tables live in `packages/db/src/schema/auth.ts`. They're **generated** from the
+  auth config — regenerate after changing plugins/options:
+
+  ```bash
+  pnpm auth:generate        # writes packages/db/src/schema/auth.ts
+  pnpm db:generate          # new Drizzle migration for the delta
+  pnpm db:migrate
+  ```
+
+- Social login is optional: leave the `GOOGLE_*` / `MS_*` vars blank and those buttons
+  simply don't wire up.
+- **UI lives in `apps/web/src/components`, not a separate `packages/ui`.** With one
+  consumer that's the lower-friction choice (shared Tailwind config, no cross-package
+  build step); extract to `packages/ui` when a second app needs the components.
 
 ## Scripts (root)
 
@@ -51,18 +76,22 @@ Mailpit UI: <http://localhost:8025>. Drizzle Studio: `pnpm db:studio`.
 | `pnpm typecheck`                                            | `tsc --noEmit` per package via Turbo                        |
 | `pnpm test`                                                 | Vitest across the workspace                                 |
 | `pnpm check`                                                | lint + format + typecheck + test (the CI gate)              |
+| `pnpm build`                                                | Build all packages + apps via Turbo                         |
 | `pnpm db:generate` / `db:migrate` / `db:push` / `db:studio` | Drizzle Kit (loads root `.env`)                             |
+| `pnpm auth:generate`                                        | Regenerate the Better Auth Drizzle schema                   |
+| `pnpm web:dev` / `web:build`                                | Run / build the TanStack Start app                          |
 | `pnpm worker:dev`                                           | Run the worker with watch                                   |
 
 ## Structure
 
 ```
 apps/
-  web/        TanStack Start app (UI + server fns + server routes)  ← Phase 1
-  worker/     scheduler, senders, pollers, sync runners             ← core from Phase 6
+  web/        TanStack Start app — routes, server fns, auth handler, UI  ← Phase 1
+  worker/     scheduler, senders, pollers, sync runners                  ← core from Phase 6
 packages/
+  auth/       Better Auth server instance + browser client               ← Phase 1
   config/     zod-validated env + pino logger
-  db/         Drizzle schema, client, migrations
+  db/         Drizzle schema (incl. generated auth tables), client, migrations
 ```
 
 ## Tooling notes
@@ -70,6 +99,8 @@ packages/
 - **Oxlint + Oxfmt** are pinned exactly (`package.json`), since Oxc iterates quickly and
   format output can shift between releases. Configs: `oxlint.config.ts`, `oxfmt.config.ts`.
 - Oxlint stays on correctness/logic; **Oxfmt owns all formatting** — they don't fight.
+- The generated `apps/web/src/routeTree.gen.ts` is **committed** (so `pnpm check` works on
+  a fresh clone) but excluded from lint/format.
 - Install the **Oxc** editor extension (see `.vscode/extensions.json`) for format-on-save
   matching the CLI.
 

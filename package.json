@@ -1,7 +1,6 @@
 {
   "name": "quiksend",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,38 +8,42 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt --check",
     "format:fix": "oxlint --fix && oxfmt --write",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "turbo run typecheck --filter='./packages/*' --filter='./apps/*'",
     "test": "vitest run",
-    "build": "turbo run build",
+    "build": "turbo run build --filter='./packages/*' --filter='./apps/*'",
     "check": "pnpm lint && pnpm format && pnpm typecheck && pnpm test",
-    "db:generate": "pnpm --filter @relay/db generate",
-    "db:migrate": "pnpm --filter @relay/db migrate",
-    "db:studio": "pnpm --filter @relay/db studio",
-    "db:push": "pnpm --filter @relay/db push",
-    "worker:dev": "pnpm --filter @relay/worker dev"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devEngines": {
-    "runtime": {
-      "name": "node",
-      "version": "^24.18.0",
-      "onFail": "download"
-    },
-    "packageManager": {
-      "name": "pnpm",
-      "version": "^11.9.0",
-      "onFail": "download"
-    }
+    "db:generate": "pnpm --filter @quiksend/db generate",
+    "db:migrate": "pnpm --filter @quiksend/db migrate",
+    "db:studio": "pnpm --filter @quiksend/db studio",
+    "db:push": "pnpm --filter @quiksend/db push",
+    "worker:dev": "pnpm --filter @quiksend/worker dev",
+    "web:dev": "pnpm --filter @quiksend/web dev",
+    "web:build": "pnpm --filter @quiksend/web build",
+    "auth:generate": "pnpm --filter @quiksend/auth auth:generate"
   },
   "devDependencies": {
-    "@types/node": "^26.0.1",
-    "oxfmt": "^0.57.0",
-    "oxlint": "^1.72.0",
-    "tsx": "^4.22.4",
-    "turbo": "^2.10.1",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
-  }
+    "@types/node": "26.0.1",
+    "oxfmt": "0.57.0",
+    "oxlint": "1.72.0",
+    "tsx": "4.22.4",
+    "turbo": "2.10.2",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.9.0",
+      "onFail": "download"
+    },
+    "runtime": {
+      "name": "node",
+      "version": ">=24.18.0",
+      "onFail": "warn"
+    }
+  },
+  "engines": {
+    "node": ">=24.18.0"
+  },
+  "packageManager": "pnpm@11.9.0"
 }

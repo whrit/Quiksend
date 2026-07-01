@@ -1,0 +1,16 @@
+# Keep the build context small and free of host artifacts/secrets.
+**/node_modules
+.git
+.github
+**/.turbo
+**/.output
+**/.nitro
+out
+**/dist
+.env
+.env.*
+!.env.example
+**/*.tsbuildinfo
+**/*.log
+.DS_Store
+.vscode

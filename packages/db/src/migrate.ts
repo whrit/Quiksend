@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { env } from "@relay/config";
-import { logger } from "@relay/config";
+import { env } from "@quiksend/config";
+import { logger } from "@quiksend/config";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
