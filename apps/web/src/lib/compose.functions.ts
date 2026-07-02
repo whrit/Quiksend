@@ -6,6 +6,7 @@ import {
   type StepKind as SmStepKind,
 } from "@quiksend/core/state-machine";
 import { env } from "@quiksend/config";
+import { buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
 import { db, tables } from "@quiksend/db";
 import {
   createSmtpTransport,
@@ -130,7 +131,10 @@ export const sendComposedMessage = orgFn({ method: "POST" })
     const senderPostalAddress = parseOrgPostalAddress(org?.metadata ?? null);
 
     const compliance: ComplianceInput = {
-      unsubscribeUrl: "https://app.example.com/u/pending",
+      unsubscribeUrl: buildUnsubscribeUrl(
+        env.BETTER_AUTH_URL ?? "http://localhost:3000",
+        mintUnsubscribeToken({ prospectId: prospect.id, orgId: organizationId }),
+      ),
       senderPostalAddress,
       senderOrgName,
     };

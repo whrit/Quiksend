@@ -23,6 +23,13 @@ export { buildMime, type BuildMimeInput, type BuildMimeOutput } from "./mime.ts"
 export { decryptSmtpConfig, encryptSmtpConfig, type SmtpConfigPlain } from "./crypto.ts";
 export { checkDomainAuth, type DomainAuthResult } from "./dns.ts";
 export {
+  buildUnsubscribeUrl,
+  mintUnsubscribeToken,
+  UNSUBSCRIBE_TOKEN_TTL_SECONDS,
+  verifyUnsubscribeToken,
+  type UnsubscribeTokenPayload,
+} from "./unsubscribe.ts";
+export {
   createAdapterForMailbox,
   createFakeAdapter,
   createGmailAdapter,

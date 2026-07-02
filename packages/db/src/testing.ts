@@ -23,6 +23,9 @@ export interface TestOrgs {
  * `prospect`/`company`/`list`; Phase 4 adds `mailbox`/`message`; etc.
  */
 export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
+  "webhook_delivery",
+  "webhook_endpoint",
+  "api_key_usage",
   "crm_writeback_log",
   "event",
   "generation",

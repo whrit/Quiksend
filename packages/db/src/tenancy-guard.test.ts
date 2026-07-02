@@ -36,6 +36,10 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "generation",
   // Phase 6:
   "task",
+  // Phase 10:
+  "apiKeyUsage",
+  "webhookEndpoint",
+  "webhookDelivery",
   // Phase 9:
   "crmWritebackLog",
   "event",
