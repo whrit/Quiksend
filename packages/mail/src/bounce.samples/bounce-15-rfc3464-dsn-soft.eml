@@ -1,0 +1,28 @@
+Return-Path: <>
+From: Mail Relay <postmaster@smtp.relay.test>
+To: sender@example.com
+Subject: Warning: message delayed
+MIME-Version: 1.0
+Content-Type: multipart/report; boundary="smtp-boundary-15"; report-type=delivery-status
+
+--smtp-boundary-15
+Content-Type: text/plain; charset="utf-8"
+
+Delivery to the following recipient has been delayed:
+
+   busy@relay.test
+
+Technical details of temporary failure:
+host relay.test [10.0.0.1]: 451 4.3.0 Temporary failure - try again later
+
+--smtp-boundary-15
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; smtp.relay.test
+Final-Recipient: rfc822; busy@relay.test
+Original-Recipient: rfc822; busy@relay.test
+Action: delayed
+Status: 4.3.0
+Diagnostic-Code: smtp; 451 4.3.0 Temporary failure - try again later
+
+--smtp-boundary-15--

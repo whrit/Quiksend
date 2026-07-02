@@ -23,3 +23,4 @@ export const appMeta = pgTable("app_meta", {
 export * from "./crm.ts";
 export * from "./sequences.ts";
 export * from "./ai.ts";
+export * from "./tasks.ts";

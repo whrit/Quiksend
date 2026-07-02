@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.0](https://github.com/whrit/Quiksend/compare/v1.7.0...v1.8.0) (2026-07-02)
+
+
+### Features
+
+* **phase-7-prep-inbound:** Phase 7 prep complete ([#21](https://github.com/whrit/Quiksend/issues/21)) ([b855af2](https://github.com/whrit/Quiksend/commit/b855af24f061cdcb47c44f56d3cdfbda95a796cc))
+
+## [1.7.0](https://github.com/whrit/Quiksend/compare/v1.6.0...v1.7.0) (2026-07-02)
+
+
+### Features
+
+* **phase-6-engine:** Phase 6 engine complete ([#23](https://github.com/whrit/Quiksend/issues/23)) ([a5bb4bb](https://github.com/whrit/Quiksend/commit/a5bb4bb491dfcf46699c36ce272c511609ebd7cb))
+
 ## [1.6.0](https://github.com/whrit/Quiksend/compare/v1.5.0...v1.6.0) (2026-07-02)
 
 

@@ -1,0 +1,11 @@
+Return-Path: <>
+From: postmaster@exchange.contoso.com
+To: sender@example.com
+Subject: Undeliverable: Demo request
+X-Failed-Recipients: bounced@contoso.com
+X-Postmaster-Msguid: 770e8400-e29b-41d4-a716-446655440002
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Your message to bounced@contoso.com couldn't be delivered.
+The mailbox does not exist. 550 5.1.10 RESOLVER.ADR.RecipientNotFound

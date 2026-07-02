@@ -33,6 +33,8 @@ const APP_SCOPED_TABLES: readonly string[] = [
   // Phase 8 prep:
   "valueProp",
   "researchProfile",
+  // Phase 6:
+  "task",
 ];
 
 const SCAN_ROOTS = ["apps/web/src", "apps/worker/src", "packages"];
