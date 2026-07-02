@@ -3,14 +3,19 @@ import { Button } from "@/components/ui/button";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { authClient } from "@/lib/auth-client";
 import { getSession } from "@/lib/auth.functions";
+import { evaluateProtectedAccess } from "@/lib/protected-guard.ts";
 
 export const Route = createFileRoute("/_protected")({
   beforeLoad: async () => {
     const session = await getSession();
-    if (!session) {
-      throw redirect({ to: "/login" });
+    const access = await evaluateProtectedAccess(session);
+    if (!access.ok) {
+      if (access.reason === "unauthenticated") {
+        throw redirect({ to: "/login" });
+      }
+      throw redirect({ to: "/onboarding" });
     }
-    return { user: session.user };
+    return { user: { id: access.userId, email: access.email, name: access.name } };
   },
   component: ProtectedLayout,
 });

@@ -10,24 +10,20 @@ export type GeneratedEmail = EmailOutput & {
   prompt: BuiltPrompt;
 };
 
-function modelId(): string {
-  const provider = process.env.AI_DEFAULT_PROVIDER ?? "anthropic";
-  return provider === "openai" ? "gpt-4o" : "claude-sonnet-4-5";
-}
-
 export async function generateEmail(prompt: BuiltPrompt): Promise<GeneratedEmail> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      const { model, modelId } = getDefaultModel();
       const result = await generateObject({
-        model: getDefaultModel(),
+        model,
         schema: EmailSchema,
         system: prompt.system,
         prompt: prompt.user,
       });
       return {
         ...result.object,
-        model: modelId(),
+        model: modelId,
         prompt,
       };
     } catch (err) {

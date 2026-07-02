@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ComplianceInput } from "../compliance.ts";
 import type { OutboundEmail } from "../adapter.ts";
 import { SendError } from "../adapter.ts";
-import { createGmailAdapter, type NangoProxyClient } from "./gmail.ts";
+import type { NangoProxyClient } from "../nango-proxy.ts";
+import { createGmailAdapter } from "./gmail.ts";
 
 const compliance: ComplianceInput = {
   unsubscribeUrl: "https://app.example.com/u/pending",

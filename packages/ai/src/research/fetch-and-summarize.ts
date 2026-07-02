@@ -40,8 +40,9 @@ export async function fetchAndSummarize(results: SearchResult[]): Promise<Resear
     )
     .join("\n\n");
 
+  const { model } = getDefaultModel();
   const { output } = await generateText({
-    model: getDefaultModel(),
+    model,
     output: Output.object({ schema: FactsSchema }),
     system: UNTRUSTED_SOURCE_SYSTEM_GUARD,
     prompt:

@@ -1,10 +1,11 @@
 import { db, tables } from "@quiksend/db";
 import { enqueue } from "@quiksend/queue";
-import { and, asc, desc, eq, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { DedupePolicy, ValidCsvRow } from "./prospect-import.ts";
 import { normalizeDomain, normalizeEmail } from "./prospect-import.ts";
 import { orgFn } from "./org-fn.ts";
+import { createProspectInputSchema, prospectStatusSchema } from "./schemas/prospect.ts";
 
 type ProspectRow = typeof tables.prospect.$inferSelect;
 type CompanyRow = typeof tables.company.$inferSelect;
@@ -95,23 +96,70 @@ function serializeImportBatch(row: ImportBatchRow, errors: ImportErrorRow[] = []
   };
 }
 
-const prospectStatusSchema = z.enum([
-  "new",
-  "active",
-  "replied",
-  "bounced",
-  "unsubscribed",
-  "do_not_contact",
-]);
-
-const prospectSourceSchema = z.enum(["manual", "csv", "crm", "api"]);
-
 const sortFieldSchema = z.enum(["createdAt", "email", "lastName", "status"]);
 
-const cursorSchema = z.object({
-  id: z.string().uuid(),
-  createdAt: z.string().datetime(),
-});
+const cursorSchema = z.union([
+  z.object({
+    id: z.string().uuid(),
+    field: sortFieldSchema,
+    value: z.string(),
+  }),
+  z
+    .object({
+      id: z.string().uuid(),
+      createdAt: z.string().datetime(),
+    })
+    .transform((cursor) => ({
+      id: cursor.id,
+      field: "createdAt" as const,
+      value: cursor.createdAt,
+    })),
+]);
+
+function cursorValueFromProspect(row: ProspectRow, field: z.infer<typeof sortFieldSchema>): string {
+  switch (field) {
+    case "email":
+      return row.email;
+    case "lastName":
+      return row.lastName ?? "";
+    case "status":
+      return row.status;
+    default:
+      return row.createdAt.toISOString();
+  }
+}
+
+function prospectCursorCondition(
+  sortField: z.infer<typeof sortFieldSchema>,
+  sortDir: "asc" | "desc",
+  cursor: { id: string; field: z.infer<typeof sortFieldSchema>; value: string },
+) {
+  const column = sortColumn(sortField);
+  if (sortField === "createdAt") {
+    const cursorDate = new Date(cursor.value);
+    if (sortDir === "desc") {
+      return or(
+        lt(column, cursorDate),
+        and(eq(column, cursorDate), lt(tables.prospect.id, cursor.id)),
+      )!;
+    }
+    return or(
+      gt(column, cursorDate),
+      and(eq(column, cursorDate), gt(tables.prospect.id, cursor.id)),
+    )!;
+  }
+
+  if (sortDir === "desc") {
+    return or(
+      lt(column, cursor.value),
+      and(eq(column, cursor.value), lt(tables.prospect.id, cursor.id)),
+    )!;
+  }
+  return or(
+    gt(column, cursor.value),
+    and(eq(column, cursor.value), gt(tables.prospect.id, cursor.id)),
+  )!;
+}
 
 const listProspectsInputSchema = z.object({
   status: z.array(prospectStatusSchema).optional(),
@@ -136,19 +184,6 @@ const prospectPatchSchema = z
     companyId: z.string().uuid().nullable().optional(),
   })
   .strict();
-
-const createProspectInputSchema = z.object({
-  email: z.string().min(1).max(320),
-  firstName: z.string().max(200).optional(),
-  lastName: z.string().max(200).optional(),
-  title: z.string().max(200).optional(),
-  phone: z.string().max(50).optional(),
-  linkedinUrl: z.string().max(500).optional(),
-  timezone: z.string().max(100).optional(),
-  status: prospectStatusSchema.optional(),
-  companyId: z.string().uuid().optional(),
-  source: prospectSourceSchema.default("manual"),
-});
 
 const listCompaniesInputSchema = z.object({
   search: z.string().max(200).optional(),
@@ -250,25 +285,7 @@ export const listProspects = orgFn({ method: "GET" })
       );
     }
     if (data.cursor) {
-      const cursorDate = new Date(data.cursor.createdAt);
-      if (data.sortDir === "desc") {
-        conditions.push(
-          or(
-            lt(tables.prospect.createdAt, cursorDate),
-            and(eq(tables.prospect.createdAt, cursorDate), lt(tables.prospect.id, data.cursor.id)),
-          )!,
-        );
-      } else {
-        conditions.push(
-          or(
-            sql`${tables.prospect.createdAt} > ${cursorDate}`,
-            and(
-              eq(tables.prospect.createdAt, cursorDate),
-              sql`${tables.prospect.id} > ${data.cursor.id}`,
-            ),
-          )!,
-        );
-      }
+      conditions.push(prospectCursorCondition(data.sortField, data.sortDir, data.cursor));
     }
 
     const order = data.sortDir === "asc" ? asc : desc;
@@ -292,7 +309,14 @@ export const listProspects = orgFn({ method: "GET" })
         ...serializeProspect(row.prospect),
         companyName: row.companyName,
       })),
-      nextCursor: hasMore && last ? { id: last.id, createdAt: last.createdAt.toISOString() } : null,
+      nextCursor:
+        hasMore && last
+          ? {
+              id: last.id,
+              field: data.sortField,
+              value: cursorValueFromProspect(last, data.sortField),
+            }
+          : null,
     };
   });
 
@@ -477,7 +501,7 @@ export const listCompanies = orgFn({ method: "GET" })
       conditions.push(or(ilike(tables.company.name, term), ilike(tables.company.domain, term))!);
     }
     if (data.cursor) {
-      const cursorDate = new Date(data.cursor.createdAt);
+      const cursorDate = new Date(data.cursor.value);
       conditions.push(
         or(
           lt(tables.company.createdAt, cursorDate),
@@ -499,7 +523,14 @@ export const listCompanies = orgFn({ method: "GET" })
 
     return {
       items: page.map(serializeCompany),
-      nextCursor: hasMore && last ? { id: last.id, createdAt: last.createdAt.toISOString() } : null,
+      nextCursor:
+        hasMore && last
+          ? {
+              id: last.id,
+              field: "createdAt" as const,
+              value: last.createdAt.toISOString(),
+            }
+          : null,
     };
   });
 

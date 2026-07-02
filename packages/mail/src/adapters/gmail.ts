@@ -9,33 +9,17 @@ import type {
 import { SendError } from "../adapter.ts";
 import { checkDomainAuth } from "../dns.ts";
 import { buildMime, type BuildMimeInput } from "../mime.ts";
+import type { NangoProxyClient } from "../nango-proxy.ts";
 import { normalizeMessageId, type ThreadingHeaders } from "../threading.ts";
 
 const GMAIL_PROVIDER_KEY = "google-mail";
-
-export interface NangoProxyClient {
-  post(config: {
-    endpoint: string;
-    providerConfigKey: string;
-    connectionId: string;
-    data?: unknown;
-    headers?: Record<string, string>;
-  }): Promise<{ data: unknown; status: number }>;
-  get(config: {
-    endpoint: string;
-    providerConfigKey: string;
-    connectionId: string;
-    params?: Record<string, string>;
-    headers?: Record<string, string>;
-  }): Promise<{ data: unknown; status: number }>;
-}
 
 export interface GmailAdapterConfig {
   readonly nangoConnectionId: string;
   readonly fromAddress: string;
   readonly fromName?: string;
   readonly compliance?: ComplianceInput;
-  readonly nango?: NangoProxyClient;
+  readonly nango: NangoProxyClient;
 }
 
 interface GmailSendResponse {
@@ -51,11 +35,6 @@ interface GmailMessageMetadata {
 
 export function createGmailAdapter(config: GmailAdapterConfig): MailboxAdapter {
   const nango = config.nango;
-  if (!nango) {
-    throw new Error(
-      "Gmail adapter requires a Nango client (inject via config.nango or use createAdapterForMailbox)",
-    );
-  }
 
   const from: EmailAddress = {
     email: config.fromAddress,

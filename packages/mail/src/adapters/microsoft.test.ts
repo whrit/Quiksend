@@ -3,7 +3,7 @@ import type { ComplianceInput } from "../compliance.ts";
 import type { OutboundEmail } from "../adapter.ts";
 import { SendError } from "../adapter.ts";
 import { createMicrosoftAdapter } from "./microsoft.ts";
-import type { NangoProxyClient } from "./gmail.ts";
+import type { NangoProxyClient } from "../nango-proxy.ts";
 
 const compliance: ComplianceInput = {
   unsubscribeUrl: "https://app.example.com/u/pending",

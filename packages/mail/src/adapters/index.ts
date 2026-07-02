@@ -1,36 +1,26 @@
-import { env } from "@quiksend/config";
-import { getNango } from "@quiksend/integrations";
 import type { MailboxAdapter, MailProvider } from "../adapter.ts";
 import type { SmtpConfigPlain } from "../crypto.ts";
-import { createGmailAdapter, type NangoProxyClient } from "./gmail.ts";
+import type { NangoProxyClient } from "../nango-proxy.ts";
+import { createGmailAdapter } from "./gmail.ts";
 import { createMicrosoftAdapter } from "./microsoft.ts";
 import { createSmtpAdapter } from "./smtp.ts";
 
 export { createFakeAdapter } from "./fake.ts";
-export { createGmailAdapter, type GmailAdapterConfig, type NangoProxyClient } from "./gmail.ts";
+export { createGmailAdapter, type GmailAdapterConfig } from "./gmail.ts";
 export { createMicrosoftAdapter, type MicrosoftAdapterConfig } from "./microsoft.ts";
 export { createSmtpAdapter, createSmtpTransport, sendMime } from "./smtp.ts";
+export type { NangoProxyClient } from "../nango-proxy.ts";
 
-function wrapNango(nango: ReturnType<typeof getNango>): NangoProxyClient {
-  return {
-    async post(config) {
-      const response = await nango.post(config);
-      return { data: response.data, status: response.status };
-    },
-    async get(config) {
-      const response = await nango.get(config);
-      return { data: response.data, status: response.status };
-    },
-  };
-}
-
-export function createAdapterForMailbox(mailbox: {
-  provider: MailProvider;
-  nangoConnectionId: string | null;
-  smtpConfig: SmtpConfigPlain | null;
-  address: string;
-  fromName: string | null;
-}): MailboxAdapter {
+export function createAdapterForMailbox(
+  mailbox: {
+    provider: MailProvider;
+    nangoConnectionId: string | null;
+    smtpConfig: SmtpConfigPlain | null;
+    address: string;
+    fromName: string | null;
+  },
+  nangoProxy?: NangoProxyClient,
+): MailboxAdapter {
   const fromName = mailbox.fromName ?? undefined;
 
   switch (mailbox.provider) {
@@ -38,32 +28,32 @@ export function createAdapterForMailbox(mailbox: {
       if (!mailbox.nangoConnectionId) {
         throw new Error("Gmail mailbox is missing nangoConnectionId");
       }
-      if (!env.NANGO_SECRET_KEY) {
+      if (!nangoProxy) {
         throw new Error(
-          "NANGO_SECRET_KEY is not set. Configure Nango Cloud credentials before using Gmail mailboxes.",
+          "Gmail adapter requires a NangoProxyClient — inject via createAdapterForMailbox's second argument",
         );
       }
       return createGmailAdapter({
         nangoConnectionId: mailbox.nangoConnectionId,
         fromAddress: mailbox.address,
         fromName,
-        nango: wrapNango(getNango()),
+        nango: nangoProxy,
       });
     }
     case "microsoft": {
       if (!mailbox.nangoConnectionId) {
         throw new Error("Microsoft mailbox is missing nangoConnectionId");
       }
-      if (!env.NANGO_SECRET_KEY) {
+      if (!nangoProxy) {
         throw new Error(
-          "NANGO_SECRET_KEY is not set. Configure Nango Cloud credentials before using Microsoft mailboxes.",
+          "Microsoft adapter requires a NangoProxyClient — inject via createAdapterForMailbox's second argument",
         );
       }
       return createMicrosoftAdapter({
         nangoConnectionId: mailbox.nangoConnectionId,
         fromAddress: mailbox.address,
         fromName,
-        nango: wrapNango(getNango()),
+        nango: nangoProxy,
       });
     }
     case "smtp": {

@@ -92,6 +92,41 @@ export interface AiResearchPayload {
   forceRefresh: boolean;
 }
 
+// ── import.process — async CSV prospect import (Wave 5) ─────────────────────
+const importProcessRowSchema = z.object({
+  rowNumber: z.number().int().positive(),
+  prospect: z.object({
+    email: z.string(),
+    firstName: z.string().nullable().optional(),
+    lastName: z.string().nullable().optional(),
+    title: z.string().nullable().optional(),
+    phone: z.string().nullable().optional(),
+    linkedinUrl: z.string().nullable().optional(),
+    timezone: z.string().nullable().optional(),
+  }),
+  company: z
+    .object({
+      name: z.string().nullable().optional(),
+      domain: z.string().nullable().optional(),
+      industry: z.string().nullable().optional(),
+      website: z.string().nullable().optional(),
+    })
+    .optional(),
+});
+
+export const importProcessSchema = z.object({
+  batchId: z.string().uuid(),
+  organizationId: z.string(),
+  dedupePolicy: z.enum(["skip_existing", "update_existing"]),
+  rows: z.array(importProcessRowSchema).max(5000),
+});
+export interface ImportProcessPayload {
+  batchId: string;
+  organizationId: string;
+  dedupePolicy: "skip_existing" | "update_existing";
+  rows: z.infer<typeof importProcessRowSchema>[];
+}
+
 /**
  * Mapping from job name → concrete payload type. Consumers use this to look up
  * a payload interface by job name at the type level; runtime code uses
@@ -106,6 +141,7 @@ export interface JobPayloadMap {
   "crm.writeback": CrmWritebackPayload;
   "webhook.deliver": WebhookDeliverPayload;
   "ai.research": AiResearchPayload;
+  "import.process": ImportProcessPayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -119,6 +155,7 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "crm.writeback": crmWritebackSchema,
   "webhook.deliver": webhookDeliverSchema,
   "ai.research": aiResearchSchema,
+  "import.process": importProcessSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];

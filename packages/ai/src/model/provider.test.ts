@@ -48,4 +48,13 @@ describe("getDefaultModel", () => {
       else delete process.env.AI_DEFAULT_PROVIDER;
     }
   });
+
+  it("returns model metadata matching the resolved default", () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    process.env.AI_DEFAULT_PROVIDER = "anthropic";
+    const result = getDefaultModel();
+    expect(result.provider).toBe("anthropic");
+    expect(result.modelId).toBe("claude-sonnet-4-5");
+    expect(result.model).toBeDefined();
+  });
 });

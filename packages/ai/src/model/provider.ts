@@ -9,6 +9,18 @@ const DEFAULT_MODEL_IDS: Record<ModelProviderId, string> = {
   openai: "gpt-4o",
 };
 
+export interface DefaultModelResult {
+  readonly model: LanguageModel;
+  readonly modelId: string;
+  readonly provider: ModelProviderId;
+}
+
+function resolveDefaultProvider(): ModelProviderId {
+  return (
+    (process.env.AI_DEFAULT_PROVIDER as ModelProviderId | undefined) ?? env.AI_DEFAULT_PROVIDER
+  );
+}
+
 function requireApiKey(provider: ModelProviderId): string {
   if (provider === "anthropic") {
     const key = process.env.ANTHROPIC_API_KEY ?? env.ANTHROPIC_API_KEY;
@@ -42,11 +54,12 @@ export function resolveModel(spec: ModelSpec): LanguageModel {
   }
 }
 
-export function getDefaultModel(): LanguageModel {
-  const provider =
-    (process.env.AI_DEFAULT_PROVIDER as ModelProviderId | undefined) ?? env.AI_DEFAULT_PROVIDER;
-  return resolveModel({
+export function getDefaultModel(): DefaultModelResult {
+  const provider = resolveDefaultProvider();
+  const modelId = DEFAULT_MODEL_IDS[provider];
+  return {
+    model: resolveModel({ provider, modelId }),
+    modelId,
     provider,
-    modelId: DEFAULT_MODEL_IDS[provider],
-  });
+  };
 }

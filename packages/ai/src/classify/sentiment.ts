@@ -56,7 +56,7 @@ export async function classifyInboundSentiment(
 
   try {
     const { text } = await generateText({
-      model: getDefaultModel(),
+      model: getDefaultModel().model,
       prompt,
       abortSignal: controller.signal,
     });

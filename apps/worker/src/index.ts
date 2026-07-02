@@ -4,6 +4,7 @@ import { initSentry, Sentry, shutdownPostHog } from "@quiksend/observability";
 import { enqueue, getBoss, registerHandler, stopBoss } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
 import { registerAiResearchHandler } from "./handlers/ai-research.ts";
+import { registerImportProspectsHandler } from "./handlers/import-prospects.ts";
 import { registerCrmSyncHandler } from "./handlers/crm-sync.ts";
 import { registerWebhookFanoutHandler } from "./handlers/webhook-fanout.ts";
 import { registerCrmWritebackHandler } from "./handlers/crm-writeback.ts";
@@ -51,6 +52,7 @@ async function main(): Promise<void> {
   await registerWebhookFanoutHandler();
   await registerCrmWritebackHandler();
   await registerAiResearchHandler();
+  await registerImportProspectsHandler();
   await registerSequenceHandlers();
   await registerMailboxPollHandler();
   await registerMailboxPollTick();

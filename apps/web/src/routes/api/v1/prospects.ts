@@ -12,15 +12,7 @@ import {
   withApiAuth,
 } from "@/lib/api/v1/middleware.ts";
 import { normalizeEmail } from "@/lib/prospect-import.ts";
-
-const prospectStatusSchema = z.enum([
-  "new",
-  "active",
-  "replied",
-  "bounced",
-  "unsubscribed",
-  "do_not_contact",
-]);
+import { apiCreateProspectSchema, prospectStatusSchema } from "@/lib/schemas/prospect.ts";
 
 function serializeProspect(row: typeof tables.prospect.$inferSelect) {
   return {
@@ -102,16 +94,7 @@ export const Route = createFileRoute("/api/v1/prospects")({
           const body = await parseJsonBody<Record<string, unknown>>(request);
           if (!body) return jsonError("INVALID_JSON", "Request body must be valid JSON", 400);
 
-          const parsed = z
-            .object({
-              email: z.string().min(1).max(320),
-              firstName: z.string().max(200).optional(),
-              lastName: z.string().max(200).optional(),
-              title: z.string().max(200).optional(),
-              status: prospectStatusSchema.optional(),
-              companyId: z.string().uuid().optional(),
-            })
-            .safeParse(body);
+          const parsed = apiCreateProspectSchema.safeParse(body);
 
           if (!parsed.success) {
             return jsonError("VALIDATION", parsed.error.message, 400);
