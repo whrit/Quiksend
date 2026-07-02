@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/whrit/Quiksend/compare/v1.9.0...v1.10.0) (2026-07-02)
+
+
+### Features
+
+* **phase-7-inbox:** Phase 7 complete ([#27](https://github.com/whrit/Quiksend/issues/27)) ([07e61c3](https://github.com/whrit/Quiksend/commit/07e61c36a522c18f4504fba519c88a3f2fae8fc5))
+
 ## [1.9.0](https://github.com/whrit/Quiksend/compare/v1.8.0...v1.9.0) (2026-07-02)
 
 
