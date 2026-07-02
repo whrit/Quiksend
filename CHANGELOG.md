@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.1.1](https://github.com/whrit/Quiksend/compare/v2.1.0...v2.1.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* **wave6-omega:** close remaining review findings ([#44](https://github.com/whrit/Quiksend/issues/44)) ([4407d96](https://github.com/whrit/Quiksend/commit/4407d964555ab83bcf37417f9c23be74e20c9029))
+
+
+### Documentation
+
+* **wave6-psi:** real-user documentation ([#43](https://github.com/whrit/Quiksend/issues/43)) ([0925103](https://github.com/whrit/Quiksend/commit/0925103f5677e03b28a18e5f44b4ec8525d211e8))
+
 ## [2.1.0](https://github.com/whrit/Quiksend/compare/v2.0.0...v2.1.0) (2026-07-02)
 
 
