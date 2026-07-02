@@ -9,6 +9,7 @@ import { db, tables } from "@quiksend/db";
 import { and, asc, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { orgFn } from "./org-fn.ts";
+import { applyWebEffects } from "./effect-executor.ts";
 import { validateTemplate } from "./sequence-templates.ts";
 
 class SequenceError extends Error {
@@ -904,16 +905,22 @@ async function transitionEnrollment(
   const snapshot = buildEnrollmentSnapshot(row, steps);
   const result = transition(snapshot, event);
 
-  const [updated] = await db
-    .update(tables.enrollment)
-    .set({ state: result.nextState })
-    .where(
-      and(
-        eq(tables.enrollment.id, enrollmentId),
-        eq(tables.enrollment.organizationId, organizationId),
-      ),
-    )
-    .returning();
+  await db.transaction(async (tx) => {
+    await applyWebEffects(tx, enrollmentId, organizationId, result.effects, {
+      nextState: result.nextState,
+      emitContext: {
+        sequenceId: row.sequenceId,
+        prospectId: row.prospectId,
+      },
+    });
+  });
+
+  const updated = await db.query.enrollment.findFirst({
+    where: and(
+      eq(tables.enrollment.id, enrollmentId),
+      eq(tables.enrollment.organizationId, organizationId),
+    ),
+  });
   if (!updated) throw new SequenceError("NOT_FOUND", "Enrollment not found");
   return { enrollment: serializeEnrollment(updated), effects: result.effects };
 }
