@@ -1,0 +1,21 @@
+{
+  "name": "@quiksend/integrations",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./nango": "./src/nango.ts",
+    "./webhook": "./src/webhook.ts",
+    "./providers": "./src/providers/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nangohq/node": "0.70.9",
+    "@quiksend/config": "workspace:*",
+    "zod": "4.4.3"
+  }
+}

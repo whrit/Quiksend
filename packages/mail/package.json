@@ -1,0 +1,28 @@
+{
+  "name": "@quiksend/mail",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./adapter": "./src/adapter.ts",
+    "./mime": "./src/mime.ts",
+    "./threading": "./src/threading.ts",
+    "./compliance": "./src/compliance.ts",
+    "./adapters/smtp": "./src/adapters/smtp.ts",
+    "./adapters/gmail": "./src/adapters/gmail.ts",
+    "./adapters/microsoft": "./src/adapters/microsoft.ts",
+    "./adapters/fake": "./src/adapters/fake.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@quiksend/config": "workspace:*",
+    "nodemailer": "9.0.3"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "8.0.1"
+  }
+}

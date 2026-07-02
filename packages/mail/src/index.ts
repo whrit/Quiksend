@@ -1,0 +1,13 @@
+/**
+ * `@quiksend/mail` — mailbox adapters + MIME/threading/compliance.
+ *
+ * The `MailboxAdapter` interface (adapter.ts) is the single contract Phase-6's
+ * step executor talks to. Three implementations land in Phase 4: SMTP
+ * (nodemailer + Mailpit for local), Gmail (Gmail API via Nango), Microsoft
+ * (Graph via Nango). The fake adapter (adapters/fake.ts) is what unit tests
+ * inject.
+ */
+export * from "./adapter.ts";
+export * from "./threading.ts";
+export * from "./compliance.ts";
+export { buildMime, type BuildMimeInput, type BuildMimeOutput } from "./mime.ts";

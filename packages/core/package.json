@@ -1,0 +1,21 @@
+{
+  "name": "@quiksend/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schedule": "./src/schedule/index.ts",
+    "./state-machine": "./src/state-machine/index.ts",
+    "./tenancy": "./src/tenancy.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@quiksend/config": "workspace:*",
+    "date-fns": "4.1.0",
+    "date-fns-tz": "3.2.0"
+  }
+}

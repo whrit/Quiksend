@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
+import { Toaster } from "@/components/ui/sonner";
 import appCss from "@/styles/app.css?url";
 
 export const Route = createRootRoute({
@@ -30,6 +31,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
       </head>
       <body>
         {children}
+        <Toaster richColors position="top-right" />
         <Scripts />
       </body>
     </html>
