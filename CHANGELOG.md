@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/whrit/Quiksend/compare/v1.0.3...v1.1.0) (2026-07-02)
+
+
+### Features
+
+* **foundations:** scaffold core/mail/integrations/queue/observability packages ([#9](https://github.com/whrit/Quiksend/issues/9)) ([1b4a564](https://github.com/whrit/Quiksend/commit/1b4a564886bc7ae07d7a91f2d1eed50b1f9b35ce))
+
 ## [1.0.3](https://github.com/whrit/Quiksend/compare/v1.0.2...v1.0.3) (2026-07-01)
 
 
