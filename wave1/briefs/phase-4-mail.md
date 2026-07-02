@@ -1,13 +1,17 @@
 # PHASE-4: Mailboxes + Single Send (SMTP-first) — Track B
 
 ## Repo
+
 `/Users/beckett/Projects/quik-ideas/quiksend`
 
 ## Branch
+
 `feat/phase-4-mail-smtp` from `main` (worktree, isolated).
 
 ## Context
+
 Read at repo root first:
+
 1. `CLAUDE.md`
 2. `WAVE_CONTEXT.md` (critical — `message` table designed for inbound from day one)
 3. `docs/implementations/phases/Quiksend-Implementation-Plan-Phases-2-10.md` section
@@ -22,9 +26,11 @@ Local infra is running: Postgres on `:5432`, Mailpit on `:1025` (SMTP) and
 `:8025` (UI). See `docker-compose.yml`.
 
 ## Documentation lookup (mandatory)
+
 Fetch via Context7 MCP before writing:
+
 - **nodemailer** — `createTransport({host, port, ...})`, `sendMail({from, to, subject,
-  html, text, headers, messageId, references, inReplyTo})`, the `SentMessageInfo`
+html, text, headers, messageId, references, inReplyTo})`, the `SentMessageInfo`
   return shape (envelope, messageId, response, accepted, rejected)
 - **Drizzle ORM** — schema + migrations + partial indexes + jsonb defaults
 - **TanStack Start** — `createServerFn`, file-based route conventions
@@ -42,7 +48,7 @@ Fetch via Context7 MCP before writing:
   address (text notNull, lowercased),
   display_name (text nullable), from_name (text nullable),
   nango_connection_id (text nullable — for gmail/microsoft in Wave 2),
-  smtp_config (jsonb nullable — encrypted; for provider='smtp'), 
+  smtp_config (jsonb nullable — encrypted; for provider='smtp'),
   daily_cap (int default 50 notNull),
   send_window (jsonb notNull, default `{"timezone":"UTC","window":{"mon":[[9,17]],"tue":[[9,17]],"wed":[[9,17]],"thu":[[9,17]],"fri":[[9,17]]}}`),
   throttle_seconds (int default 90 notNull),
@@ -54,7 +60,7 @@ Fetch via Context7 MCP before writing:
   Unique `(organization_id, address, provider)`.
 
 - **`message`** — id (uuid pk), organization_id (text FK cascade),
-  mailbox_id (uuid FK → mailbox.id cascade), 
+  mailbox_id (uuid FK → mailbox.id cascade),
   prospect_id (uuid FK → prospect.id set null — Track 2's table),
   enrollment_id (uuid nullable — Phase 5+),
   direction pg enum ('outbound', 'inbound') default 'outbound' notNull,
@@ -76,16 +82,19 @@ Fetch via Context7 MCP before writing:
   - `(organization_id, prospect_id)` — prospect timeline
 
 Barrel export from `packages/db/src/schema/index.ts`:
+
 ```ts
 export * from "./mail.ts";
 ```
 
 ### T2 — Activate tenancy guard
+
 Add `mailbox`, `message` to `APP_SCOPED_TABLES` (tenancy-guard.test.ts).
 Add to `APP_SCOPED_TABLES_TO_TRUNCATE` (testing.ts) — order matters:
 `message` before `mailbox` before `prospect` (Track 2 will list this too).
 
 ### T3 — Migration
+
 `pnpm db:generate --name phase4_mailbox_message` → review → `pnpm db:migrate`.
 
 ### T4 — SMTP adapter (`packages/mail/src/adapters/smtp.ts`)
@@ -95,11 +104,13 @@ config from the DB row's `smtp_config` field (assume already decrypted — see T
 
 ```ts
 export function createSmtpAdapter(config: {
-  host: string; port: number;
+  host: string;
+  port: number;
   auth?: { user: string; pass: string };
   secure?: boolean;
-  fromAddress: string; fromName?: string;
-}): MailboxAdapter
+  fromAddress: string;
+  fromName?: string;
+}): MailboxAdapter;
 ```
 
 - `send(input)` — build MIME via `buildMime()` from `@quiksend/mail`, hand raw MIME
@@ -122,6 +133,7 @@ Register the SMTP adapter in `packages/mail/src/adapters/index.ts` (extend the
 barrel).
 
 Unit-test in `packages/mail/src/adapters/smtp.test.ts`:
+
 - Mock nodemailer `createTransport` (Vitest module mock) — assert `sendMail` is
   called with correctly-built MIME.
 - Verify threading headers pass through when `anchor` is provided (build via
@@ -131,6 +143,7 @@ Unit-test in `packages/mail/src/adapters/smtp.test.ts`:
 ### T5 — SMTP credential encryption (`packages/mail/src/crypto.ts`)
 
 `MAILBOX_ENCRYPTION_KEY` (base64 32-byte) already declared in env. Implement:
+
 - `encryptSmtpConfig(plain, keyBase64) → base64String` — AES-256-GCM,
   random nonce, output = `nonce || tag || ciphertext` (base64-encoded).
 - `decryptSmtpConfig(cipher, keyBase64) → plain`.
@@ -142,12 +155,13 @@ tampered ciphertext fails auth-tag verification.
 ### T6 — DNS auth checker (`packages/mail/src/dns.ts`)
 
 Wraps Node's `dns/promises`. Exports:
+
 ```ts
 export async function checkDomainAuth(domain: string): Promise<{
   spf: { pass: boolean; reason: string | null; record: string | null };
   dkim: { pass: boolean; reason: string | null };
   dmarc: { pass: boolean; reason: string | null; record: string | null };
-}>
+}>;
 ```
 
 - SPF: `dns.resolveTxt(domain)`; scan for `v=spf1`; pass=true if a permissive
@@ -165,7 +179,7 @@ Every fn `orgFn`-guarded. Admin gate via `isAdminOrOwner`.
 - `listMailboxes()` — org-scoped, ordered by created_at desc.
 - `getMailbox({ id })` — 404 outside caller's org.
 - `createSmtpMailbox({ address, fromName?, host, port, secure?, auth?,
-  dailyCap?, throttleSeconds?, sendWindow?, signatureHtml? })` — admin gate.
+dailyCap?, throttleSeconds?, sendWindow?, signatureHtml? })` — admin gate.
   Encrypts `smtp_config` with `MAILBOX_ENCRYPTION_KEY`.
 - `updateMailbox({ id, patch })` — admin gate; patch is a narrow Zod object.
 - `deleteMailbox({ id })` — admin gate; cascade drops messages.
@@ -179,7 +193,7 @@ Every fn `orgFn`-guarded. Admin gate via `isAdminOrOwner`.
 ### T8 — Compose + single send (`apps/web/src/lib/compose.functions.ts`)
 
 - `sendComposedMessage({ mailboxId, prospectId, subject, bodyHtml, bodyText?,
-  anchor? })` — org-scoped:
+anchor? })` — org-scoped:
   1. Load mailbox + prospect (both in caller's org).
   2. Resolve compliance data:
      - Sender org name = the `organization.name`
@@ -222,6 +236,7 @@ pnpm check     # MUST be green
 ```
 
 Local Mailpit smoke:
+
 - With docker compose up, sign in, create an SMTP mailbox pointed at Mailpit
   (host=localhost, port=1025, no auth).
 - From compose page, send yourself a test email to any address.
@@ -233,6 +248,7 @@ Local Mailpit smoke:
 Note any issue in RESULT.notes.
 
 ## Constraints
+
 - **Touch ONLY** files under "Track 4 owns" in WAVE_CONTEXT.md plus:
   - `packages/db/src/schema/index.ts` (one export line)
   - `packages/db/src/tenancy-guard.test.ts` (add table names)
@@ -249,6 +265,7 @@ Note any issue in RESULT.notes.
   defaults.
 
 ## Result
+
 ```json
 {
   "status": "ok",

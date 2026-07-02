@@ -1,13 +1,17 @@
 # PHASE-8: AI research + generation + humanizer + review UI — Track K
 
 ## Repo
+
 `/Users/beckett/Projects/quik-ideas/quiksend`
 
 ## Branch
+
 `feat/phase-8-ai` from `main` (worktree isolated).
 
 ## Context
+
 Read at repo root first:
+
 1. `CLAUDE.md`
 2. `WAVE_CONTEXT.md` files (root + wave4)
 3. `docs/implementations/phases/Quiksend-Implementation-Plan-Phases-2-10.md` section "Phase 8"
@@ -21,7 +25,9 @@ research pipeline (CRM + web + summarize → research_profile), prompt builder
 integration, and the human-review UI.
 
 ## Documentation lookup (mandatory)
+
 Context7 MCP for:
+
 - **`ai`** SDK (Vercel AI SDK) — `generateObject`, `generateText`, `tool` for
   provider-agnostic model calls
 - **`@ai-sdk/anthropic`** + **`@ai-sdk/openai`** — provider adapters
@@ -34,7 +40,9 @@ Context7 MCP for:
 ## Tasks
 
 ### T1 — Extend schema (`packages/db/src/schema/ai.ts`)
+
 Phase 8-prep added `value_prop` + `research_profile`. Extend:
+
 - **`generation`** — id (uuid pk), organization_id, prospect_id, enrollment_id
   (nullable), step_id (nullable), variant text ('A' | 'B'),
   prompt jsonb (the full prompt payload for audit),
@@ -48,10 +56,12 @@ Phase 8-prep added `value_prop` + `research_profile`. Extend:
   Index `(organization_id, prospect_id, created_at DESC)`.
 
 Add pgvector embedding to research_profile if not already there:
+
 - `embedding vector(1536)` (OpenAI text-embedding-3-small dim)
 - HNSW index for cosine similarity
 
 ### T2 — Research pipeline (`packages/ai/src/research/`)
+
 - `fetch-crm-context.ts` — pulls prospect + company + recent activity from CRM
   via `getNango().proxy(...)` (only if CRM connection exists for this workspace;
   otherwise skip)
@@ -64,12 +74,13 @@ Add pgvector embedding to research_profile if not already there:
   writes `research_profile` row with `fresh_until` = now + 14d.
 
 ### T3 — Generation (`packages/ai/src/generation/`)
+
 - `prompt-builder.ts` — takes:
   - `research_profile` (facts + sources)
   - top-N `value_prop` rows retrieved via pgvector similarity against research summary
   - `step` (subject/body template if not `ai_generate: true`, or full generation)
   - `thread_context` (prior messages if follow-up)
-  builds a system prompt + user prompt.
+    builds a system prompt + user prompt.
 - `generate-email.ts` — calls `generateObject({ model, schema: EmailSchema, ... })`
   with retries on schema-parse failure (bounded to 2). Returns `Generation`
   object; caller persists to `generation` table.
@@ -79,22 +90,27 @@ Add pgvector embedding to research_profile if not already there:
     subject: z.string().min(1).max(200),
     body_markdown: z.string().min(50).max(3000),
     angle: z.string(), // "why this approach" rationale
-    cited_facts: z.array(z.object({
-      claim: z.string(),
-      source_url: z.string().url().optional()
-    }))
-  })
+    cited_facts: z.array(
+      z.object({
+        claim: z.string(),
+        source_url: z.string().url().optional(),
+      }),
+    ),
+  });
   ```
 
 ### T4 — Humanizer (`packages/ai/src/humanize/`)
+
 Port the `cold-email-humanizer` skill's logic OR call it as a subagent.
 Inline implementation is fine:
+
 - Spintax parser: `{option1|option2|option3}` → picks one (deterministic
   seeded by generation_id for reproducibility)
 - Spam-phrase lint: check against a list of trigger phrases, surface warnings
 - Length + reading-grade check
 
 ### T5 — Server fns (`apps/web/src/lib/ai.functions.ts`)
+
 - `generateEmailForProspect({ prospectId, stepId?, enrollmentId?, forceResearch? })`
   — kicks off research if profile missing/stale, then generates. Returns the
   generation row.
@@ -106,7 +122,9 @@ Inline implementation is fine:
   registered the handler).
 
 ### T6 — Worker handler (`apps/worker/src/handlers/ai-research.ts`)
+
 Register `ai.research`:
+
 ```ts
 registerHandler("ai.research", async ({ prospectId, forceRefresh }) => {
   await buildProfile(prospectId, { forceRefresh });
@@ -126,6 +144,7 @@ registerHandler("ai.research", async ({ prospectId, forceRefresh }) => {
 - Value-prop settings page (`_protected/settings/value-props.tsx`) — CRUD list.
 
 ### T8 — Verification (STRICT)
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm db:generate --name phase8_ai
@@ -134,6 +153,7 @@ pnpm check   # green
 ```
 
 Manual smoke:
+
 - Add a value_prop for the workspace.
 - Pick a prospect with a company_domain populated.
 - Trigger research → verify facts populated with sources.
@@ -142,6 +162,7 @@ Manual smoke:
 - Verify humanizer output differs from raw model output (spintax + variation).
 
 ## Constraints
+
 - **Touch ONLY**:
   - `packages/db/src/schema/ai.ts` (extend — Phase 8-prep created)
   - `packages/db/src/schema/index.ts` (verify export)
@@ -159,6 +180,7 @@ Manual smoke:
   explicitly warns; only ground claims in cited_facts
 
 ## Result
+
 ```json
 {
   "status": "ok",

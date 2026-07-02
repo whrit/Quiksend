@@ -1,12 +1,15 @@
 # PHASE-6: Scheduler + step executor + reserveSendSlot + idempotency — Track G
 
 ## Repo
+
 `/Users/beckett/Projects/quik-ideas/quiksend`
 
 ## Branch
+
 `feat/phase-6-engine` from `main` (worktree isolated).
 
 ## Context (read in order)
+
 1. `CLAUDE.md`
 2. All `WAVE_CONTEXT.md` (root + wave3)
 3. `docs/implementations/phases/Quiksend-Implementation-Plan-Phases-2-10.md` — section
@@ -23,9 +26,10 @@ duplicate sends, cap breaches, or lost enrollments. Treat every branch as
 adversarial and test exhaustively.
 
 ## Documentation lookup (mandatory)
+
 Context7 MCP for:
-- **Drizzle ORM** — raw `sql\`\`` template usage (ORM query builder does NOT emit
-  `FOR UPDATE SKIP LOCKED`; you MUST use raw SQL for the claim query)
+
+- **Drizzle ORM** — raw `sql\`\``template usage (ORM query builder does NOT emit`FOR UPDATE SKIP LOCKED`; you MUST use raw SQL for the claim query)
 - **pg-boss v12** — `schedule("job", cron, data, options)` for the periodic tick,
   `send()` with `startAfter`/`retryLimit`/`retryBackoff` options, `singletonKey`
   for idempotency at the queue level too
@@ -61,15 +65,18 @@ Context7 MCP for:
   Index `(payload_ref, created_at DESC)` for debugging.
 
 Extend `enrollment` schema (Phase 5 pre-baked most fields — you WRITE them):
+
 - No schema changes needed. `anchor_message_id`, `anchor_thread_id`,
   `attempt_count`, `last_error`, `idempotency_key` are already there.
 
 Extend `message` schema:
+
 - Add `idempotency_key text unique` — used by `recordOutbound` to prevent double-writes.
 
 Barrel + tenancy guard + testing.ts.
 
 ### T2 — Migration
+
 `pnpm db:generate --name phase6_tasks_reservations` → review → `pnpm db:migrate`.
 
 ### T3 — Scheduler tick (`apps/worker/src/sequence/tick.ts`)
@@ -92,7 +99,9 @@ export async function tick(): Promise<void> {
     `);
     for (const row of rows.rows) {
       // Null the next_run_at atomically so re-claims don't pick this up.
-      await tx.execute(sql`UPDATE enrollment SET next_run_at = NULL WHERE id = ${row.id}`);
+      await tx.execute(
+        sql`UPDATE enrollment SET next_run_at = NULL WHERE id = ${row.id}`,
+      );
       await enqueue("sequence.step", { enrollmentId: row.id, attempt: 0 });
     }
   });
@@ -100,6 +109,7 @@ export async function tick(): Promise<void> {
 ```
 
 Register via pg-boss schedule in `apps/worker/src/index.ts`:
+
 ```ts
 await boss.schedule("sequence.tick", "*/30 * * * * *", {}, { tz: "UTC" });
 await registerHandler("sequence.tick", tick);
@@ -112,42 +122,67 @@ snapshot → call `transition({ kind: "tick" })` from `@quiksend/core` → inter
 effects.
 
 **Structure:**
+
 ```ts
 export async function executeStep({ enrollmentId, attempt }): Promise<void> {
-  const ctx = await loadContext(enrollmentId);            // enrollment + sequence + step + mailbox + prospect + prior messages
+  const ctx = await loadContext(enrollmentId); // enrollment + sequence + step + mailbox + prospect + prior messages
   const snapshot = toSnapshot(ctx);
-  const { nextState, effects } = transition(snapshot, { kind: "tick", at: new Date() });
+  const { nextState, effects } = transition(snapshot, {
+    kind: "tick",
+    at: new Date(),
+  });
 
   // Defense in depth: check terminal guards BEFORE effects
   if (await isSuppressed(ctx.orgId, ctx.prospect.email)) {
     return terminate(ctx, "unsubscribed");
   }
-  if (ctx.stopOnReply && await hasReplyOnThread(ctx)) {
+  if (ctx.stopOnReply && (await hasReplyOnThread(ctx))) {
     return terminate(ctx, "replied");
   }
 
   await db.transaction(async (tx) => {
     for (const effect of effects) {
       switch (effect.kind) {
-        case "send_auto": await handleSendAuto(tx, ctx, effect, attempt); break;
-        case "create_compose_task": await createComposeTask(tx, ctx, effect); break;
-        case "create_task": await createTask(tx, ctx, effect); break;
-        case "advance_step": await advanceStep(tx, ctx); break;
-        case "capture_anchor": /* handled in on-send path */ break;
-        case "emit_event": await emitEvent(tx, ctx, effect.type); break;
-        case "terminate": await terminateInTx(tx, ctx, effect.reason); break;
-        case "increment_attempt": await incrementAttempt(tx, ctx); break;
-        case "schedule_at": await scheduleAt(tx, ctx, effect.at); break;
+        case "send_auto":
+          await handleSendAuto(tx, ctx, effect, attempt);
+          break;
+        case "create_compose_task":
+          await createComposeTask(tx, ctx, effect);
+          break;
+        case "create_task":
+          await createTask(tx, ctx, effect);
+          break;
+        case "advance_step":
+          await advanceStep(tx, ctx);
+          break;
+        case "capture_anchor":
+          /* handled in on-send path */ break;
+        case "emit_event":
+          await emitEvent(tx, ctx, effect.type);
+          break;
+        case "terminate":
+          await terminateInTx(tx, ctx, effect.reason);
+          break;
+        case "increment_attempt":
+          await incrementAttempt(tx, ctx);
+          break;
+        case "schedule_at":
+          await scheduleAt(tx, ctx, effect.at);
+          break;
       }
     }
     if (nextState !== ctx.enrollment.state) {
-      await tx.update(enrollment).set({ state: nextState }).where(eq(enrollment.id, ctx.enrollmentId));
+      await tx
+        .update(enrollment)
+        .set({ state: nextState })
+        .where(eq(enrollment.id, ctx.enrollmentId));
     }
   });
 }
 ```
 
 Register `sequence.step` handler with retries:
+
 ```ts
 await registerHandler("sequence.step", executeStep);
 // pg-boss retry: 5 attempts, exponential backoff (60s, 5m, 30m, 3h, 12h)
@@ -173,7 +208,9 @@ export async function reserveSendSlot(
   mailboxId: string,
   enrollmentId: string,
   at: Date,
-): Promise<{ ok: true; reservationId: number } | { ok: false; deferUntil: Date }> {
+): Promise<
+  { ok: true; reservationId: number } | { ok: false; deferUntil: Date }
+> {
   return db.transaction(async (tx) => {
     // Serialize per-mailbox
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${mailboxId}))`);
@@ -185,20 +222,36 @@ export async function reserveSendSlot(
     }
     // 2. Throttle (min gap since last send on this mailbox)
     const lastSend = await lastSendAt(tx, mailboxId);
-    if (lastSend && (at.getTime() - lastSend.getTime()) / 1000 < mailbox.throttle_seconds) {
-      return { ok: false, deferUntil: new Date(lastSend.getTime() + mailbox.throttle_seconds * 1000) };
+    if (
+      lastSend &&
+      (at.getTime() - lastSend.getTime()) / 1000 < mailbox.throttle_seconds
+    ) {
+      return {
+        ok: false,
+        deferUntil: new Date(
+          lastSend.getTime() + mailbox.throttle_seconds * 1000,
+        ),
+      };
     }
     // 3. Daily cap (rolling 24h)
     const usedInWindow = await countReservationsInWindow(tx, mailboxId, at);
     if (usedInWindow >= mailbox.daily_cap) {
       const oldestInWindow = await oldestReservationTime(tx, mailboxId, at);
-      const deferUntil = new Date(oldestInWindow.getTime() + 24 * 60 * 60 * 1000);
+      const deferUntil = new Date(
+        oldestInWindow.getTime() + 24 * 60 * 60 * 1000,
+      );
       return { ok: false, deferUntil };
     }
     // Reserve
-    const [row] = await tx.insert(sendReservation).values({
-      mailboxId, enrollmentId, windowStart: startOfWindow(at), status: 'held',
-    }).returning({ id: sendReservation.id });
+    const [row] = await tx
+      .insert(sendReservation)
+      .values({
+        mailboxId,
+        enrollmentId,
+        windowStart: startOfWindow(at),
+        status: "held",
+      })
+      .returning({ id: sendReservation.id });
     return { ok: true, reservationId: row.id };
   });
 }
@@ -210,7 +263,7 @@ On successful send → `UPDATE send_reservation SET status='sent'`. On failure �
 ### T6 — Idempotency + retries + dead-letter
 
 - Every send writes a `message` row with `idempotency_key =
-  hashHex(SHA-256(enrollmentId + '|' + stepId + '|' + attempt))`.
+hashHex(SHA-256(enrollmentId + '|' + stepId + '|' + attempt))`.
 - Before invoking the adapter: `SELECT * FROM message WHERE idempotency_key = $1`.
   If found and `status='sent'` → no-op, treat as success (retry replaying a
   successful send).
@@ -222,11 +275,17 @@ On successful send → `UPDATE send_reservation SET status='sent'`. On failure �
 
 Server-fn callable from web app (Track B's compose UI at Phase 4). When the
 user sends a manual email through the compose UI:
+
 ```ts
 export async function captureManualAnchor({
-  enrollmentId, messageId, threadId, providerMessageId, sentAt,
-}): Promise<void>
+  enrollmentId,
+  messageId,
+  threadId,
+  providerMessageId,
+  sentAt,
+}): Promise<void>;
 ```
+
 Loads snapshot → calls `transition(snapshot, { kind: "manual_sent", anchorMessageId,
 anchorThreadId, at })` → interprets effects (capture_anchor + advance_step +
 emit_event) in a tx.
@@ -241,6 +300,7 @@ anchor, sets `current_step_index = 0`, computes `next_run_at` from the anchor's
 
 Seeds N workspaces × M enrollments × K steps. Runs 2 `apps/worker` processes
 concurrently for 5 min. Asserts:
+
 - No message row has duplicate `idempotency_key`
 - No mailbox exceeds `daily_cap` in any rolling 24h window
 - All enrollments either terminal or with valid `next_run_at`
@@ -250,6 +310,7 @@ This is the proof the engine holds under contention. Include a fake adapter
 that always succeeds so we're testing the ENGINE not the network.
 
 ### T9 — Verification (STRICT)
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm db:generate --name phase6_tasks_reservations
@@ -262,6 +323,7 @@ pnpm tsx scripts/load-test-engine.ts --workspaces=3 --enrollments=100 --workers=
 ```
 
 Manual smoke:
+
 - Create a sequence with manual_email → wait 5m → auto_email × 2.
 - Enroll a prospect.
 - Compose the manual — verify enrollment moves waiting_manual → active with
@@ -274,6 +336,7 @@ Manual smoke:
 - Kill and restart worker mid-batch → no double-sends on restart.
 
 ## Constraints
+
 - **Touch ONLY**:
   - `packages/db/src/schema/tasks.ts` (new)
   - `packages/db/src/schema/index.ts` (add exports)
@@ -295,6 +358,7 @@ Manual smoke:
   Postgres advisory locks.
 
 ## Result
+
 ```json
 {
   "status": "ok",

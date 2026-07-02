@@ -1,13 +1,17 @@
 # PHASE-10: Public REST API + outbound webhooks + hardening + V0 DoD — Track M
 
 ## Repo
+
 `/Users/beckett/Projects/quik-ideas/quiksend`
 
 ## Branch
+
 `feat/phase-10-api-webhooks` from `main` (worktree isolated).
 
 ## Context
+
 Read at repo root first:
+
 1. `CLAUDE.md`
 2. All `WAVE_CONTEXT.md` files
 3. `docs/implementations/phases/Quiksend-Implementation-Plan-Phases-2-10.md` section "Phase 10"
@@ -18,7 +22,9 @@ Read at repo root first:
 Final phase. When this merges, V0 DoD is complete → v2.0.0 release.
 
 ## Documentation lookup (mandatory)
+
 Context7 MCP for:
+
 - **Better Auth** `apiKey` plugin — `authClient.apiKey.create()` +
   server-side `verify` API to resolve `{ org, member }` from an incoming key
 - **TanStack Start** — `createFileRoute("/api/v1/prospects")` with `server.handlers`
@@ -28,7 +34,8 @@ Context7 MCP for:
 ## Tasks
 
 ### T1 — Schema (`packages/db/src/schema/api.ts`)
-- **`api_key_usage`** — id (bigserial), organization_id, api_key_id, 
+
+- **`api_key_usage`** — id (bigserial), organization_id, api_key_id,
   endpoint text, method text, status_code int, ip_address text,
   timestamp timestamptz default now notNull.
   Retention: partition by day (or a periodic purge job); for V0, a plain table
@@ -51,15 +58,18 @@ Context7 MCP for:
 
 Each endpoint is a `createFileRoute` server route with GET/POST/PATCH/DELETE
 handlers. Auth via a middleware helper:
+
 ```ts
 async function resolveApiKey(request: Request): Promise<{ orgId: string; member: {...} } | null>
 ```
+
 that calls Better Auth's apiKey verify. On invalid → 401.
 
 Rate limiting: token bucket per api_key_id, 100 req/min default (configurable
 per key later). Track in `api_key_usage`. Over-limit → 429 + `Retry-After` header.
 
 Endpoints (list is illustrative; verify Phase 10 plan):
+
 - `GET /api/v1/prospects` — list (query: status, list_id, cursor, limit)
 - `POST /api/v1/prospects` — create/upsert single
 - `GET /api/v1/prospects/{id}` — 404 outside org
@@ -79,17 +89,18 @@ generated from Zod schemas (share the schemas with server fns where possible).
 ### T3 — Outbound webhooks (`apps/worker/src/handlers/webhook-deliver.ts`)
 
 Register `webhook.deliver`:
+
 ```ts
 registerHandler("webhook.deliver", async ({ deliveryId }) => {
   const delivery = await loadDelivery(deliveryId);
   const signature = signWebhook(delivery.payload, endpoint.secret);
   const res = await fetch(endpoint.url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'X-Quiksend-Signature': signature,
-      'X-Quiksend-Delivery-Id': deliveryId,
-      'X-Quiksend-Timestamp': String(Math.floor(Date.now() / 1000)),
+      "Content-Type": "application/json",
+      "X-Quiksend-Signature": signature,
+      "X-Quiksend-Delivery-Id": deliveryId,
+      "X-Quiksend-Timestamp": String(Math.floor(Date.now() / 1000)),
     },
     body: JSON.stringify(delivery.payload),
   });
@@ -98,9 +109,12 @@ registerHandler("webhook.deliver", async ({ deliveryId }) => {
 ```
 
 Signing:
+
 ```ts
-signWebhook(payload, secret) = HMAC-SHA256(secret, timestamp + '.' + JSON.stringify(payload))
+signWebhook(payload, secret) =
+  HMAC - SHA256(secret, timestamp + "." + JSON.stringify(payload));
 ```
+
 Include timestamp to prevent replay; receivers verify `abs(now - ts) < 300s`.
 
 Retry: exponential backoff (1m, 5m, 30m, 3h, 12h) — 5 attempts total.
@@ -111,10 +125,14 @@ which endpoints subscribed to that event type, enqueues one `webhook.deliver`
 per subscribed endpoint.
 
 ### T4 — Unsubscribe (`packages/mail/src/unsubscribe.ts`)
+
 Stateless signed token:
+
 ```ts
-export function mintUnsubscribeToken({ prospectId, orgId }): string
-export function verifyUnsubscribeToken(token: string): { prospectId, orgId } | null
+export function mintUnsubscribeToken({ prospectId, orgId }): string;
+export function verifyUnsubscribeToken(
+  token: string,
+): { prospectId; orgId } | null;
 ```
 
 `UNSUBSCRIBE_TOKEN_SECRET` env var (already declared) signs a
@@ -149,6 +167,7 @@ Update `compose.functions.ts` (Phase 4-back) — replace the placeholder
   example.
 
 ### T6 — Verification (STRICT)
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm db:generate --name phase10_api_webhooks
@@ -158,6 +177,7 @@ pnpm ts-node scripts/load-test-scheduler.ts --workspaces=3 --enrollments=100 --w
 ```
 
 Manual smoke:
+
 - Create an API key via UI.
 - `curl -H "Authorization: Bearer <key>" localhost:3000/api/v1/prospects` — returns list.
 - Try key from org A on org B's prospect id — 404.
@@ -168,6 +188,7 @@ Manual smoke:
 - Complete self-host quickstart from README on a clean machine.
 
 ## Constraints
+
 - **Touch ONLY**:
   - `packages/db/src/schema/api.ts` (new)
   - `packages/db/src/schema/index.ts` (add exports)
@@ -189,6 +210,7 @@ Manual smoke:
 - Context7 MCP for Better Auth apiKey verify API, OpenAPI 3.1 conventions
 
 ## Result
+
 ```json
 {
   "status": "ok",

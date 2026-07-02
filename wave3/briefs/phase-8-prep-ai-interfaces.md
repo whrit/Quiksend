@@ -1,13 +1,17 @@
 # PHASE-8-PREP: packages/ai interfaces + value_prop CRUD + research_profile schema — Track I
 
 ## Repo
+
 `/Users/beckett/Projects/quik-ideas/quiksend`
 
 ## Branch
+
 `feat/phase-8-prep-ai` from `main` (worktree isolated).
 
 ## Context
+
 Read at repo root first:
+
 1. `CLAUDE.md`
 2. `WAVE_CONTEXT.md` (root + wave3)
 3. `docs/implementations/phases/Quiksend-Implementation-Plan-Phases-2-10.md` — Phase 8 section
@@ -17,7 +21,9 @@ Side-quest running in parallel with Phase 6 engine. Provides the interfaces
 and schemas Phase 8 proper (Wave 4) wires up.
 
 ## Documentation lookup (mandatory)
+
 Context7 MCP for:
+
 - **`ai`** SDK (Vercel AI SDK) — `LanguageModel` interface, provider adapter shape
 - **`@ai-sdk/anthropic`** + **`@ai-sdk/openai`** — provider instantiation
 - **Drizzle** — `vector(dim)` column type via `pgvector`, HNSW index syntax
@@ -28,6 +34,7 @@ Context7 MCP for:
 ### T1 — New package (`packages/ai/`)
 
 Create `packages/ai/` with:
+
 - `package.json` — deps: `@quiksend/config`, `@quiksend/db`, `ai`, `@ai-sdk/anthropic`, `@ai-sdk/openai`, `zod`
 - `tsconfig.json` — extends `../../tsconfig.base.json`
 - `src/index.ts` — barrel
@@ -39,15 +46,16 @@ Create `packages/ai/` with:
 export type ModelProviderId = "anthropic" | "openai";
 export interface ModelSpec {
   readonly provider: ModelProviderId;
-  readonly modelId: string;    // "claude-4.5-sonnet", "gpt-4o", etc.
+  readonly modelId: string; // "claude-4.5-sonnet", "gpt-4o", etc.
 }
 
 // provider.ts
 import type { LanguageModel } from "ai";
-export function resolveModel(spec: ModelSpec): LanguageModel
+export function resolveModel(spec: ModelSpec): LanguageModel;
 ```
 
 `resolveModel` switches on `spec.provider`:
+
 - `anthropic` → `import { anthropic } from "@ai-sdk/anthropic"; return anthropic(spec.modelId)`
   — requires `ANTHROPIC_API_KEY`
 - `openai` → `import { openai } from "@ai-sdk/openai"; return openai(spec.modelId)`
@@ -75,14 +83,21 @@ export interface SearchResult {
 
 export interface SearchProvider {
   readonly id: "exa" | "tavily" | "brave" | "fake";
-  search(query: string, options?: { limit?: number; recency?: "day" | "week" | "month" | "year" | null }): Promise<SearchResult[]>;
+  search(
+    query: string,
+    options?: {
+      limit?: number;
+      recency?: "day" | "week" | "month" | "year" | null;
+    },
+  ): Promise<SearchResult[]>;
 }
 
 // provider.ts
-export function createSearchProvider(id: SearchProvider["id"]): SearchProvider
+export function createSearchProvider(id: SearchProvider["id"]): SearchProvider;
 ```
 
 Implementations:
+
 - **`fake.ts`** — returns pre-canned results from a fixture map keyed by query.
   Used in tests. THIS IS THE ONLY IMPLEMENTATION Track I ships.
   Phase 8 proper adds real providers.
@@ -100,7 +115,7 @@ export interface FetchedPage {
   extractedAt: string;
 }
 
-export async function fetchAndExtract(url: string): Promise<FetchedPage>
+export async function fetchAndExtract(url: string): Promise<FetchedPage>;
 ```
 
 Uses `fetch()` with a 10s timeout + a user-agent that identifies as Quiksend
@@ -110,6 +125,7 @@ Context7 — `@mozilla/readability` needs a DOM; use `article-parser` or
 cleanly).
 
 For Phase 8-prep, a simple heuristic implementation is fine:
+
 - Strip `<script>`, `<style>`, `<nav>`, `<footer>`, `<header>`
 - Return the text content of `<main>` OR `<article>` OR `<body>` in that order
 
@@ -154,16 +170,18 @@ regenerates embeddings on create/update. For now, leave `embedding` NULL.
 
 ### T7 — Settings UI (`apps/web/src/routes/_protected/settings/value-props/`)
 
-- `index.tsx` — table of value props with columns: title, tags (badges), 
+- `index.tsx` — table of value props with columns: title, tags (badges),
   updated_at, actions (edit, delete).
 - Dialog for create/edit with title + body (Textarea) + tags (comma-separated).
 - Toast on mutations.
 
 ### T8 — Migration
+
 `pnpm db:generate --name phase8prep_ai_interfaces` → review → `pnpm db:migrate`.
 Confirm the pgvector extension creates cleanly on the existing pg17 image.
 
 ### T9 — Verification (STRICT)
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm db:generate --name phase8prep_ai_interfaces
@@ -172,6 +190,7 @@ pnpm check   # green
 ```
 
 Manual smoke:
+
 - Load `/settings/value-props` — empty state.
 - Create a value prop (title + body + tags).
 - Verify DB row exists with `embedding IS NULL`.
@@ -182,6 +201,7 @@ Manual smoke:
   the app in a broken state).
 
 ## Constraints
+
 - **Touch ONLY**:
   - `packages/ai/` (new package)
   - `packages/db/src/schema/ai.ts` (new)
@@ -194,6 +214,7 @@ Manual smoke:
 - Context7 MCP for `ai` SDK, `@ai-sdk/*`, pgvector Drizzle syntax
 
 ## Result
+
 ```json
 {
   "status": "ok",

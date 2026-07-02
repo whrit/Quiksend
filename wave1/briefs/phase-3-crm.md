@@ -1,13 +1,17 @@
 # PHASE-3: Nango + CRM Sync — Track C
 
 ## Repo
+
 `/Users/beckett/Projects/quik-ideas/quiksend`
 
 ## Branch
+
 `feat/phase-3-crm-sync` from `main` (worktree, isolated).
 
 ## Context
+
 Read at repo root first, in order:
+
 1. `CLAUDE.md`
 2. `WAVE_CONTEXT.md` (critical — Track 2 pre-bakes CRM columns on `prospect`/`company`;
    you populate them, you do NOT alter their schema)
@@ -23,7 +27,9 @@ The pg-boss queue is up (`packages/queue`) — you register a handler in
 `packages/integrations/src/webhook.ts`.
 
 ## Documentation lookup (mandatory)
+
 Fetch via Context7 MCP before writing any of these:
+
 - **`@nangohq/node`** — `Nango.createConnectSession`, `nango.get`/`.post`/`.proxy`,
   `listRecords` / records API for scripted syncs, webhook payload shape
 - **`@nangohq/frontend`** — `openConnectUI({onEvent})` + `setSessionToken`
@@ -57,12 +63,14 @@ Fetch via Context7 MCP before writing any of these:
 **Add the FK Track 2 deferred:**
 Because Track 2 pre-baked `prospect.crm_connection_id` and `company.crm_connection_id`
 as nullable uuid WITHOUT the FK, you add the FK now in this migration:
+
 ```sql
 ALTER TABLE prospect ADD CONSTRAINT prospect_crm_connection_id_fkey
   FOREIGN KEY (crm_connection_id) REFERENCES crm_connection(id) ON DELETE SET NULL;
 ALTER TABLE company ADD CONSTRAINT company_crm_connection_id_fkey
   FOREIGN KEY (crm_connection_id) REFERENCES crm_connection(id) ON DELETE SET NULL;
 ```
+
 Express this in the Drizzle schema by declaring the FK reference on the columns
 in `prospects.ts`. Since you don't own `prospects.ts`, do NOT edit that file
 directly — instead include a **post-migration SQL step** (Drizzle-generated
@@ -75,21 +83,25 @@ at the application layer via the tenancy chokepoint. Choose the simpler path and
 document it in RESULT.notes.
 
 Barrel export from `packages/db/src/schema/index.ts`:
+
 ```ts
 export * from "./crm.ts";
 ```
 
 ### T2 — Activate tenancy guard
+
 Add `crm_connection`, `sync_state` to `APP_SCOPED_TABLES` in `packages/db/src/tenancy-guard.test.ts`.
 Add to `APP_SCOPED_TABLES_TO_TRUNCATE` in `packages/db/src/testing.ts` (before
 `prospect`/`company` if you're the second migration, since FKs reference us).
 
 ### T3 — Migration
+
 `pnpm db:generate --name phase3_crm_connection` → review → `pnpm db:migrate`.
 
 ### T4 — Integrations sync layer (`packages/integrations/src/sync/`)
 
 Create three files:
+
 - `index.ts` — barrel
 - `types.ts` — shared types:
   ```ts
@@ -113,13 +125,17 @@ Create three files:
     website: string | null;
     lastModifiedISO: string;
   }
-  export interface SyncPage<T> { records: T[]; nextCursor: string | null; }
+  export interface SyncPage<T> {
+    records: T[];
+    nextCursor: string | null;
+  }
   ```
 - `fetch-changed-records.ts` — one exported function per provider/model:
   ```ts
   export async function fetchChangedSalesforceContacts(
-    connectionId: string, sinceCursor: string | null
-  ): Promise<SyncPage<NormalizedContact>>
+    connectionId: string,
+    sinceCursor: string | null,
+  ): Promise<SyncPage<NormalizedContact>>;
   ```
   and the same for hubspot + accounts. Use `getNango()` from
   `packages/integrations/src/nango.ts`. Pull via Nango's records API OR proxy
@@ -131,20 +147,22 @@ Create three files:
 ### T5 — Upsert helpers (`packages/integrations/src/sync/upsert.ts`)
 
 Pure functions the worker calls after fetching. Take the normalized records
-+ an `orgId` + `connectionId`, and upsert into `prospect`/`company` tables using
-Drizzle's `insert ... onConflictDoUpdate`. Dedupe rules (per WAVE_CONTEXT.md):
-- **Contact upsert** — match on `(organization_id, crm_provider, crm_external_id)`
+
+- an `orgId` + `connectionId`, and upsert into `prospect`/`company` tables using
+  Drizzle's `insert ... onConflictDoUpdate`. Dedupe rules (per WAVE_CONTEXT.md):
+
+* **Contact upsert** — match on `(organization_id, crm_provider, crm_external_id)`
   first; if not found, match on `(organization_id, email)`; if not found, insert.
   When matching on email, ATTACH `crm_provider`/`crm_external_id`/`crm_connection_id`
   to the existing row.
-- **Company upsert** — match on `(organization_id, crm_provider, crm_external_id)`;
+* **Company upsert** — match on `(organization_id, crm_provider, crm_external_id)`;
   if not found, match on `(organization_id, domain)`; if not found, insert.
-- **Precedence**: CRM fields (name, email, title, etc.) win on next sync for
+* **Precedence**: CRM fields (name, email, title, etc.) win on next sync for
   rows that are CRM-owned (`crm_external_id IS NOT NULL`), unless the row's
   `updated_at > last_crm_sync_at + 1h` in which case local edits win. Encode as
   `set = crm_provider IS NOT NULL AND (updated_at IS NULL OR updated_at < last_crm_sync_at + interval '1 hour')`.
-- Update `last_crm_sync_at` on every touch.
-- Link contacts to companies: after upsert, if a contact carries a
+* Update `last_crm_sync_at` on every touch.
+* Link contacts to companies: after upsert, if a contact carries a
   `companyExternalId`, look up the company row (same org, same connection,
   matching external id) and set `prospect.company_id`.
 
@@ -156,10 +174,13 @@ attach, local-edit wins, company link.
 ### T6 — Worker handler (`apps/worker/src/handlers/crm-sync.ts`)
 
 Register a `crm.sync` handler using `registerHandler` from `@quiksend/queue`:
+
 ```ts
 await registerHandler("crm.sync", async ({ connectionId, model }) => { ... });
 ```
+
 Handler flow:
+
 1. Load `crm_connection` + `sync_state` for (connection, model)
 2. Loop `while cursor exists`:
    - Fetch page via `fetch-changed-records.ts`
@@ -174,11 +195,13 @@ line after the existing `hello.ping` registration).
 ### T7 — Web routes
 
 - `apps/web/src/routes/api/nango/webhook.ts` — server route:
+
   ```ts
   export const Route = createFileRoute("/api/nango/webhook")({
     server: { handlers: { POST: async ({ request }) => { ... } } }
   });
   ```
+
   Read raw body, extract signature header (Nango's docs: X-Nango-Signature —
   verify via Context7). Call `verifyNangoWebhook({ rawBody, signatureHeader })`
   from `packages/integrations`. Return 401 on invalid.
@@ -186,14 +209,14 @@ line after the existing `hello.ping` registration).
   - `type === "sync"` events → look up `crm_connection.nango_connection_id`,
     enqueue `crm.sync` job for each model (Contact, Account/Company)
   - `type === "auth"` events → update `crm_connection.status` accordingly
-  Return `{ received: true }` fast (queue does the work).
+    Return `{ received: true }` fast (queue does the work).
 
 - `apps/web/src/lib/crm.functions.ts` — server fns:
   - `listCrmConnections()` — org-scoped
   - `createCrmConnectSession({ provider })` — admin gate via
     `isAdminOrOwner(ctx.orgContext)` (imported from `@quiksend/core`). Calls
     `nango.createConnectSession({ end_user: { id: user.id, email: user.email },
-    allowed_integrations: [provider] })` — verify current shape via Context7.
+allowed_integrations: [provider] })` — verify current shape via Context7.
     Returns `{ sessionToken, connectUrl? }`.
   - `finalizeCrmConnection({ provider, nangoConnectionId })` — admin gate;
     insert `crm_connection` row with default `field_mapping` from
@@ -229,6 +252,7 @@ pnpm worker:dev  # (in another terminal) boot the worker
 ```
 
 Then manually verify:
+
 - Load `/settings/crm` in the running web app — you should see empty state +
   the two connect buttons.
 - The worker log should show `hello.ping` (from foundations) AND a new
@@ -240,6 +264,7 @@ Then manually verify:
   "no live smoke available; unit-tested upsert path only" in RESULT.notes.
 
 ## Constraints
+
 - **Touch ONLY** files under "Track 3 owns" in WAVE_CONTEXT.md plus:
   - `packages/db/src/schema/index.ts` (one export line)
   - `packages/db/src/tenancy-guard.test.ts` (add table names)
@@ -255,6 +280,7 @@ Then manually verify:
 - Explicit `.ts`/`.tsx` extensions.
 
 ## Result
+
 ```json
 {
   "status": "ok",

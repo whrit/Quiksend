@@ -1,13 +1,17 @@
 # PHASE-4-REMAINDER: Gmail + Microsoft Graph adapters + full DKIM check — Track F
 
 ## Repo
+
 `/Users/beckett/Projects/quik-ideas/quiksend`
 
 ## Branch
+
 `feat/phase-4-gmail-graph` from `main` (worktree isolated).
 
 ## Context
+
 Read at repo root first:
+
 1. `CLAUDE.md`
 2. `WAVE_CONTEXT.md` (root) + `wave2/WAVE_CONTEXT.md`
 3. `docs/implementations/phases/Quiksend-Implementation-Plan-Phases-2-10.md`
@@ -23,7 +27,9 @@ the two OAuth-based providers so real users can connect Gmail + Microsoft
 accounts.
 
 ## Documentation lookup (mandatory)
+
 Context7 MCP for:
+
 - **@nangohq/node** — `nango.proxy()` and `nango.get()` for making authenticated
   provider calls with token refresh managed by Nango
 - **Gmail API v1** — `users.messages.send` (raw base64url MIME), `users.messages.list`,
@@ -39,18 +45,19 @@ Context7 MCP for:
 ### T1 — Gmail adapter (`packages/mail/src/adapters/gmail.ts`)
 
 Implement `MailboxAdapter` for `provider: "gmail"`. Constructor:
+
 ```ts
 export function createGmailAdapter(config: {
   nangoConnectionId: string;
   fromAddress: string;
   fromName?: string;
-}): MailboxAdapter
+}): MailboxAdapter;
 ```
 
 - `send(input)` — build MIME via `buildMime()` from `@quiksend/mail` (Wave 1 landed
   it). Base64url-encode the raw MIME. Call
   `nango.post({ endpoint: "/gmail/v1/users/me/messages/send", providerConfigKey:
-  "google-mail", connectionId, data: { raw: <b64url>, threadId? } })`.
+"google-mail", connectionId, data: { raw: <b64url>, threadId? } })`.
   Return `SendResult`:
   - `messageId` — the RFC Message-Id header VALUE, normalized via
     `normalizeMessageId`. Gmail responds with `id` + `threadId` but NOT the
@@ -58,9 +65,9 @@ export function createGmailAdapter(config: {
   - `providerMessageId` = the Gmail `id`
   - `providerThreadId` = the Gmail `threadId`
   - `sentAt` = now
-  When `anchor.providerThreadId` is set, include `threadId` in the send call so
-  Gmail correctly threads it — this is IN ADDITION to the RFC headers (both
-  matter for cross-client threading).
+    When `anchor.providerThreadId` is set, include `threadId` in the send call so
+    Gmail correctly threads it — this is IN ADDITION to the RFC headers (both
+    matter for cross-client threading).
 - `listInbound(since)` — Phase 7 prep, but stub cleanly here. Return
   `[]` and note "history-based polling wired in Phase 7 R-070". Do NOT throw —
   keeping the return path clean means the engine can call it uniformly today
@@ -68,6 +75,7 @@ export function createGmailAdapter(config: {
 - `verifyIdentity()` — DNS-based check via the helper you extend in T3.
 
 Error classification:
+
 - 401/403 from Gmail → `SendError("auth")`
 - 429 or `RATE_LIMIT_EXCEEDED` → `"quota"`
 - 5xx → `"transient"`
@@ -75,6 +83,7 @@ Error classification:
 
 Unit tests in `packages/mail/src/adapters/gmail.test.ts` — mock the Nango client
 via a wrapper (dependency-inject). Cover:
+
 - Happy path: build MIME → base64url → POST → Message-Id fetched.
 - Threading: `anchor.providerThreadId` → `threadId` in payload.
 - Error mapping across the four kinds above.
@@ -82,12 +91,13 @@ via a wrapper (dependency-inject). Cover:
 ### T2 — Microsoft Graph adapter (`packages/mail/src/adapters/microsoft.ts`)
 
 Analogous. Constructor:
+
 ```ts
 export function createMicrosoftAdapter(config: {
   nangoConnectionId: string;
   fromAddress: string;
   fromName?: string;
-}): MailboxAdapter
+}): MailboxAdapter;
 ```
 
 - `send(input)` — Graph accepts raw MIME via `POST /me/sendMail` with
@@ -99,6 +109,7 @@ export function createMicrosoftAdapter(config: {
 - `verifyIdentity()` — DNS check.
 
 Error classification:
+
 - 401/`InvalidAuthenticationToken` → `"auth"`
 - 429 or `TooManyRequests` → `"quota"`
 - 5xx → `"transient"`
@@ -109,6 +120,7 @@ Unit tests analogous to gmail.
 ### T3 — Full DNS auth checker (`packages/mail/src/dns.ts` — extend)
 
 Wave 1 shipped a partial `checkDomainAuth`. Extend to:
+
 - **SPF** — resolveTxt, find `v=spf1`, note if `-all` (strict) vs `~all`
   (soft-fail) vs `?all` (neutral). Return `{ pass, reason, record, mode }`.
 - **DKIM** — try selectors: `default._domainkey.<domain>`, `google._domainkey.<domain>`
@@ -120,6 +132,7 @@ Wave 1 shipped a partial `checkDomainAuth`. Extend to:
   Return `{ pass, reason, record, policy: 'none' | 'quarantine' | 'reject' | null }`.
 
 Unit tests in `packages/mail/src/dns.test.ts` — mock `dns/promises`; cover:
+
 - All three pass
 - Each individually failing
 - Multiple DKIM selectors — first-found wins with correct field
@@ -128,6 +141,7 @@ Unit tests in `packages/mail/src/dns.test.ts` — mock `dns/promises`; cover:
 ### T4 — Adapter registry (`packages/mail/src/adapters/index.ts`)
 
 Extend the barrel to export the new adapters. Add a factory function:
+
 ```ts
 export function createAdapterForMailbox(mailbox: {
   provider: MailProvider;
@@ -135,8 +149,9 @@ export function createAdapterForMailbox(mailbox: {
   smtpConfig: SmtpConfig | null;
   address: string;
   fromName: string | null;
-}): MailboxAdapter
+}): MailboxAdapter;
 ```
+
 Switches on provider → the right factory. Throws a clear error if OAuth
 credentials are missing for gmail/microsoft (NANGO_SECRET_KEY unset).
 
@@ -144,6 +159,7 @@ credentials are missing for gmail/microsoft (NANGO_SECRET_KEY unset).
 
 Extend `apps/web/src/routes/_protected/settings/mailboxes/new.tsx` (Wave 1
 scaffolded the SMTP form + placeholder Gmail/Microsoft buttons):
+
 - Wire the Gmail button to call a new server fn `createGmailConnectSession()`
   which uses `nango.createConnectSession({ end_user: {...}, allowed_integrations: ["google-mail"] })`.
 - Frontend opens Nango's Connect UI via `@nangohq/frontend`.
@@ -162,6 +178,7 @@ pnpm check     # green
 ```
 
 Manual smoke:
+
 - With `NANGO_SECRET_KEY` set (Beckett provides), connect a real Gmail dev
   account through the settings page.
 - Send a test message. Confirm it lands in the destination inbox with correct
@@ -174,6 +191,7 @@ If NANGO_SECRET_KEY isn't available, write RESULT.notes explaining "adapter
 implementation + unit tests complete; live smoke deferred, no sandbox creds."
 
 ## Constraints
+
 - **Touch ONLY**:
   - `packages/mail/src/adapters/gmail.ts` (new)
   - `packages/mail/src/adapters/microsoft.ts` (new)
@@ -189,6 +207,7 @@ implementation + unit tests complete; live smoke deferred, no sandbox creds."
 - Context7 MCP for Gmail, Graph, Nango, dns/promises.
 
 ## Result
+
 ```json
 {
   "status": "ok",

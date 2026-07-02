@@ -1,13 +1,17 @@
 # PHASE-7: Replies + bounces + unified inbox — Track J
 
 ## Repo
+
 `/Users/beckett/Projects/quik-ideas/quiksend`
 
 ## Branch
+
 `feat/phase-7-inbox` from `main` (worktree isolated).
 
 ## Context
+
 Read at repo root first, in order:
+
 1. `CLAUDE.md`
 2. All `WAVE_CONTEXT.md` files (root + wave3 + wave4)
 3. `docs/implementations/phases/Quiksend-Implementation-Plan-Phases-2-10.md` section "Phase 7"
@@ -21,7 +25,9 @@ driven. Phase 7 closes the loop — detect inbound replies + bounces, feed them
 back to the engine, surface an inbox UI.
 
 ## Documentation lookup (mandatory)
+
 Context7 MCP for:
+
 - Gmail API v1: `users.history.list` + `users.messages.get(format="raw")` for
   inbound polling
 - Microsoft Graph: `/me/mailFolders/inbox/messages/delta` for delta polling
@@ -32,6 +38,7 @@ Context7 MCP for:
 ## Tasks
 
 ### T1 — Schema (`packages/db/src/schema/suppression.ts`)
+
 - **`suppression`** — id (uuid pk), organization_id (text FK cascade),
   value (text notNull, lowercased — usually an email; could be a domain for
   workspace-wide blocks), value_type text default 'email' ('email' | 'domain'),
@@ -46,16 +53,20 @@ Barrel + tenancy guard + testing.ts (per WAVE_CONTEXT pattern).
 `packages/db/src/schema/mail.ts` needs a follow-up ALTER for the message
 table's inbound columns to be non-nullable now (`received_at` etc). Since Phase
 4 back-half pre-baked those as nullable, Track J's migration just adds indexes:
+
 - `(organization_id, direction, received_at DESC)` — inbox list
 - `(organization_id, status)` — bounced/failed filters
 
 ### T2 — Inbound poller (`apps/worker/src/handlers/mailbox-poll.ts`)
+
 Register a `mailbox.poll` handler:
+
 ```ts
 registerHandler("mailbox.poll", async ({ mailboxId, since }) => { ... });
 ```
 
 Load mailbox → dispatch by provider:
+
 - **Gmail** — call `users.history.list` since last `history_id` (stored on
   mailbox as `poll_cursor jsonb`). Fetch each message with `format=raw`, parse
   MIME via `mailparser`, feed to matcher/bouncer.
@@ -66,6 +77,7 @@ Handle cursor expiration (Gmail 404/410 on stale history_id): fall back to full
 resync from now-2h.
 
 Per inbound message:
+
 1. Normalize Message-Id + In-Reply-To + References
 2. Match against outbound `message.message_id_header` via
    `matchInboundToOutbound` (Phase 7-prep helper)
@@ -85,18 +97,28 @@ Actually cleaner: enqueue one `mailbox.poll` per active mailbox from a
 `mailbox.poll.tick` scheduled job every 2 min.
 
 ### T3 — Engine wiring (`apps/worker/src/sequence/`)
+
 Extend the executor (Track G from Wave 3 owns this file) — no wait, cross-file
 touch. Add a NEW file `apps/worker/src/sequence/inbound-handler.ts`:
+
 ```ts
-export async function handleInboundReply(inbound: InboundEmail, enrollmentId: string): Promise<void>
-export async function handleInboundBounce(inbound: InboundEmail, enrollmentId: string): Promise<void>
+export async function handleInboundReply(
+  inbound: InboundEmail,
+  enrollmentId: string,
+): Promise<void>;
+export async function handleInboundBounce(
+  inbound: InboundEmail,
+  enrollmentId: string,
+): Promise<void>;
 ```
+
 Called from the poller. Loads enrollment, calls
 `transition(snapshot, { kind: "reply_received"|"bounce_received", ... })`,
 interprets effects (terminate + emit_event → wraps in `logger.info` + PostHog
 `capture`).
 
 ### T4 — Server fns (`apps/web/src/lib/inbox.functions.ts`)
+
 - `listInboxThreads({ filter, cursor, limit })` — grouped by thread. Filters:
   unread, replied, bounced, by sequence, by mailbox.
 - `getInboxThread({ threadKey })` — full ordered messages. Marks as read.
@@ -108,6 +130,7 @@ interprets effects (terminate + emit_event → wraps in `logger.info` + PostHog
 - `listSuppressions({ search?, cursor? })`.
 
 ### T5 — Inbox UI (`apps/web/src/routes/_protected/inbox/`)
+
 - `index.tsx` — split-pane: left threads list (react-virtualization for perf),
   right thread detail. Filters as toggle chips. Sort by newest inbound.
 - Thread detail: outbound + inbound messages in order, with sender/recipient/
@@ -116,9 +139,10 @@ interprets effects (terminate + emit_event → wraps in `logger.info` + PostHog
 - Toolbar: mark all read, filter unread, quick-suppress-email action per
   message.
 - Settings link → `/settings/suppression` showing suppression list with search
-  + bulk actions.
+  - bulk actions.
 
 ### T6 — Verification (STRICT)
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm db:generate --name phase7_inbox
@@ -127,6 +151,7 @@ pnpm check   # green
 ```
 
 Manual smoke:
+
 - Send a real email from the compose UI to a real inbox you control.
 - Reply to it from the destination inbox.
 - Wait ~2 min (poll interval), or manually enqueue `mailbox.poll` for that
@@ -138,6 +163,7 @@ Manual smoke:
   suppressed.
 
 ## Constraints
+
 - **Touch ONLY**:
   - `packages/db/src/schema/suppression.ts` (new)
   - `packages/db/src/schema/index.ts` (one export line)
@@ -155,6 +181,7 @@ Manual smoke:
   delta API
 
 ## Result
+
 ```json
 {
   "status": "ok",
