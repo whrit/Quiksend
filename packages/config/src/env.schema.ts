@@ -23,19 +23,36 @@ export const EnvSchema = z.object({
   MS_CLIENT_SECRET: z.string().optional(),
 
   // Integrations (Phase 3)
+  // Set NANGO_SECRET_KEY once a workspace connects Salesforce/HubSpot/Gmail/Microsoft.
   NANGO_SECRET_KEY: z.string().optional(),
+  // Verifies Nango's inbound webhook signatures (/api/nango/webhook).
+  NANGO_WEBHOOK_SECRET: z.string().optional(),
+  // Optional public base URL Nango redirects back to on connect completion.
+  NANGO_PUBLIC_URL: z.string().url().optional(),
 
-  // AI (Phase 8)
+  // AI (Phase 8) — providers are model-agnostic behind an interface; either or both may be set.
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
+  // Default provider a workspace uses if it has not chosen one in settings.
+  AI_DEFAULT_PROVIDER: z.enum(["anthropic", "openai"]).default("anthropic"),
 
-  // Local mail (Phase 4)
+  // Mail (Phase 4). Local Mailpit values come from docker-compose.yml.
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().optional(),
+  // Encrypts SMTP mailbox credentials at rest (32-byte base64). Required once any SMTP mailbox is connected.
+  MAILBOX_ENCRYPTION_KEY: z.string().optional(),
 
-  // Observability (optional)
+  // Outbound webhooks + public API (Phase 10) — signing secret for HMAC deliveries.
+  WEBHOOK_SIGNING_SECRET: z.string().optional(),
+  // Signs unsubscribe tokens embedded in outbound messages.
+  UNSUBSCRIBE_TOKEN_SECRET: z.string().optional(),
+
+  // Observability (optional). Sentry captures errors in web + worker; PostHog tracks product events.
   SENTRY_DSN: z.string().optional(),
+  SENTRY_ENVIRONMENT: z.string().optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
   POSTHOG_KEY: z.string().optional(),
+  POSTHOG_HOST: z.string().url().default("https://us.i.posthog.com"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

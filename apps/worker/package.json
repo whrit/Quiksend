@@ -11,7 +11,12 @@
   },
   "dependencies": {
     "@quiksend/config": "workspace:*",
+    "@quiksend/core": "workspace:*",
     "@quiksend/db": "workspace:*",
+    "@quiksend/integrations": "workspace:*",
+    "@quiksend/mail": "workspace:*",
+    "@quiksend/observability": "workspace:*",
+    "@quiksend/queue": "workspace:*",
     "drizzle-orm": "0.45.2"
   },
   "devDependencies": {

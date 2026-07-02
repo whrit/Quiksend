@@ -1,25 +1,50 @@
 import { env, logger } from "@quiksend/config";
 import { client, db } from "@quiksend/db";
+import { initSentry, Sentry, shutdownPostHog } from "@quiksend/observability";
+import { enqueue, getBoss, registerHandler, stopBoss } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
 
 /**
- * Phase 0 worker entrypoint. Right now it just validates the environment, confirms
- * database connectivity, and idles. The scheduler tick + step executor + pollers
- * (Phases 6–7) hang off this process.
+ * Worker entrypoint. Boots pg-boss, registers job handlers, and idles waiting
+ * for jobs. Real handlers arrive across Phases 3–8; today only `hello.ping`
+ * runs, proving the plumbing end-to-end.
+ *
+ * Sentry is best-effort — no-op when SENTRY_DSN is unset.
  */
 async function shutdown(signal: string): Promise<void> {
-  logger.info({ signal }, "Shutting down");
-  await client.end();
+  logger.info({ signal }, "Worker shutting down");
+  try {
+    await stopBoss();
+    await shutdownPostHog();
+    await client.end();
+    await Sentry.close(2000);
+  } catch (err) {
+    logger.error({ err }, "Error during shutdown");
+  }
   process.exit(0);
 }
 
 async function main(): Promise<void> {
+  initSentry("quiksend-worker");
   logger.info({ env: env.NODE_ENV }, "Quiksend worker starting");
 
   await db.execute(sql`select 1`);
   logger.info("Database connection OK");
 
-  logger.info("Worker ready (no jobs wired yet — scheduler lands in Phase 6)");
+  // Boot pg-boss (schema install + start).
+  await getBoss();
+
+  // Foundations smoke test: register a handler + enqueue one job.
+  // Real handlers (sequence.tick, sequence.step, mailbox.poll, crm.sync, ...) land per phase.
+  await registerHandler("hello.ping", async ({ message }) => {
+    logger.info({ message }, "hello.ping handled");
+  });
+
+  if (env.NODE_ENV !== "production") {
+    await enqueue("hello.ping", { message: "worker boot smoke test" });
+  }
+
+  logger.info("Worker ready — waiting for jobs");
 
   process.on("SIGINT", () => void shutdown("SIGINT"));
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
@@ -27,5 +52,6 @@ async function main(): Promise<void> {
 
 main().catch((err: unknown) => {
   logger.error({ err }, "Worker failed to start");
+  Sentry.captureException(err);
   process.exit(1);
 });
