@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@quiksend/config": "workspace:*",
+    "@quiksend/integrations": "workspace:*",
     "nodemailer": "9.0.3"
   },
   "devDependencies": {

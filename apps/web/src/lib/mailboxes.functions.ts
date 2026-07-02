@@ -1,6 +1,7 @@
 import { env } from "@quiksend/config";
 import { isAdminOrOwner } from "@quiksend/core";
 import { db, tables } from "@quiksend/db";
+import { getNango } from "@quiksend/integrations";
 import {
   checkDomainAuth,
   createSmtpTransport,
@@ -361,4 +362,120 @@ export const testMailboxSend = orgFn({ method: "POST" })
       providerMessageId: result.providerMessageId,
       sentAt: result.sentAt.toISOString(),
     };
+  });
+
+const oauthMailboxSchema = z.object({
+  address: z.string().email(),
+  fromName: z.string().max(200).optional(),
+  nangoConnectionId: z.string().min(1),
+});
+
+export const createGmailConnectSession = orgFn({ method: "POST" }).handler(async ({ context }) => {
+  requireAdmin({ orgContext: context.orgContext });
+  const nango = getNango();
+  const session = await nango.createConnectSession({
+    end_user: {
+      id: context.orgContext.userId,
+    },
+    allowed_integrations: ["google-mail"],
+    organization: {
+      id: context.orgContext.organizationId,
+    },
+  });
+  return {
+    sessionToken: session.data.token,
+    connectUrl: session.data.connect_link,
+  };
+});
+
+export const createMicrosoftConnectSession = orgFn({ method: "POST" }).handler(
+  async ({ context }) => {
+    requireAdmin({ orgContext: context.orgContext });
+    const nango = getNango();
+    const session = await nango.createConnectSession({
+      end_user: {
+        id: context.orgContext.userId,
+      },
+      allowed_integrations: ["microsoft"],
+      organization: {
+        id: context.orgContext.organizationId,
+      },
+    });
+    return {
+      sessionToken: session.data.token,
+      connectUrl: session.data.connect_link,
+    };
+  },
+);
+
+export const finalizeGmailMailbox = orgFn({ method: "POST" })
+  .validator((data: unknown) => oauthMailboxSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    requireAdmin({ orgContext: context.orgContext });
+    const [row] = await db
+      .insert(tables.mailbox)
+      .values({
+        organizationId: context.orgContext.organizationId,
+        ownerUserId: context.orgContext.userId,
+        provider: "gmail",
+        address: data.address.toLowerCase(),
+        fromName: data.fromName,
+        nangoConnectionId: data.nangoConnectionId,
+      })
+      .returning();
+    if (!row) throw new MailboxError("VALIDATION", "Failed to create mailbox");
+
+    const domain = domainFromAddress(row.address);
+    const auth = await checkDomainAuth(domain);
+    const healthNotes = { spf: auth.spf, dkim: auth.dkim, dmarc: auth.dmarc };
+    const checkedAt = new Date();
+    const [updated] = await db
+      .update(tables.mailbox)
+      .set({
+        spfOk: auth.spf.pass,
+        dkimOk: auth.dkim.pass,
+        dmarcOk: auth.dmarc.pass,
+        healthCheckedAt: checkedAt,
+        healthNotes,
+      })
+      .where(eq(tables.mailbox.id, row.id))
+      .returning();
+    if (!updated) throw new MailboxError("NOT_FOUND", "Mailbox not found");
+    return toPublicMailbox(updated);
+  });
+
+export const finalizeMicrosoftMailbox = orgFn({ method: "POST" })
+  .validator((data: unknown) => oauthMailboxSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    requireAdmin({ orgContext: context.orgContext });
+    const [row] = await db
+      .insert(tables.mailbox)
+      .values({
+        organizationId: context.orgContext.organizationId,
+        ownerUserId: context.orgContext.userId,
+        provider: "microsoft",
+        address: data.address.toLowerCase(),
+        fromName: data.fromName,
+        nangoConnectionId: data.nangoConnectionId,
+      })
+      .returning();
+    if (!row) throw new MailboxError("VALIDATION", "Failed to create mailbox");
+
+    const domain = domainFromAddress(row.address);
+    const auth = await checkDomainAuth(domain);
+    const healthNotes = { spf: auth.spf, dkim: auth.dkim, dmarc: auth.dmarc };
+    const checkedAt = new Date();
+    const [updated] = await db
+      .update(tables.mailbox)
+      .set({
+        spfOk: auth.spf.pass,
+        dkimOk: auth.dkim.pass,
+        dmarcOk: auth.dmarc.pass,
+        healthCheckedAt: checkedAt,
+        healthNotes,
+      })
+      .where(eq(tables.mailbox.id, row.id))
+      .returning();
+    if (!updated) throw new MailboxError("NOT_FOUND", "Mailbox not found");
+    return toPublicMailbox(updated);
   });

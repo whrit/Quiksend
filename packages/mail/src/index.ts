@@ -14,8 +14,14 @@ export { buildMime, type BuildMimeInput, type BuildMimeOutput } from "./mime.ts"
 export { decryptSmtpConfig, encryptSmtpConfig, type SmtpConfigPlain } from "./crypto.ts";
 export { checkDomainAuth, type DomainAuthResult } from "./dns.ts";
 export {
+  createAdapterForMailbox,
   createFakeAdapter,
+  createGmailAdapter,
+  createMicrosoftAdapter,
   createSmtpAdapter,
   createSmtpTransport,
   sendMime,
+  type GmailAdapterConfig,
+  type MicrosoftAdapterConfig,
+  type NangoProxyClient,
 } from "./adapters/index.ts";
