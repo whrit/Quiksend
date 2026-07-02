@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0](https://github.com/whrit/Quiksend/compare/v1.13.0...v2.0.0) (2026-07-02)
+
+
+### Chores
+
+* cut v2.0.0 for V0 milestone completion ([1e45f82](https://github.com/whrit/Quiksend/commit/1e45f82ad620dc97d865a1b3163a29fc7ea9a370))
+
 ## [1.13.0](https://github.com/whrit/Quiksend/compare/v1.12.0...v1.13.0) (2026-07-02)
 
 
