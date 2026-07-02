@@ -1,8 +1,12 @@
+/**
+ * These tests cover Nango's INBOUND webhook signature (Nango → us).
+ * Outbound HMAC (us → subscriber endpoints) is tested in webhook-deliver.test.ts.
+ */
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { verifyNangoWebhook } from "./webhook.ts";
 
-describe("verifyNangoWebhook", () => {
+describe("Nango inbound webhook signature verification", () => {
   const secret = "test-secret-not-real";
   const body = '{"type":"sync","payload":{}}';
   const sign = (input: string): string => createHmac("sha256", secret).update(input).digest("hex");
