@@ -246,6 +246,9 @@ importers:
       '@nangohq/frontend':
         specifier: 0.70.9
         version: 0.70.9
+      '@quiksend/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@quiksend/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -385,6 +388,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@quiksend/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@quiksend/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -431,9 +437,15 @@ importers:
       '@quiksend/db':
         specifier: workspace:*
         version: link:../db
+      '@quiksend/integrations':
+        specifier: workspace:*
+        version: link:../integrations
       ai:
         specifier: 7.0.11
         version: 7.0.11(zod@4.4.3)
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.1)(@prisma/client@5.22.0)(@types/pg@8.20.0)(better-sqlite3@12.11.1)(kysely@0.29.2)(pg@8.22.0)(postgres@3.4.9)
       zod:
         specifier: 4.4.3
         version: 4.4.3
