@@ -57,6 +57,13 @@
       "when": 1782966034635,
       "tag": "0007_phase8prep_ai_interfaces",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782966687332,
+      "tag": "0008_phase7_inbox",
+      "breakpoints": true
     }
   ]
 }

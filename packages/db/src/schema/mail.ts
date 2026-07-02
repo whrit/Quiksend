@@ -51,6 +51,7 @@ export const mailbox = pgTable(
     dmarcOk: boolean("dmarc_ok"),
     healthCheckedAt: timestamp("health_checked_at", { withTimezone: true }),
     healthNotes: jsonb("health_notes"),
+    pollCursor: jsonb("poll_cursor"),
     status: text("status").default("active").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -112,5 +113,11 @@ export const message = pgTable(
     index("message_id_header_idx").on(table.messageIdHeader),
     index("message_provider_thread_idx").on(table.providerThreadId),
     index("message_prospect_idx").on(table.organizationId, table.prospectId),
+    index("message_inbox_list_idx").on(
+      table.organizationId,
+      table.direction,
+      table.receivedAt.desc(),
+    ),
+    index("message_org_status_idx").on(table.organizationId, table.status),
   ],
 );
