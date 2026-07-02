@@ -23,6 +23,9 @@ export interface TestOrgs {
  * `prospect`/`company`/`list`; Phase 4 adds `mailbox`/`message`; etc.
  */
 export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
+  "enrollment",
+  "sequence_step",
+  "sequence",
   "message",
   "mailbox",
   "sync_state",

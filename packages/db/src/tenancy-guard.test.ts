@@ -26,7 +26,10 @@ const APP_SCOPED_TABLES: readonly string[] = [
   // Phase 4:
   "mailbox",
   "message",
-  // etc. — flip on as tables land.
+  // Phase 5:
+  "sequence",
+  "sequenceStep",
+  "enrollment",
 ];
 
 const SCAN_ROOTS = ["apps/web/src", "apps/worker/src", "packages"];
