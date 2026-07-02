@@ -1,4 +1,3 @@
-import { logger } from "@quiksend/config";
 import { transition, type Effect, type EnrollmentState } from "@quiksend/core/state-machine";
 import { db, tables } from "@quiksend/db";
 import { buildComplianceParts } from "@quiksend/mail";
@@ -17,6 +16,7 @@ import { enqueueSequenceStepAt, makeIdempotencyKey } from "./idempotency.ts";
 import { createMailboxAdapter } from "./mailbox-adapter.ts";
 import { renderTemplate, stripHtml } from "./render-template.ts";
 import { markReservationSent, releaseReservation, reserveSendSlot } from "./reserve-slot.ts";
+import { handleEmitEvent } from "./execute-effects.ts";
 
 type DbTx = PostgresJsDatabase<typeof schema>;
 
@@ -49,14 +49,7 @@ export async function applyTransitionEffects(
         working = await captureAnchor(tx, working, effect.messageId, effect.threadId);
         break;
       case "emit_event":
-        logger.info(
-          {
-            organizationId: working.organizationId,
-            enrollmentId: working.enrollmentId,
-            event: effect.type,
-          },
-          "enrollment event",
-        );
+        await handleEmitEvent(tx, working, effect.type);
         break;
       case "terminate":
         working = await terminateInTx(tx, working, effect.reason);

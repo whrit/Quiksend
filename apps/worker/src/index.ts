@@ -4,6 +4,7 @@ import { initSentry, Sentry, shutdownPostHog } from "@quiksend/observability";
 import { enqueue, getBoss, registerHandler, stopBoss } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
 import { registerCrmSyncHandler } from "./handlers/crm-sync.ts";
+import { registerCrmWritebackHandler } from "./handlers/crm-writeback.ts";
 import { registerSequenceHandlers } from "./sequence/register.ts";
 
 /**
@@ -43,6 +44,7 @@ async function main(): Promise<void> {
   });
 
   await registerCrmSyncHandler();
+  await registerCrmWritebackHandler();
   await registerSequenceHandlers();
 
   if (env.NODE_ENV !== "production") {

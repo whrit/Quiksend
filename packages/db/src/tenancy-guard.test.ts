@@ -35,6 +35,9 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "researchProfile",
   // Phase 6:
   "task",
+  // Phase 9:
+  "crmWritebackLog",
+  "event",
 ];
 
 const SCAN_ROOTS = ["apps/web/src", "apps/worker/src", "packages"];
