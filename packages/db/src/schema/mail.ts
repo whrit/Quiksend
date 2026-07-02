@@ -60,6 +60,12 @@ export const mailbox = pgTable(
     healthCheckedAt: timestamp("health_checked_at", { withTimezone: true }),
     healthNotes: jsonb("health_notes"),
     pollCursor: jsonb("poll_cursor"),
+    enterpriseSafe: boolean("enterprise_safe").notNull().default(false),
+    enterpriseSafeReason: text("enterprise_safe_reason"),
+    enterpriseSafeDeclaredAt: timestamp("enterprise_safe_declared_at", { withTimezone: true }),
+    enterpriseSafeAutoDowngraded: boolean("enterprise_safe_auto_downgraded")
+      .notNull()
+      .default(false),
     status: text("status").default("active").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

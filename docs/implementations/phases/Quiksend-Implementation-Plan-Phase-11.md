@@ -8,11 +8,12 @@ recipients are silently dropped without a bounce. Standard bounce monitoring mis
 this failure mode entirely, so users burn campaigns into blackholes without knowing.
 
 **Status this builds on:** Phases 0–10 are shipped and released as `v2.0.0`; Waves 5
-+ 6 hardened the engine and closed the review report (`v2.1.1` on main). The engine
-is I/O-safe, adapters are properly decoupled, the state machine has `entry-conditions`
-(Wave 5 BETA), a shared web + worker effect executor (`applyWebEffects` from Wave 6
-OMEGA), and per-mailbox throttle/reservation in `reserve-slot.ts` (Wave 5 ALPHA).
-Every Phase-11 module attaches to one of those extension points.
+
+- 6 hardened the engine and closed the review report (`v2.1.1` on main). The engine
+  is I/O-safe, adapters are properly decoupled, the state machine has `entry-conditions`
+  (Wave 5 BETA), a shared web + worker effect executor (`applyWebEffects` from Wave 6
+  OMEGA), and per-mailbox throttle/reservation in `reserve-slot.ts` (Wave 5 ALPHA).
+  Every Phase-11 module attaches to one of those extension points.
 
 **How to read this.** Same shape as prior phases: Goal → Builds on → Data model →
 Server surface → UI → Mechanics → Tickets → Testing → Risks → Exit. The genuinely
@@ -72,18 +73,18 @@ delivery rate drops below 80% mid-campaign, the campaign auto-pauses with an ale
 
 ## Builds on (existing modules Phase 11 attaches to)
 
-| Module | Origin | Phase 11 usage |
-|---|---|---|
-| `packages/mail/src/dns.ts` | Phase 4 | Extended with MX resolution (`resolveMx`) and MX-based provider classification |
-| `packages/mail/src/adapters/index.ts` (`createAdapterForMailbox`) | Phase 4 + Wave 5 CR-009 | Content sanitizer path added inside adapter chain when recipient is SEG-tagged |
-| `packages/core/src/state-machine/entry-conditions.ts` | Wave 5 BETA COMP-005 | Extended with `if_recipient_gateway_in` / `if_recipient_gateway_not_in` |
-| `apps/worker/src/sequence/reserve-slot.ts` | Wave 5 ALPHA CR-005 | Extended with gateway-aware mailbox selection + lower throttle for SEG destinations |
-| `apps/worker/src/sequence/effects.ts` (`applyMailboxSend`) | Wave 5 ALPHA CR-004 | Injects `X-Quiksend-Canary-Id` header, calls content sanitizer if recipient is SEG |
-| `apps/web/src/lib/effect-executor.ts` (`applyWebEffects`) | Wave 6 OMEGA ARCH-002 | New effect kind `emit_canary` handled here for the web-triggered manual-send path |
-| `apps/worker/src/handlers/mailbox-poll.ts` | Phase 4 + Wave 5 DELTA CR-012 | Pattern reused for seed-inbox polling; separate handler `canary-check.ts` |
-| `packages/queue/src/jobs.ts` | Phase 6 | New job types: `gateway.detect`, `canary.poll`, `canary.sweep` |
-| `packages/ai/src/classify/sentiment.ts` | Wave 5 BETA COMP-006 | Sibling classifier for canary send: `packages/ai/src/classify/canary-arrival.ts` |
-| `analytics.functions.ts` + `sequence_stats` view | Phase 9 + Wave 6 PERF-008 | Extended with `by_gateway` breakdowns |
+| Module                                                            | Origin                        | Phase 11 usage                                                                      |
+| ----------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------- |
+| `packages/mail/src/dns.ts`                                        | Phase 4                       | Extended with MX resolution (`resolveMx`) and MX-based provider classification      |
+| `packages/mail/src/adapters/index.ts` (`createAdapterForMailbox`) | Phase 4 + Wave 5 CR-009       | Content sanitizer path added inside adapter chain when recipient is SEG-tagged      |
+| `packages/core/src/state-machine/entry-conditions.ts`             | Wave 5 BETA COMP-005          | Extended with `if_recipient_gateway_in` / `if_recipient_gateway_not_in`             |
+| `apps/worker/src/sequence/reserve-slot.ts`                        | Wave 5 ALPHA CR-005           | Extended with gateway-aware mailbox selection + lower throttle for SEG destinations |
+| `apps/worker/src/sequence/effects.ts` (`applyMailboxSend`)        | Wave 5 ALPHA CR-004           | Injects `X-Quiksend-Canary-Id` header, calls content sanitizer if recipient is SEG  |
+| `apps/web/src/lib/effect-executor.ts` (`applyWebEffects`)         | Wave 6 OMEGA ARCH-002         | New effect kind `emit_canary` handled here for the web-triggered manual-send path   |
+| `apps/worker/src/handlers/mailbox-poll.ts`                        | Phase 4 + Wave 5 DELTA CR-012 | Pattern reused for seed-inbox polling; separate handler `canary-check.ts`           |
+| `packages/queue/src/jobs.ts`                                      | Phase 6                       | New job types: `gateway.detect`, `canary.poll`, `canary.sweep`                      |
+| `packages/ai/src/classify/sentiment.ts`                           | Wave 5 BETA COMP-006          | Sibling classifier for canary send: `packages/ai/src/classify/canary-arrival.ts`    |
+| `analytics.functions.ts` + `sequence_stats` view                  | Phase 9 + Wave 6 PERF-008     | Extended with `by_gateway` breakdowns                                               |
 
 Nothing in Phase 11 requires a greenfield architectural addition. Every arrow lands
 on a module that already exists and has been production-hardened.
@@ -95,23 +96,23 @@ on a module that already exists and has been production-hardened.
 New tables:
 
 - `gateway_classification` — a cache of `(email_domain, gateway, mx_records[],
-  evidence[], classified_at)` shared across all workspaces. Domain-level cache, not
+evidence[], classified_at)` shared across all workspaces. Domain-level cache, not
   org-scoped: Proofpoint's MX for `acme.com` is the same regardless of who's looking
   it up. Bump `classified_at` to trigger re-check.
 - `seed_inbox` — org-scoped for user-provided seeds, or `organization_id = NULL` for
   provider-managed seeds owned by Quiksend Systems. Fields: `id`, `organization_id
-  (nullable)`, `email`, `gateway`, `provider` (`m365 | google_workspace`),
+(nullable)`, `email`, `gateway`, `provider` (`m365 | google_workspace`),
   `imap_config` (encrypted jsonb: host/port/username/password), `verified_at`,
   `active`, `notes`, `pool_tag` (only for provider-managed: `production | canary_only
-  | warmup`), `created_at`, `updated_at`.
+| warmup`), `created_at`, `updated_at`.
 - `canary_send` — one row per canary injected into a campaign. Fields: `id`,
   `organization_id`, `sequence_id`, `enrollment_id (nullable — canaries have no
-  prospect)`, `mailbox_id (sender)`, `seed_inbox_id (target)`, `canary_token uuid
-  (goes in X-Quiksend-Canary-Id header)`, `subject`, `sent_at`, `expected_arrival_at`,
+prospect)`, `mailbox_id (sender)`, `seed_inbox_id (target)`, `canary_token uuid
+(goes in X-Quiksend-Canary-Id header)`, `subject`, `sent_at`, `expected_arrival_at`,
   `arrived_at (nullable)`, `arrival_gateway_headers (jsonb)`, `arrival_folder
-  (nullable: 'inbox' | 'spam' | 'quarantine' | 'not_found')`, `arrival_status pg enum
-  ('pending' | 'arrived_inbox' | 'arrived_spam' | 'arrived_quarantine' |
-  'silent_drop' | 'bounced')`, `created_at`.
+(nullable: 'inbox' | 'spam' | 'quarantine' | 'not_found')`, `arrival_status pg enum
+('pending' | 'arrived_inbox' | 'arrived_spam' | 'arrived_quarantine' |
+'silent_drop' | 'bounced')`, `created_at`.
 - `deliverability_snapshot` — periodic rollup, one row per (org, sender_mailbox,
   recipient_gateway, window_start). Fields: `id`, `organization_id`, `mailbox_id`,
   `gateway`, `window_start`, `window_end`, `canary_total`, `canary_delivered`,
@@ -121,14 +122,14 @@ New tables:
 Extended tables (from earlier phases):
 
 - `prospect`: add `email_gateway gateway_type` (pg enum, nullable) + `gateway_classified_at
-  timestamptz nullable` + `gateway_evidence jsonb nullable`. Index `(organization_id,
-  email_gateway) WHERE email_gateway IS NOT NULL AND deleted_at IS NULL` for the "list
+timestamptz nullable` + `gateway_evidence jsonb nullable`. Index `(organization_id,
+email_gateway) WHERE email_gateway IS NOT NULL AND deleted_at IS NULL` for the "list
   filter by gateway" query.
 - `mailbox`: add `enterprise_safe boolean not null default false` + `enterprise_safe_reason
-  text nullable` (`'m365_aged' | 'user_declared' | 'auto_downgraded'` — the last for
+text nullable` (`'m365_aged' | 'user_declared' | 'auto_downgraded'` — the last for
   when we detect a mailbox that previously delivered well is now getting dropped).
 - `sequence_step`: extend `entry_condition jsonb` shape to include `recipientGatewayIn?:
-  Gateway[]` and `recipientGatewayNotIn?: Gateway[]` (jsonb, no migration needed —
+Gateway[]` and `recipientGatewayNotIn?: Gateway[]` (jsonb, no migration needed —
   schema-level change only).
 - `event` table: three new `type` string values used by observers/analytics: `gateway.detected`,
   `gateway.routing_skipped_no_safe_mailbox`, `canary.silent_drop_detected`. No schema
@@ -194,8 +195,14 @@ export const gatewayClassification = pgTable(
     gateway: gatewayTypeEnum("gateway").notNull(),
     mxRecords: jsonb("mx_records").notNull(), // string[]
     evidence: jsonb("evidence").notNull(), // { kind: "mx"|"spf"|"dmarc"|"heuristic", detail: string }[]
-    confidence: pgEnum("gateway_classification_confidence", ["high","medium","low"])("confidence").notNull(),
-    classifiedAt: timestamp("classified_at", { withTimezone: true }).defaultNow().notNull(),
+    confidence: pgEnum("gateway_classification_confidence", [
+      "high",
+      "medium",
+      "low",
+    ])("confidence").notNull(),
+    classifiedAt: timestamp("classified_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
     ttlUntil: timestamp("ttl_until", { withTimezone: true }).notNull(), // rec-classify after this
   },
   (t) => [
@@ -247,12 +254,18 @@ export const EntryConditionSchema = z.object({
 The pure evaluator gains two branches:
 
 ```typescript
-if (condition.recipientGatewayIn && ctx.recipientGateway &&
-    !condition.recipientGatewayIn.includes(ctx.recipientGateway)) {
+if (
+  condition.recipientGatewayIn &&
+  ctx.recipientGateway &&
+  !condition.recipientGatewayIn.includes(ctx.recipientGateway)
+) {
   return { proceed: false, skipReason: "recipient_gateway_not_in_allow_list" };
 }
-if (condition.recipientGatewayNotIn && ctx.recipientGateway &&
-    condition.recipientGatewayNotIn.includes(ctx.recipientGateway)) {
+if (
+  condition.recipientGatewayNotIn &&
+  ctx.recipientGateway &&
+  condition.recipientGatewayNotIn.includes(ctx.recipientGateway)
+) {
   return { proceed: false, skipReason: "recipient_gateway_in_deny_list" };
 }
 ```
@@ -295,6 +308,7 @@ the whole prospect table.
 
 `apps/web/src/routes/_protected/sequences/$id/edit.tsx` — each step's entry-condition
 picker (already exists from Wave 5 BETA COMP-005) gains two new options:
+
 - "Only send if recipient is behind: [multi-select]" (`recipientGatewayIn`)
 - "Never send if recipient is behind: [multi-select]" (`recipientGatewayNotIn`)
 
@@ -311,6 +325,7 @@ in background, refresh in a minute."
 ### 4. Sequence detail — "Deliverability outlook" panel
 
 `apps/web/src/routes/_protected/sequences/$id/index.tsx` — new panel that shows:
+
 - SEG mix of enrolled prospects
 - (If any prospects behind SEGs) a warning "This sequence enrolls N prospects at
   Proofpoint/Mimecast. None of your mailboxes are marked `enterprise_safe`. See
@@ -325,10 +340,20 @@ in background, refresh in a minute."
 // packages/mail/src/gateway-detect.ts
 
 export type EmailGateway =
-  | "proofpoint" | "mimecast" | "barracuda" | "cisco_ironport"
-  | "trend_micro" | "fortinet" | "sophos" | "symantec"
-  | "google_workspace" | "microsoft_365" | "zoho" | "fastmail"
-  | "other" | "unknown";
+  | "proofpoint"
+  | "mimecast"
+  | "barracuda"
+  | "cisco_ironport"
+  | "trend_micro"
+  | "fortinet"
+  | "sophos"
+  | "symantec"
+  | "google_workspace"
+  | "microsoft_365"
+  | "zoho"
+  | "fastmail"
+  | "other"
+  | "unknown";
 
 export interface GatewayEvidence {
   kind: "mx" | "spf" | "dmarc" | "arc_seal" | "heuristic";
@@ -342,7 +367,9 @@ export interface GatewayDetectionResult {
   mxRecords: string[];
 }
 
-export async function detectEmailGateway(email: string): Promise<GatewayDetectionResult>;
+export async function detectEmailGateway(
+  email: string,
+): Promise<GatewayDetectionResult>;
 ```
 
 **Detection order (short-circuiting on high confidence):**
@@ -373,23 +400,47 @@ export async function detectEmailGateway(email: string): Promise<GatewayDetectio
 ### MX fingerprint table
 
 ```typescript
-const MX_FINGERPRINTS: Array<{ pattern: RegExp; gateway: EmailGateway; confidence: "high" | "medium" }> = [
+const MX_FINGERPRINTS: Array<{
+  pattern: RegExp;
+  gateway: EmailGateway;
+  confidence: "high" | "medium";
+}> = [
   // Proofpoint
   { pattern: /\.pphosted\.com$/i, gateway: "proofpoint", confidence: "high" },
   { pattern: /\.ppe-hosted\.com$/i, gateway: "proofpoint", confidence: "high" },
   // Mimecast
   { pattern: /\.mimecast\.com$/i, gateway: "mimecast", confidence: "high" },
-  { pattern: /\.mimecast\.co\.[a-z]+$/i, gateway: "mimecast", confidence: "high" },
+  {
+    pattern: /\.mimecast\.co\.[a-z]+$/i,
+    gateway: "mimecast",
+    confidence: "high",
+  },
   // Barracuda
-  { pattern: /\.barracudanetworks\.com$/i, gateway: "barracuda", confidence: "high" },
+  {
+    pattern: /\.barracudanetworks\.com$/i,
+    gateway: "barracuda",
+    confidence: "high",
+  },
   { pattern: /barracuda\.com$/i, gateway: "barracuda", confidence: "high" },
-  { pattern: /\.essentialscloud\.com$/i, gateway: "barracuda", confidence: "high" },
+  {
+    pattern: /\.essentialscloud\.com$/i,
+    gateway: "barracuda",
+    confidence: "high",
+  },
   // Cisco IronPort / Cisco Secure Email
   { pattern: /\.iphmx\.com$/i, gateway: "cisco_ironport", confidence: "high" },
-  { pattern: /\.cisco\.com$/i, gateway: "cisco_ironport", confidence: "medium" },
+  {
+    pattern: /\.cisco\.com$/i,
+    gateway: "cisco_ironport",
+    confidence: "medium",
+  },
   // Trend Micro
   { pattern: /trendmicro\.com$/i, gateway: "trend_micro", confidence: "high" },
-  { pattern: /tmes\.trendmicro\.com$/i, gateway: "trend_micro", confidence: "high" },
+  {
+    pattern: /tmes\.trendmicro\.com$/i,
+    gateway: "trend_micro",
+    confidence: "high",
+  },
   // Fortinet FortiMail
   { pattern: /fortinet\.com$/i, gateway: "fortinet", confidence: "medium" },
   { pattern: /\.fortimail\.com$/i, gateway: "fortinet", confidence: "high" },
@@ -400,17 +451,37 @@ const MX_FINGERPRINTS: Array<{ pattern: RegExp; gateway: EmailGateway; confidenc
   { pattern: /messagelabs\.com$/i, gateway: "symantec", confidence: "high" },
   { pattern: /symantec\.cloud$/i, gateway: "symantec", confidence: "high" },
   // Google Workspace (no SEG in front)
-  { pattern: /aspmx\.l\.google\.com$/i, gateway: "google_workspace", confidence: "high" },
-  { pattern: /googlemail\.com$/i, gateway: "google_workspace", confidence: "high" },
-  { pattern: /\.googlemail\.com$/i, gateway: "google_workspace", confidence: "high" },
+  {
+    pattern: /aspmx\.l\.google\.com$/i,
+    gateway: "google_workspace",
+    confidence: "high",
+  },
+  {
+    pattern: /googlemail\.com$/i,
+    gateway: "google_workspace",
+    confidence: "high",
+  },
+  {
+    pattern: /\.googlemail\.com$/i,
+    gateway: "google_workspace",
+    confidence: "high",
+  },
   // Microsoft 365 (no SEG in front)
-  { pattern: /\.mail\.protection\.outlook\.com$/i, gateway: "microsoft_365", confidence: "high" },
+  {
+    pattern: /\.mail\.protection\.outlook\.com$/i,
+    gateway: "microsoft_365",
+    confidence: "high",
+  },
   { pattern: /\.outlook\.com$/i, gateway: "microsoft_365", confidence: "high" },
   // Zoho
   { pattern: /zoho\.com$/i, gateway: "zoho", confidence: "high" },
   { pattern: /zohomail\.com$/i, gateway: "zoho", confidence: "high" },
   // Fastmail
-  { pattern: /messagingengine\.com$/i, gateway: "fastmail", confidence: "high" },
+  {
+    pattern: /messagingengine\.com$/i,
+    gateway: "fastmail",
+    confidence: "high",
+  },
 ];
 ```
 
@@ -441,6 +512,7 @@ upstream nameserver is slow. For a 5,000-prospect CSV import, we can't do 5,000
 classifications synchronously.
 
 **Import path (CSV / CRM sync):**
+
 1. Enqueue a `gateway.detect_bulk` job with the batch of `email_domain` uniqued
    values.
 2. Worker handler processes 100 domains in parallel, respects a 5s timeout per
@@ -449,6 +521,7 @@ classifications synchronously.
    `email_gateway IS NULL` and back-fills `prospect.email_gateway` from the cache.
 
 **Manual add path:**
+
 1. Server-fn `createProspect` returns immediately, prospect saved with
    `email_gateway = null`.
 2. Enqueue `gateway.detect_single { email }` job.
@@ -456,6 +529,7 @@ classifications synchronously.
    `gateway.detected` is inserted (optional — used for analytics).
 
 **Refresh cycle:**
+
 - Cron `gateway.sweep_stale` runs daily. Finds `gateway_classification` rows with
   `ttl_until < now()`, re-classifies. If gateway changed, updates all prospects at
   that domain via `UPDATE prospect SET email_gateway = new_gateway WHERE ...`.
@@ -544,7 +618,7 @@ assert `gateway_classification` cache has the expected domain count.
   workspaces and imports 10k unique domains, they DoS the DNS lookup queue. Mitigate
   with per-workspace daily rate limit on new domain lookups (e.g. 5k/day/org). Not
   strictly needed for MVP but note in RUNBOOK.md.
-- **What counts as "SEG"?** Google Workspace's built-in filtering is *not* a SEG
+- **What counts as "SEG"?** Google Workspace's built-in filtering is _not_ a SEG
   from Quiksend's perspective — Gmail-to-Workspace paths deliver reliably. Only
   classify as SEG the third-party gateways that would silently drop consumer-ESP
   sends. `google_workspace` and `microsoft_365` are gateways in the enum for
@@ -626,7 +700,7 @@ Extensions only, no new tables:
     prospectsBehindSeg: number;
     safeMailboxCount: number;
     prospectsAtRiskOfSkip: number; // = prospectsBehindSeg if safeMailboxCount == 0
-    prospectsPerGatewayWithSafeMailbox: Array<{ gateway, count }>;
+    prospectsPerGatewayWithSafeMailbox: Array<{ gateway; count }>;
   }
   ```
   Shown in the settings page when the user is about to toggle the policy — "You are
@@ -685,6 +759,7 @@ prominent red banner:
 > are marked enterprise-safe.
 >
 > Options:
+>
 > - [Enable routing guard] — skip these enrollments until you configure a safe mailbox
 > - [Learn more] — link to `docs/deliverability.md`
 > - [Ignore] — you can proceed and monitor delivery in analytics
@@ -710,6 +785,7 @@ The engine's decision path is:
    mailbox + `recipientGateway` from prospect. **Pass gateway into the routing
    selector.**
 3. New module `apps/worker/src/sequence/mailbox-router.ts`:
+
    ```typescript
    export async function selectMailboxForSend(
      tx: DrizzleTx,
@@ -723,17 +799,18 @@ The engine's decision path is:
      | { kind: "skip"; reason: "policy_off_but_warn"; emitEvent: true }
    >;
    ```
+
    Decision table:
 
-   | policy | recipient gateway | safe mailboxes exist? | current mailbox safe? | outcome |
-   |---|---|---|---|---|
-   | off | any | — | — | route to current mailbox, no warning |
-   | warn | non-SEG | — | — | route to current mailbox |
-   | warn | SEG | yes | no | route to a safe mailbox (auto-swap) + emit event |
-   | warn | SEG | no | — | route to current mailbox + emit event (delivered_at_risk) |
-   | enforce | non-SEG | — | — | route to current mailbox |
-   | enforce | SEG | yes | no | route to a safe mailbox (auto-swap) + emit event |
-   | enforce | SEG | no | — | **skip** (enrollment.paused with reason), emit event |
+   | policy  | recipient gateway | safe mailboxes exist? | current mailbox safe? | outcome                                                   |
+   | ------- | ----------------- | --------------------- | --------------------- | --------------------------------------------------------- |
+   | off     | any               | —                     | —                     | route to current mailbox, no warning                      |
+   | warn    | non-SEG           | —                     | —                     | route to current mailbox                                  |
+   | warn    | SEG               | yes                   | no                    | route to a safe mailbox (auto-swap) + emit event          |
+   | warn    | SEG               | no                    | —                     | route to current mailbox + emit event (delivered_at_risk) |
+   | enforce | non-SEG           | —                     | —                     | route to current mailbox                                  |
+   | enforce | SEG               | yes                   | no                    | route to a safe mailbox (auto-swap) + emit event          |
+   | enforce | SEG               | no                    | —                     | **skip** (enrollment.paused with reason), emit event      |
 
    Note the "auto-swap" case: when the current mailbox isn't safe but a safe one
    exists, the engine transparently reroutes. Anchor threading needs care — see
@@ -746,7 +823,7 @@ The engine's decision path is:
 
    **Resolution:** anchor-bound enrollments (`anchor_message_id IS NOT NULL`) skip
    the auto-swap. The routing decision falls through to `keep current mailbox +
-   emit event`. Rationale: threading integrity is more important than routing
+emit event`. Rationale: threading integrity is more important than routing
    optimization once an anchor exists. Document this trade-off in
    `docs/deliverability.md`.
 
@@ -766,11 +843,14 @@ mailboxes + 1 SMTP safe mailbox, prefer M365 (Microsoft→Microsoft trust).
 New module `packages/mail/src/content-sanitizer.ts`:
 
 ```typescript
-export function sanitizeForSeg(mime: BuiltMime, options: {
-  stripTrackingPixel: boolean;
-  stripExternalImages: boolean;
-  preferPlainText: boolean;
-}): BuiltMime;
+export function sanitizeForSeg(
+  mime: BuiltMime,
+  options: {
+    stripTrackingPixel: boolean;
+    stripExternalImages: boolean;
+    preferPlainText: boolean;
+  },
+): BuiltMime;
 ```
 
 - Strip tracking pixel: remove `<img>` tags with `src` matching Quiksend's tracking
@@ -790,9 +870,11 @@ per-gateway sub-cap:
 
 ```typescript
 // If recipient is SEG, apply the lower of (mailbox_cap, seg_sub_cap)
-const effectiveCap = recipientGateway === "google_workspace" || recipientGateway === "microsoft_365"
-  ? mailbox.dailyCap  // no reduction for non-SEG
-  : Math.min(mailbox.dailyCap, SEG_SUB_CAP); // default 50
+const effectiveCap =
+  recipientGateway === "google_workspace" ||
+  recipientGateway === "microsoft_365"
+    ? mailbox.dailyCap // no reduction for non-SEG
+    : Math.min(mailbox.dailyCap, SEG_SUB_CAP); // default 50
 ```
 
 `SEG_SUB_CAP` starts as an env var (`SEG_DAILY_CAP_PER_MAILBOX`, default 50), can be
@@ -928,6 +1010,7 @@ Model for full column list.
 Extensions:
 
 - `sequence.canary_config jsonb` — per-sequence override. Shape:
+
   ```typescript
   {
     enabled?: boolean; // default: inherit workspace policy
@@ -948,7 +1031,7 @@ Extensions:
   provider-managed seeds. Provider-managed seeds show up as read-only entries
   with `provider_managed: true`.
 - **`createUserSeedInbox({ email, imapHost, imapPort, imapUsername, imapPassword,
-  useSsl, notes? })`** — creates a user seed. Encrypts credentials. Enqueues
+useSsl, notes? })`** — creates a user seed. Encrypts credentials. Enqueues
   `seed_inbox.verify` job.
 - **`verifySeedInbox({ seedInboxId })`** — force re-verify. Also enqueued
   automatically after create. Attempts IMAP LOGIN + LIST, sets `verified_at` on
@@ -962,9 +1045,11 @@ Extensions:
 - **`getDeliverabilityGrid({ windowDays: number })`** — returns:
   ```typescript
   {
-    windowStart: string; windowEnd: string;
+    windowStart: string;
+    windowEnd: string;
     rows: Array<{
-      mailboxId: string; mailboxName: string;
+      mailboxId: string;
+      mailboxName: string;
       cells: Array<{
         gateway: EmailGateway;
         canaryTotal: number;
@@ -989,7 +1074,7 @@ Extensions:
   Reads billing state (out of scope for Phase 11; assume `organization.metadata.entitlements`
   jsonb has an `deliverability_pro: { activeUntil: date }` field).
 - **`getProviderManagedSeedGateways({})`** → `Array<{ gateway, seedCount, availableFor
-  workspace: boolean }>`. Lists which SEGs Quiksend has seeds behind.
+workspace: boolean }>`. Lists which SEGs Quiksend has seeds behind.
 
 ## UI
 
@@ -997,12 +1082,13 @@ Extensions:
 
 Table:
 
-| Email | Gateway | Provider | Verified | Active | Actions |
-|---|---|---|---|---|---|
-| test@my-friend.com | Proofpoint | M365 | ✅ 2026-07-15 | ✅ | Edit / Delete |
-| pro-seed-01@... | Mimecast | (Quiksend-managed) | ✅ | ✅ | (read-only) |
+| Email              | Gateway    | Provider           | Verified      | Active | Actions       |
+| ------------------ | ---------- | ------------------ | ------------- | ------ | ------------- |
+| test@my-friend.com | Proofpoint | M365               | ✅ 2026-07-15 | ✅     | Edit / Delete |
+| pro-seed-01@...    | Mimecast   | (Quiksend-managed) | ✅            | ✅     | (read-only)   |
 
 "[Add seed inbox]" button opens a modal:
+
 - Email address
 - IMAP host / port / username / password / SSL
 - Notes (optional)
@@ -1036,6 +1122,7 @@ and there are recent canary sends associated with this sequence's mailboxes:
 ### 4. Auto-pause alert (in-app notification + email)
 
 When a campaign auto-pauses due to canary threshold breach:
+
 - In-app: notification toast + persistent banner on sequence page
 - Email: sent to workspace admins with:
   > Your campaign "Q3 Enterprise Outbound" has been auto-paused.
@@ -1051,6 +1138,7 @@ enterprise-SEG mailboxes is a legitimately hard operational lift. Here's how.
 ### The seed pool goal (concrete numbers)
 
 For Deliverability Pro tier, Quiksend operates:
+
 - **3 seed inboxes per major SEG × 4 SEGs = 12 mailboxes minimum**
   - Proofpoint: 3 seeds
   - Mimecast: 3 seeds
@@ -1075,7 +1163,7 @@ Each seed requires four things stacked:
    - **Microsoft 365 Business Basic** ($6/user/mo) — best for the two SEGs that
      have deep M365 integration (Mimecast, Proofpoint's M365-optimized flow)
    - **Google Workspace Business Starter** ($7/user/mo) — for the other SEGs
-   - The mailbox needs to be *live* (receive some volume of real mail) before it
+   - The mailbox needs to be _live_ (receive some volume of real mail) before it
      looks legit to the SEG's reputation-tracking
 
 3. **The SEG itself, subscribed and configured** — this is the non-trivial part:
@@ -1109,7 +1197,7 @@ Per seed: $6 (M365 or Google) + $2-5 (SEG subscription) + $1/mo (domain amortize
 Add domain registration one-time (~$150 total for 12 domains at $12/year avg).
 
 **Break-even math**: at $99/mo Pro tier, 3 subscribers cover the pool cost. 20+
-subscribers = healthy margin. This is *not* a moonshot — it's a viable line item.
+subscribers = healthy margin. This is _not_ a moonshot — it's a viable line item.
 
 ### The seed pool tickets (11C.15 onward)
 
@@ -1121,7 +1209,7 @@ subscribers = healthy margin. This is *not* a moonshot — it's a viable line it
   the repo).
 - **11C.17 — Seed inbox onboarding to the app**. Provider-managed seeds are
   inserted into `seed_inbox` with `organization_id = NULL` and `pool_tag =
-  'production'`. A one-time bootstrap script `scripts/seed-pool-bootstrap.ts`
+'production'`. A one-time bootstrap script `scripts/seed-pool-bootstrap.ts`
   seeds the DB from the runbook's config.
 - **11C.18 — Ongoing seed maintenance job**. Monthly cron
   `seed_pool.health_check`: for each seed, verify IMAP still connects, verify last
@@ -1160,7 +1248,7 @@ enrollment happens:
      if Pro).
    - Pick M random positions in the enrollment sequence to inject canary sends.
    - Create `canary_send` rows with `sent_at = NULL`, `expected_arrival_at = now
-     + 15min`.
+     - 15min`.
 4. Enrollment proceeds normally. Each canary send is scheduled via the same
    `send_reservation` mechanism — treated identically to real sends by the engine.
 
@@ -1192,27 +1280,34 @@ async function handler(job: Job): Promise<void> {
   const dueCanaries = await db
     .select()
     .from(canary_send)
-    .where(and(
-      eq(canary_send.arrivalStatus, "pending"),
-      lt(canary_send.expectedArrivalAt, sql`now() + interval '30 minutes'`),
-      // Give up after 24h
-      gt(canary_send.sentAt, sql`now() - interval '24 hours'`),
-    ));
+    .where(
+      and(
+        eq(canary_send.arrivalStatus, "pending"),
+        lt(canary_send.expectedArrivalAt, sql`now() + interval '30 minutes'`),
+        // Give up after 24h
+        gt(canary_send.sentAt, sql`now() - interval '24 hours'`),
+      ),
+    );
 
   // Group by seed_inbox_id, one IMAP connection per seed
   const bySeed = groupBy(dueCanaries, "seedInboxId");
 
-  await Promise.all(Object.entries(bySeed).map(async ([seedId, canaries]) => {
-    await pollSeed(seedId, canaries);
-  }));
+  await Promise.all(
+    Object.entries(bySeed).map(async ([seedId, canaries]) => {
+      await pollSeed(seedId, canaries);
+    }),
+  );
 
   // Sweep: any canary older than 24h that didn't arrive = silent_drop
-  await db.update(canary_send)
+  await db
+    .update(canary_send)
     .set({ arrivalStatus: "silent_drop", arrivedAt: sql`now()` })
-    .where(and(
-      eq(canary_send.arrivalStatus, "pending"),
-      lt(canary_send.sentAt, sql`now() - interval '24 hours'`),
-    ));
+    .where(
+      and(
+        eq(canary_send.arrivalStatus, "pending"),
+        lt(canary_send.sentAt, sql`now() - interval '24 hours'`),
+      ),
+    );
 
   // Update deliverability_snapshot rollup
   await refreshDeliverabilitySnapshots();
@@ -1271,7 +1366,7 @@ async function maybePauseCampaigns() {
 }
 ```
 
-Note: pausing a *sequence* pauses all its enrollments. That's the current-state
+Note: pausing a _sequence_ pauses all its enrollments. That's the current-state
 behavior from Phase 5. Consider a finer-grained "pause only enrollments matching
 this (mailbox, gateway) tuple" — deferred to 11C polish, easier to ship the
 whole-sequence pause first.
@@ -1318,7 +1413,8 @@ into `deliverability_snapshot`. Runs every 15 minutes.
 
 11C.10 — **Server functions**: `getDeliverabilityGrid`, `getCanaryHistory`,
 `getWorkspaceCanaryConfig`, `setWorkspaceCanaryConfig`. `isEntitledToProviderSeeds`
-+ `getProviderManagedSeedGateways`.
+
+- `getProviderManagedSeedGateways`.
 
 ### UI
 

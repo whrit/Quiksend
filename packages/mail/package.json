@@ -14,6 +14,7 @@
     "./adapters/microsoft": "./src/adapters/microsoft.ts",
     "./adapters/fake": "./src/adapters/fake.ts",
     "./adapters/index": "./src/adapters/index.ts",
+    "./gateway-detect": "./src/gateway-detect.ts",
     "./nango-proxy": "./src/nango-proxy.ts"
   },
   "scripts": {
