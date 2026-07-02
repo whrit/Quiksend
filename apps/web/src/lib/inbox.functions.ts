@@ -456,27 +456,41 @@ export const suppressEmail = orgFn({ method: "POST" })
     const { organizationId, userId } = context.orgContext;
     const value = data.email.toLowerCase();
 
-    const [row] = await db
-      .insert(tables.suppression)
-      .values({
-        organizationId,
-        value,
-        valueType: "email",
-        reason: data.reason ?? "manual",
-        notes: data.notes ?? null,
-        createdByUserId: userId,
-      })
-      .onConflictDoUpdate({
-        target: [tables.suppression.organizationId, tables.suppression.value],
-        set: {
+    const result = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(tables.suppression)
+        .values({
+          organizationId,
+          value,
+          valueType: "email",
           reason: data.reason ?? "manual",
           notes: data.notes ?? null,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
+          createdByUserId: userId,
+        })
+        .onConflictDoUpdate({
+          target: [tables.suppression.organizationId, tables.suppression.value],
+          set: {
+            reason: data.reason ?? "manual",
+            notes: data.notes ?? null,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
 
-    return { id: row?.id };
+      const prospectStatus =
+        data.reason === "manual" || data.reason === "complaint" ? "do_not_contact" : "unsubscribed";
+
+      await tx
+        .update(tables.prospect)
+        .set({ status: prospectStatus })
+        .where(
+          and(eq(tables.prospect.organizationId, organizationId), eq(tables.prospect.email, value)),
+        );
+
+      return row;
+    });
+
+    return { id: result?.id };
   });
 
 export const unsuppressEmail = orgFn({ method: "POST" })
