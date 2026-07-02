@@ -1,4 +1,5 @@
 import { db, tables } from "@quiksend/db";
+import { enqueue } from "@quiksend/queue";
 import { and, asc, desc, eq, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { DedupePolicy, ValidCsvRow } from "./prospect-import.ts";
@@ -381,6 +382,8 @@ export const createProspect = orgFn({ method: "POST" })
         companyId: data.companyId,
       })
       .returning();
+
+    await enqueueCrmContactUpsertForProspect(organizationId, created!.id);
 
     return serializeProspect(created!);
   });
@@ -847,4 +850,161 @@ export const getImportBatch = orgFn({ method: "GET" })
 
     if (!batch) notFound();
     return serializeImportBatch(batch, batch.errors);
+  });
+
+async function hasAnyCrmConnection(organizationId: string): Promise<boolean> {
+  const row = await db.query.crmConnection.findFirst({
+    where: and(
+      eq(tables.crmConnection.organizationId, organizationId),
+      eq(tables.crmConnection.status, "active"),
+    ),
+  });
+  return Boolean(row);
+}
+
+async function enqueueCrmContactUpsertForProspect(
+  organizationId: string,
+  prospectId: string,
+): Promise<void> {
+  if (!(await hasAnyCrmConnection(organizationId))) return;
+
+  const connections = await db.query.crmConnection.findMany({
+    where: and(
+      eq(tables.crmConnection.organizationId, organizationId),
+      eq(tables.crmConnection.status, "active"),
+    ),
+  });
+
+  for (const connection of connections) {
+    await enqueue("crm.writeback", {
+      connectionId: connection.id,
+      eventType: "contact_upsert",
+      entityId: prospectId,
+      idempotencyKey: `contact_upsert:${prospectId}:${connection.id}`,
+    });
+  }
+}
+
+export const getProspectEnrollments = orgFn({ method: "POST" })
+  .validator(z.object({ prospectId: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { organizationId } = context.orgContext;
+
+    const rows = await db.query.enrollment.findMany({
+      where: and(
+        eq(tables.enrollment.prospectId, data.prospectId),
+        eq(tables.enrollment.organizationId, organizationId),
+      ),
+      orderBy: desc(tables.enrollment.updatedAt),
+    });
+
+    const sequenceIds = [...new Set(rows.map((r) => r.sequenceId))];
+    const sequences =
+      sequenceIds.length > 0
+        ? await db.query.sequence.findMany({
+            where: and(
+              eq(tables.sequence.organizationId, organizationId),
+              inArray(tables.sequence.id, sequenceIds),
+            ),
+          })
+        : [];
+    const sequenceMap = new Map(sequences.map((s) => [s.id, s]));
+
+    return rows.map((row) => {
+      const sequence = sequenceMap.get(row.sequenceId);
+      return {
+        id: row.id,
+        sequenceId: row.sequenceId,
+        sequenceName: sequence?.name ?? "Unknown sequence",
+        state: row.state,
+        currentStepIndex: row.currentStepIndex,
+        nextRunAt: row.nextRunAt?.toISOString() ?? null,
+        lastError: row.lastError,
+        updatedAt: row.updatedAt.toISOString(),
+        createdAt: row.createdAt.toISOString(),
+      };
+    });
+  });
+
+export const getProspectMessages = orgFn({ method: "POST" })
+  .validator(
+    z.object({
+      prospectId: z.string().uuid(),
+      cursor: z
+        .object({
+          at: z.string().datetime(),
+          id: z.string().uuid(),
+        })
+        .optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    const { organizationId } = context.orgContext;
+    const limit = data.limit ?? 20;
+
+    const conditions = [
+      eq(tables.message.organizationId, organizationId),
+      eq(tables.message.prospectId, data.prospectId),
+    ];
+
+    if (data.cursor) {
+      conditions.push(
+        or(
+          lt(tables.message.createdAt, new Date(data.cursor.at)),
+          and(
+            eq(tables.message.createdAt, new Date(data.cursor.at)),
+            lt(tables.message.id, data.cursor.id),
+          ),
+        )!,
+      );
+    }
+
+    const rows = await db.query.message.findMany({
+      where: and(...conditions),
+      orderBy: [desc(tables.message.createdAt), desc(tables.message.id)],
+      limit: limit + 1,
+    });
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    const last = items[items.length - 1];
+    const nextCursor =
+      hasMore && last
+        ? {
+            at: last.createdAt.toISOString(),
+            id: last.id,
+          }
+        : null;
+
+    return {
+      items: items.map((m) => ({
+        id: m.id,
+        direction: m.direction,
+        subject: m.subject,
+        status: m.status,
+        sentiment: m.sentiment,
+        sentAt: m.sentAt?.toISOString() ?? null,
+        receivedAt: m.receivedAt?.toISOString() ?? null,
+      })),
+      nextCursor,
+    };
+  });
+
+export const getProspectResearchProfile = orgFn({ method: "POST" })
+  .validator(z.object({ prospectId: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { organizationId } = context.orgContext;
+    const profile = await db.query.researchProfile.findFirst({
+      where: and(
+        eq(tables.researchProfile.organizationId, organizationId),
+        eq(tables.researchProfile.prospectId, data.prospectId),
+      ),
+    });
+    if (!profile) return null;
+    return {
+      id: profile.id,
+      status: profile.status,
+      updatedAt: profile.updatedAt.toISOString(),
+    };
   });

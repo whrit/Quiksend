@@ -13,6 +13,7 @@
 ### 1. Scheduler hot path
 
 #### [PERF-001] Tick claim query is indexed; partial index would help at scale
+
 - Location: `apps/worker/src/sequence/tick.ts:9-15`, `packages/db/src/schema/sequences.ts:127`
 - Severity: low
 - What: Claim uses `WHERE state = 'active' AND next_run_at IS NOT NULL AND next_run_at <= now() ORDER BY next_run_at LIMIT 100 FOR UPDATE SKIP LOCKED`. Index `enrollment_state_next_run_idx` on `(state, next_run_at)` exists and supports this pattern.
@@ -21,6 +22,7 @@
 - Confidence: high
 
 #### [PERF-002] Batch size 100 + 30s tick caps scheduler drain at ~3.3 enrollments/sec
+
 - Location: `apps/worker/src/sequence/tick.ts:13`, `apps/worker/src/sequence/register.ts:12`
 - Severity: medium
 - What: Tick runs every 30 seconds (`*/30 * * * * *`) and claims at most 100 enrollments per invocation. Post-claim, `enqueueSequenceStep` runs sequentially in a loop (`tick.ts:23-25`).
@@ -29,6 +31,7 @@
 - Confidence: high
 
 #### [PERF-003] Per-row UPDATE inside claim transaction extends lock hold time
+
 - Location: `apps/worker/src/sequence/tick.ts:17-20`
 - Severity: medium
 - What: After `SELECT … FOR UPDATE SKIP LOCKED`, the loop runs one `UPDATE enrollment SET next_run_at = NULL` per claimed row inside the same transaction.
@@ -41,6 +44,7 @@
 ### 2. Reservation contention
 
 #### [PERF-004] Advisory lock serializes per mailbox — acceptable but latency stacks under burst
+
 - Location: `apps/worker/src/sequence/reserve-slot.ts:86-87`
 - Severity: medium
 - What: `pg_advisory_xact_lock(hashtext(mailboxId))` serializes all reservation attempts for one mailbox. Inside the lock: mailbox load, window check, `lastSendAt`, `countReservationsInWindow`, optional `oldestReservationTime`, insert (`:98-124`).
@@ -49,6 +53,7 @@
 - Confidence: high
 
 #### [PERF-005] Rolling 24h cap count uses `reserved_at`, but index is on `window_start`
+
 - Location: `apps/worker/src/sequence/reserve-slot.ts:45-57`, `packages/db/src/schema/tasks.ts:74`
 - Severity: high
 - What: Cap check: `COUNT(*) … WHERE mailbox_id = $1 AND reserved_at >= $windowStart AND status IN ('held','sent')`. Index: `send_reservation_mailbox_window_idx` on `(mailbox_id, window_start)`.
@@ -57,6 +62,7 @@
 - Confidence: high
 
 #### [PERF-006] `lastSendAt` lacks a targeted composite index
+
 - Location: `apps/worker/src/sequence/reserve-slot.ts:29-41`, `packages/db/src/schema/mail.ts:107-112`
 - Severity: medium
 - What: Throttle check queries `message` with `(mailbox_id, organization_id, direction='outbound', status='sent') ORDER BY sent_at DESC LIMIT 1`. Closest index is `message_mailbox_list_idx` on `(organization_id, mailbox_id, direction, sent_at DESC)` without `status`.
@@ -69,6 +75,7 @@
 ### 3. Analytics query performance
 
 #### [PERF-007] Funnel query uses correlated EXISTS without `message.enrollment_id` index
+
 - Location: `apps/web/src/lib/analytics.functions.ts:17-33`, `packages/db/src/schema/mail.ts:71-122`
 - Severity: high
 - What: `getSequenceFunnel` counts enrollments with `EXISTS (SELECT 1 FROM message m WHERE m.enrollment_id = e.id …)`. `message.enrollment_id` has no index.
@@ -77,6 +84,7 @@
 - Confidence: high
 
 #### [PERF-008] `sequence_stats` rollup view exists but analytics bypasses it
+
 - Location: `packages/db/src/schema/writeback.ts:84-112`, `apps/web/src/lib/analytics.functions.ts:6-42`
 - Severity: medium
 - What: Phase 9 added `sequence_stats` view with same EXISTS pattern. `getSequenceFunnel` recomputes raw aggregates; nothing reads the view.
@@ -85,6 +93,7 @@
 - Confidence: high
 
 #### [PERF-009] `event(organization_id, type, created_at DESC)` index confirmed
+
 - Location: `packages/db/src/schema/writeback.ts:76-80`, `apps/web/src/lib/analytics.functions.ts:262-295`
 - Severity: low (positive)
 - What: Index matches `getWorkspaceOverview` filters on `(organization_id, type)` + `created_at >= weekAgo` and daily trend grouped by day.
@@ -93,6 +102,7 @@
 - Confidence: high
 
 #### [PERF-010] No instrumentation to decide when to add rollup tables
+
 - Location: `apps/web/src/lib/analytics.functions.ts:6-312`, `packages/db/src/schema/tasks.ts:77-91`, `apps/worker/src/sequence/effects.ts:363-388`
 - Severity: medium
 - What: Phase 9 deferred materialized rollups “if views get slow.” `job_log` records `durationMs` for `sequence.step` only (`execute-step.ts:24-65`). Analytics server fns have no timing logs, slow-query alerts, or pg_stat monitoring hooks.
@@ -101,6 +111,7 @@
 - Confidence: high
 
 #### [PERF-011] Step rates query joins enrollment × message without enrollment sequence index
+
 - Location: `apps/web/src/lib/analytics.functions.ts:62-81`, `packages/db/src/schema/sequences.ts:121-129`
 - Severity: medium
 - What: `getSequenceStepRates` LEFT JOINs `enrollment` on `sequence_id` + filters `current_step_index >= step_index`, then JOINs `message` on `enrollment_id`.
@@ -113,6 +124,7 @@
 ### 4. Inbox list query
 
 #### [PERF-012] Inbox thread list over-fetches 500 messages then groups in memory
+
 - Location: `apps/web/src/lib/inbox.functions.ts:95-200`
 - Severity: medium
 - What: `listInboxThreads` loads up to 500 messages (`limit: 500`), groups into threads in JS, then paginates to `data.limit` (default 50). Not N+1 — batch fetches mailboxes, prospects, enrollments, sequences via `inArray` (`:101-147`).
@@ -121,6 +133,7 @@
 - Confidence: high
 
 #### [PERF-013] Inbox ordering uses expression not covered by index
+
 - Location: `apps/web/src/lib/inbox.functions.ts:97`, `packages/db/src/schema/mail.ts:116-120`
 - Severity: low
 - What: `ORDER BY coalesce(received_at, sent_at)` while `message_inbox_list_idx` is `(organization_id, direction, received_at DESC)`.
@@ -133,6 +146,7 @@
 ### 5. Prospect table query
 
 #### [PERF-014] Keyset cursor always uses `created_at`, ignoring `sortField`
+
 - Location: `apps/web/src/lib/prospects.functions.ts:251-282`
 - Severity: high
 - What: Pagination cursor predicates always compare `created_at` and `id` (`:251-270`), but `orderBy` uses `sortColumn(data.sortField)` (`:204-214`, `:282`).
@@ -141,6 +155,7 @@
 - Confidence: high
 
 #### [PERF-015] Missing index for default prospect list sort
+
 - Location: `packages/db/src/schema/prospects.ts:91-98`, `apps/web/src/lib/prospects.functions.ts:273-283`
 - Severity: medium
 - What: Default sort `(created_at DESC, id DESC)` with filter `organization_id` + `deleted_at IS NULL`. Indexes: `prospect_org_status_idx (org, status)`, unique `(org, email)` — none on `(organization_id, created_at DESC, id)`.
@@ -149,6 +164,7 @@
 - Confidence: high
 
 #### [PERF-016] ILIKE search has no trigram/GiST support
+
 - Location: `apps/web/src/lib/prospects.functions.ts:236-244`
 - Severity: medium
 - What: Search uses `ilike(email|first_name|last_name, '%term%')` — leading wildcard prevents btree use.
@@ -161,6 +177,7 @@
 ### 6. CRM writeback throughput
 
 #### [PERF-017] No queue-level retry/backoff for failed writebacks; provider retry only
+
 - Location: `apps/worker/src/handlers/crm-writeback.ts:278-295`, `packages/queue/src/boss.ts:45-54`, `packages/integrations/src/writeback/hubspot.ts:43-44`
 - Severity: medium
 - What: `crm.writeback` enqueued via plain `enqueue()` (no `retryLimit`/`retryBackoff`). Handler sets log `status: 'failed'` and rethrows. Nango calls use `retries: 3, retryOn: [429, …]` per request.
@@ -169,6 +186,7 @@
 - Confidence: medium
 
 #### [PERF-018] Each writeback job loads context with multiple sequential queries
+
 - Location: `apps/worker/src/handlers/crm-writeback.ts:46-119`, `220-261`
 - Severity: low
 - What: Handler resolves connection, prospect, enrollment, contact ID through separate queries before one Nango call.
@@ -181,6 +199,7 @@
 ### 7. Webhook delivery throughput
 
 #### [PERF-019] Sweep every 60s, 50 rows per sweep, no global HTTP concurrency cap
+
 - Location: `apps/worker/src/handlers/webhook-fanout.ts:75-79`, `apps/worker/src/handlers/webhook-deliver.ts:46-59`, `packages/queue/src/boss.ts:71-76`
 - Severity: medium
 - What: `setInterval(60_000)` calls `sweepPendingWebhookDeliveries(50)`. New deliveries enqueue immediately on fanout (`webhook-fanout.ts:43`). Handler uses `fetch` with 30s timeout (`webhook-deliver.ts:87-97`). pg-boss `work()` uses default team size (typically 2 concurrent jobs per queue per worker process).
@@ -193,6 +212,7 @@
 ### 8. pgvector queries
 
 #### [PERF-020] HNSW index present (1536-dim); redundant prefetch before vector search
+
 - Location: `packages/db/src/schema/ai.ts:40-52`, `packages/ai/src/generation/prompt-builder.ts:19-57`
 - Severity: medium
 - What: `value_prop.embedding` is `vector(1536)` with `value_prop_embedding_hnsw_idx` using `hnsw` + `vector_cosine_ops`. `retrieveValueProps` first loads 50 rows via `findMany` (`:19-22`), then runs cosine query (`:44-57`) if embedding exists.
@@ -201,6 +221,7 @@
 - Confidence: high
 
 #### [PERF-021] HNSW index not scoped by organization
+
 - Location: `packages/db/src/schema/ai.ts:50-53`, `packages/ai/src/generation/prompt-builder.ts:54-55`
 - Severity: low
 - What: HNSW index is on `embedding` alone; query filters `organization_id` after index scan.
@@ -213,6 +234,7 @@
 ### 9. Mailbox poll
 
 #### [PERF-022] All active mailboxes enqueued every 2 minutes — rate-limit risk at 100+ mailboxes
+
 - Location: `apps/worker/src/handlers/mailbox-poll.ts:57-65`
 - Severity: medium
 - What: Cron `*/2 * * * *` loads all active mailboxes and enqueues one `mailbox.poll` job each, sequentially. Gmail uses `history.list` (`:303-311`); full resync caps `maxResults: 50` (`:358`); incremental history has **no pagination** for large history pages.
@@ -221,6 +243,7 @@
 - Confidence: high
 
 #### [PERF-023] Microsoft delta poll does not follow `@odata.nextLink`
+
 - Location: `apps/worker/src/handlers/mailbox-poll.ts:398-460`
 - Severity: high
 - What: `pollMicrosoft` performs a single GET; processes `data.value` but never follows `@odata.nextLink` for additional pages.
@@ -233,6 +256,7 @@
 ### 10. CSV import
 
 #### [PERF-024] 5000-row import runs synchronously with ~3–5 queries per row
+
 - Location: `apps/web/src/lib/prospects.functions.ts:191`, `709-810`, `apps/web/src/lib/prospect-import.ts:208-244`
 - Severity: **critical**
 - What: Client parses CSV via papaparse stream (`prospect-import.ts:217-242`), capped at 5000 rows (`prospects.functions.ts:191`). `startImport` loops rows calling `importProspectRow` sequentially (`:795-810`) — each does `resolveCompanyId` (1–2 queries), `findFirst` prospect, insert/update (`:709-759`). No batching, no background job.
@@ -245,6 +269,7 @@
 ## P2 — Additional items
 
 #### [PERF-025] Prospect timeline is not N+1 (limited data today)
+
 - Location: `apps/web/src/routes/_protected/prospects/$id.tsx:49-115`, `apps/web/src/lib/analytics.functions.ts:341-387`
 - Severity: low
 - What: Loader runs 2 parallel calls: `getProspect` (single query with relations) and `getProspectWritebackLogs` (3 queries: enrollments, messages, writeback logs — not per-row N+1). Timeline UI is built from prospect `createdAt`/`updatedAt` only (`$id.tsx:98-115`) — no messages/events timeline yet.
@@ -253,6 +278,7 @@
 - Confidence: high
 
 #### [PERF-026] Missing FK indexes on hot join columns
+
 - Location: `packages/db/src/schema/mail.ts:83`, `packages/db/src/schema/sequences.ts:121-129`
 - Severity: high
 - What: Columns used in WHERE/JOIN without dedicated indexes:
@@ -264,6 +290,7 @@
 - Confidence: high
 
 #### [PERF-027] `prepare: false` not configured for PgBouncer compatibility
+
 - Location: `packages/db/src/client.ts:9-13`, `CLAUDE.md:50`
 - Severity: medium
 - What: Comment documents PgBouncer transaction-mode requirement; client is `postgres(env.DATABASE_URL)` with default `prepare: true`. Same client shared by `apps/web` and `apps/worker`.
@@ -272,6 +299,7 @@
 - Confidence: high
 
 #### [PERF-028] Turbo does not cache `typecheck` outputs
+
 - Location: `turbo.json:3-5`
 - Severity: low
 - What: `typecheck` task has `dependsOn: ["^typecheck"]` but no `outputs` and no explicit `cache` — Turbo caches tasks with outputs; `tsc --noEmit` produces none.
@@ -280,6 +308,7 @@
 - Confidence: high
 
 #### [PERF-029] Recharts imported on route chunks only; no Tremor
+
 - Location: `apps/web/package.json:50`, `apps/web/src/routes/_protected/analytics/index.tsx:11`, `apps/web/src/routes/_protected/sequences/$id/analytics.tsx:2`
 - Severity: low
 - What: `recharts@3.3.0` is a dependency; used only in analytics/health route files. TanStack Router code-splits by route. No `@tremor` packages in the repo.
@@ -291,16 +320,16 @@
 
 ## Load estimates (reference)
 
-| Path | ~100k rows | Dominant cost | Expected latency today | At scale without fixes |
-|------|------------|---------------|------------------------|-------------------------|
-| Scheduler tick | 100k due burst | Claim + enqueue | 30s tick, 100/batch | 8+ hr backlog (PERF-002) |
-| Reserve slot | 100 concurrent / mailbox | Advisory lock + COUNT | tens–100s ms | 2–5s tail (PERF-004) |
-| getSequenceFunnel | 10k enroll × 100k msg | Correlated EXISTS | 100ms–2s (small data) | 10–60s+ (PERF-007) |
-| listInboxThreads | 100k msg | 500-row fetch + group | 50–200ms | 500ms–2s (PERF-012) |
-| listProspects | 100k prospects | Seq scan + sort | 100–300ms | 1–5s; search unusable (PERF-015/016) |
-| startImport 5000 | 5000 rows | 20k queries sync | N/A (timeout) | Request failure (PERF-024) |
-| retrieveValueProps | <500 vectors | HNSW + double fetch | <100ms | OK; wasteful prefetch (PERF-020) |
-| Mailbox poll 100 | 100 mailboxes | HTTP burst / 2 min | OK | Quota pressure (PERF-022) |
+| Path               | ~100k rows               | Dominant cost         | Expected latency today | At scale without fixes               |
+| ------------------ | ------------------------ | --------------------- | ---------------------- | ------------------------------------ |
+| Scheduler tick     | 100k due burst           | Claim + enqueue       | 30s tick, 100/batch    | 8+ hr backlog (PERF-002)             |
+| Reserve slot       | 100 concurrent / mailbox | Advisory lock + COUNT | tens–100s ms           | 2–5s tail (PERF-004)                 |
+| getSequenceFunnel  | 10k enroll × 100k msg    | Correlated EXISTS     | 100ms–2s (small data)  | 10–60s+ (PERF-007)                   |
+| listInboxThreads   | 100k msg                 | 500-row fetch + group | 50–200ms               | 500ms–2s (PERF-012)                  |
+| listProspects      | 100k prospects           | Seq scan + sort       | 100–300ms              | 1–5s; search unusable (PERF-015/016) |
+| startImport 5000   | 5000 rows                | 20k queries sync      | N/A (timeout)          | Request failure (PERF-024)           |
+| retrieveValueProps | <500 vectors             | HNSW + double fetch   | <100ms                 | OK; wasteful prefetch (PERF-020)     |
+| Mailbox poll 100   | 100 mailboxes            | HTTP burst / 2 min    | OK                     | Quota pressure (PERF-022)            |
 
 ---
 

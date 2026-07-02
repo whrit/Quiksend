@@ -1,0 +1,2 @@
+CREATE TYPE "public"."message_sentiment" AS ENUM('interested', 'not_now', 'objection', 'out_of_office', 'unsubscribe_request');--> statement-breakpoint
+ALTER TABLE "message" ADD COLUMN "sentiment" "message_sentiment";

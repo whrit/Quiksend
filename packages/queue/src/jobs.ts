@@ -43,25 +43,35 @@ export interface MailboxPollPayload {
 }
 
 // ── crm.sync — pull changed records from a connected CRM (Phase 3) ──────────
+export const crmSyncFilterSchema = z.enum(["all", "modified_since", "tagged"]);
+
 export const crmSyncSchema = z.object({
   connectionId: z.string().uuid(),
   model: z.enum(["Contact", "Account", "Company"]),
+  targetListId: z.string().uuid().optional(),
+  filter: crmSyncFilterSchema.optional(),
+  modifiedSinceDays: z.number().int().positive().optional(),
+  tag: z.string().max(200).optional(),
 });
 export interface CrmSyncPayload {
   connectionId: string;
   model: "Contact" | "Account" | "Company";
+  targetListId?: string;
+  filter?: "all" | "modified_since" | "tagged";
+  modifiedSinceDays?: number;
+  tag?: string;
 }
 
 // ── crm.writeback — log activity / update contact on CRM (Phase 9) ──────────
 export const crmWritebackSchema = z.object({
   connectionId: z.string().uuid(),
-  eventType: z.enum(["send", "reply", "status"]),
+  eventType: z.enum(["send", "reply", "status", "contact_upsert"]),
   entityId: z.string().uuid(),
   idempotencyKey: z.string(),
 });
 export interface CrmWritebackPayload {
   connectionId: string;
-  eventType: "send" | "reply" | "status";
+  eventType: "send" | "reply" | "status" | "contact_upsert";
   entityId: string;
   idempotencyKey: string;
 }

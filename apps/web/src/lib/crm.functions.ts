@@ -177,6 +177,10 @@ export const triggerCrmSync = orgFn({ method: "POST" })
     z.object({
       connectionId: z.string().uuid(),
       model: z.enum(["Contact", "Account", "Company"]),
+      targetListId: z.string().uuid().optional(),
+      filter: z.enum(["all", "modified_since", "tagged"]).optional(),
+      modifiedSinceDays: z.number().int().positive().optional(),
+      tag: z.string().max(200).optional(),
     }),
   )
   .handler(async ({ data, context }) => {
@@ -188,6 +192,13 @@ export const triggerCrmSync = orgFn({ method: "POST" })
       ),
     });
     if (!connection) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
-    await enqueue("crm.sync", { connectionId: data.connectionId, model: data.model });
+    await enqueue("crm.sync", {
+      connectionId: data.connectionId,
+      model: data.model,
+      targetListId: data.targetListId,
+      filter: data.filter,
+      modifiedSinceDays: data.modifiedSinceDays,
+      tag: data.tag,
+    });
     return { enqueued: true };
   });
