@@ -1,4 +1,6 @@
-import { client } from "./client.ts";
+import { randomUUID } from "node:crypto";
+import { client, db } from "./client.ts";
+import { member, organization, user } from "./schema/auth.ts";
 
 /**
  * Test-only helpers. In real tests, `pnpm test` runs against the CI Postgres
@@ -23,6 +25,10 @@ export interface TestOrgs {
 export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
   "sync_state",
   "crm_connection",
+  "import_error",
+  "import_batch",
+  "list_member",
+  "list",
   "prospect",
   "company",
 ];
@@ -41,4 +47,56 @@ export async function pingDb(): Promise<void> {
 /** Manual close hook for test cleanup — pnpm test's process exit also drops the pool. */
 export async function closeTestDb(): Promise<void> {
   await client.end();
+}
+
+function makeId(prefix: string): string {
+  return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+}
+
+async function createTestOrg(label: string): Promise<{ id: string; userId: string }> {
+  const orgId = makeId("org");
+  const userId = makeId("user");
+  const memberId = makeId("member");
+  const now = new Date();
+
+  await db.insert(user).values({
+    id: userId,
+    name: `${label} User`,
+    email: `${label}-${randomUUID().slice(0, 8)}@test.quiksend.local`,
+    emailVerified: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await db.insert(organization).values({
+    id: orgId,
+    name: `${label} Workspace`,
+    slug: `${label}-${randomUUID().slice(0, 8)}`,
+    createdAt: now,
+  });
+
+  await db.insert(member).values({
+    id: memberId,
+    organizationId: orgId,
+    userId,
+    role: "owner",
+    createdAt: now,
+  });
+
+  return { id: orgId, userId };
+}
+
+/**
+ * Creates two isolated organizations with an owner member each, runs the callback,
+ * then truncates app tables so the next test starts clean.
+ */
+export async function withTestOrgs<T>(fn: (orgs: TestOrgs) => Promise<T>): Promise<T> {
+  await pingDb();
+  const orgA = await createTestOrg("orgA");
+  const orgB = await createTestOrg("orgB");
+  try {
+    return await fn({ orgA, orgB });
+  } finally {
+    await truncateAppTables();
+  }
 }

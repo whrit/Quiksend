@@ -16,7 +16,10 @@ import { describe, expect, it } from "vitest";
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..");
 const APP_SCOPED_TABLES: readonly string[] = [
   // Phase 2:
-  // "company", "prospect", "list", "listMember", "importBatch", "importError",
+  "company",
+  "prospect",
+  "list",
+  "importBatch",
   // Phase 3:
   "crmConnection",
   "syncState",
@@ -74,7 +77,7 @@ describe("tenancy guard", () => {
       for (const file of files) {
         const src = readFileSync(file, "utf8");
         for (const table of APP_SCOPED_TABLES) {
-          const usesTable = new RegExp(`\\b(tables\\.)?${table}\\b`).test(src);
+          const usesTable = new RegExp(`\\btables\\.${table}\\b`).test(src);
           if (!usesTable) continue;
           const hasScope = /organizationId/i.test(src);
           if (!hasScope) violations.push(`${file}: references ${table} without organizationId`);

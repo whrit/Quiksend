@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/whrit/Quiksend/compare/v1.1.0...v1.2.0) (2026-07-02)
+
+
+### Features
+
+* **phase-2-prospects:** Phase 2 complete ([#11](https://github.com/whrit/Quiksend/issues/11)) ([cd5f2d5](https://github.com/whrit/Quiksend/commit/cd5f2d5fbe6ec41ae5ce4c686d9b8d6b6fcf3104))
+
 ## [1.1.0](https://github.com/whrit/Quiksend/compare/v1.0.3...v1.1.0) (2026-07-02)
 
 

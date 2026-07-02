@@ -10,6 +10,8 @@ export * from "./auth.ts";
  * in later phases. `app_meta` is a simple key/value store for app-level flags,
  * schema markers, seed guards, etc.
  */
+export * from "./prospects.ts";
+
 export const appMeta = pgTable("app_meta", {
   id: uuid("id").defaultRandom().primaryKey(),
   key: text("key").notNull().unique(),
