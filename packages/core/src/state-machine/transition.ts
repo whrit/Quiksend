@@ -109,6 +109,13 @@ export function transition(snapshot: EnrollmentSnapshot, event: Event): Transiti
             ],
       };
 
+    case "no_safe_mailbox":
+      if (snapshot.state !== "active") return same(snapshot);
+      return {
+        nextState: "paused",
+        effects: [{ kind: "emit_event", type: "enrollment.no_safe_mailbox_for_gateway" }],
+      };
+
     case "tick":
       return handleTick(snapshot);
   }
@@ -118,7 +125,7 @@ function handleTick(snapshot: EnrollmentSnapshot): TransitionResult {
   if (snapshot.state === "paused") return same(snapshot);
   if (snapshot.state === "waiting_manual") return same(snapshot);
 
-  if (!snapshot.hasNextStep) {
+  if (snapshot.nextStepKind === null) {
     return {
       nextState: "completed",
       effects: [

@@ -69,9 +69,17 @@ export const sendReservation = pgTable(
       .references(() => enrollment.id, { onDelete: "cascade" }),
     reservedAt: timestamp("reserved_at", { withTimezone: true }).defaultNow().notNull(),
     windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    recipientDomain: text("recipient_domain"),
     status: sendReservationStatusEnum("status").default("held").notNull(),
   },
-  (table) => [index("send_reservation_mailbox_reserved_idx").on(table.mailboxId, table.reservedAt)],
+  (table) => [
+    index("send_reservation_mailbox_reserved_idx").on(table.mailboxId, table.reservedAt),
+    index("send_reservation_mailbox_domain_reserved_idx").on(
+      table.mailboxId,
+      table.recipientDomain,
+      table.reservedAt,
+    ),
+  ],
 );
 
 export const jobLog = pgTable(

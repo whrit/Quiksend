@@ -55,6 +55,12 @@ export const EnvSchema = z
     // Signs unsubscribe tokens embedded in outbound messages.
     UNSUBSCRIBE_TOKEN_SECRET: z.string().optional(),
 
+    // Phase 11B — SEG routing sub-cap per mailbox (default 50).
+    SEG_DAILY_CAP_PER_MAILBOX: z.coerce.number().int().positive().default(50),
+
+    // Hostname used to detect Quiksend open-tracking pixels in HTML (defaults to BETTER_AUTH_URL host).
+    TRACKING_PIXEL_DOMAIN: z.string().optional(),
+
     // Observability (optional). Sentry captures errors in web + worker; PostHog tracks product events.
     SENTRY_DSN: z.string().optional(),
     SENTRY_ENVIRONMENT: z.string().optional(),

@@ -26,6 +26,7 @@ import {
   checkMailboxHealth,
   deleteMailbox,
   listMailboxes,
+  setMailboxEnterpriseSafe,
   testMailboxSend,
   type PublicMailbox,
 } from "@/lib/mailboxes.functions";
@@ -67,6 +68,13 @@ function MailboxesPage() {
   const [testEmail, setTestEmail] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [testSending, setTestSending] = useState(false);
+  const [safeDialog, setSafeDialog] = useState<{
+    id: string;
+    address: string;
+    enabling: boolean;
+  } | null>(null);
+  const [safeReason, setSafeReason] = useState("");
+  const [safeSaving, setSafeSaving] = useState(false);
 
   const reload = useCallback(async () => {
     setIsLoading(true);
@@ -119,6 +127,7 @@ function MailboxesPage() {
               <TableHead>Daily cap</TableHead>
               <TableHead>Throttle (s)</TableHead>
               <TableHead>Health</TableHead>
+              <TableHead>Enterprise-safe</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -133,6 +142,27 @@ function MailboxesPage() {
                 <TableCell>{mb.throttleSeconds}</TableCell>
                 <TableCell>
                   <HealthDots spf={mb.spfOk} dkim={mb.dkimOk} dmarc={mb.dmarcOk} />
+                </TableCell>
+                <TableCell>
+                  <Button
+                    size="sm"
+                    variant={mb.enterpriseSafe ? "default" : "outline"}
+                    disabled={busyId === mb.id}
+                    onClick={() =>
+                      setSafeDialog({
+                        id: mb.id,
+                        address: mb.address,
+                        enabling: !mb.enterpriseSafe,
+                      })
+                    }
+                  >
+                    {mb.enterpriseSafe ? "Safe" : "Not safe"}
+                  </Button>
+                  {mb.enterpriseSafeAutoDowngraded && (
+                    <Badge variant="destructive" className="ml-2">
+                      Downgraded
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge variant={mb.status === "active" ? "default" : "secondary"}>
@@ -228,6 +258,86 @@ function MailboxesPage() {
               }}
             >
               {testSending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send test"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={safeDialog !== null} onOpenChange={(open) => !open && setSafeDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {safeDialog?.enabling
+                ? `Mark ${safeDialog.address} as enterprise-safe?`
+                : `Remove enterprise-safe from ${safeDialog?.address}?`}
+            </DialogTitle>
+            {safeDialog?.enabling && (
+              <DialogDescription className="space-y-2 text-left">
+                <p>
+                  Enterprise-safe mailboxes are used when Quiksend routes around SEGs (Proofpoint /
+                  Mimecast / Barracuda). Consumer ESPs like Gmail are usually not enterprise-safe.
+                </p>
+                <ul className="list-inside list-disc text-sm">
+                  <li>Aged Microsoft 365 tenant (6+ months): safe</li>
+                  <li>Dedicated IP transactional relay (warmed): safe</li>
+                  <li>Google Workspace: risky</li>
+                  <li>Gmail: not safe</li>
+                </ul>
+                <p className="text-sm">
+                  If deliverability drops, the canary system (Phase 11C) can auto-downgrade this
+                  mailbox.
+                </p>
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          {safeDialog?.enabling && (
+            <div className="space-y-2">
+              <Label htmlFor="safe-reason">Reason (optional)</Label>
+              <Input
+                id="safe-reason"
+                placeholder="M365 aged 6mo"
+                value={safeReason}
+                onChange={(e) => setSafeReason(e.target.value)}
+              />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSafeDialog(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={safeSaving || !safeDialog}
+              onClick={() => {
+                if (!safeDialog) return;
+                setSafeSaving(true);
+                void setMailboxEnterpriseSafe({
+                  data: {
+                    mailboxId: safeDialog.id,
+                    safe: safeDialog.enabling,
+                    reason: safeDialog.enabling ? safeReason || undefined : undefined,
+                  },
+                })
+                  .then(() => {
+                    toast.success(
+                      safeDialog.enabling
+                        ? "Mailbox marked enterprise-safe"
+                        : "Enterprise-safe removed",
+                    );
+                    setSafeDialog(null);
+                    setSafeReason("");
+                    return reload();
+                  })
+                  .catch((err: Error) => toast.error(err.message))
+                  .finally(() => setSafeSaving(false));
+              }}
+            >
+              {safeSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : safeDialog?.enabling ? (
+                "Mark safe"
+              ) : (
+                "Remove"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

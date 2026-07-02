@@ -1,5 +1,6 @@
 import { db, tables } from "@quiksend/db";
 import { and, asc, eq } from "drizzle-orm";
+import { parseDeliverabilityPolicy } from "@quiksend/core/deliverability";
 import type { EnrollmentContext, SequenceSettings, StepContext } from "./context.ts";
 
 function parseSettings(raw: unknown): SequenceSettings {
@@ -104,6 +105,12 @@ export async function loadContext(enrollmentId: string): Promise<EnrollmentConte
 
   const settings = parseSettings(sequence.settings);
 
+  const org = await db.query.organization.findFirst({
+    where: eq(tables.organization.id, enrollment.organizationId),
+    columns: { metadata: true },
+  });
+  const deliverabilityPolicy = parseDeliverabilityPolicy(org?.metadata);
+
   return {
     enrollmentId: enrollment.id,
     organizationId: enrollment.organizationId,
@@ -119,6 +126,7 @@ export async function loadContext(enrollmentId: string): Promise<EnrollmentConte
       lastName: prospect.lastName,
       title: prospect.title,
       status: prospect.status,
+      emailGateway: prospect.emailGateway,
     },
     company: company ? { name: company.name, domain: company.domain } : null,
     anchorMessage,
@@ -129,5 +137,6 @@ export async function loadContext(enrollmentId: string): Promise<EnrollmentConte
     stopOnReply: settings.stop_on_reply,
     senderFirstName: createdBy?.name?.split(" ")[0] ?? null,
     senderSignature: mailbox.signatureHtml,
+    deliverabilityPolicy,
   };
 }

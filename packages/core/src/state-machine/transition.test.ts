@@ -54,6 +54,24 @@ describe("transition", () => {
     expect(result.effects).toEqual([]);
   });
 
+  it("tick on the last auto_email step still emits send_auto", () => {
+    const result = transition(activeSnapshot({ hasNextStep: false, nextStepKind: "auto_email" }), {
+      kind: "tick",
+      at: new Date(),
+    });
+    expect(result.nextState).toBe("active");
+    expect(result.effects[0]?.kind).toBe("send_auto");
+  });
+
+  it("tick with no step at current index completes the enrollment", () => {
+    const result = transition(activeSnapshot({ hasNextStep: false, nextStepKind: null }), {
+      kind: "tick",
+      at: new Date(),
+    });
+    expect(result.nextState).toBe("completed");
+    expect(result.effects.some((e) => e.kind === "terminate")).toBe(true);
+  });
+
   it("auto_sent on the last step transitions to completed", () => {
     const snap = activeSnapshot({ hasNextStep: false });
     const result = transition(snap, {
@@ -174,5 +192,25 @@ describe("transition", () => {
       expect(result.nextState).toBe("stopped");
       expect(result.effects.some((e) => e.kind === "terminate")).toBe(true);
     }
+  });
+
+  it("no_safe_mailbox pauses active enrollment and emits gateway event", () => {
+    const result = transition(activeSnapshot(), {
+      kind: "no_safe_mailbox",
+      at: new Date(),
+    });
+    expect(result.nextState).toBe("paused");
+    expect(result.effects).toEqual([
+      { kind: "emit_event", type: "enrollment.no_safe_mailbox_for_gateway" },
+    ]);
+  });
+
+  it("no_safe_mailbox is a no-op outside active state", () => {
+    const result = transition(activeSnapshot({ state: "paused" }), {
+      kind: "no_safe_mailbox",
+      at: new Date(),
+    });
+    expect(result.nextState).toBe("paused");
+    expect(result.effects).toEqual([]);
   });
 });

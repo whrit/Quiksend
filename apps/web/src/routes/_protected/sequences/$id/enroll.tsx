@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listProspects } from "@/lib/prospects.functions.ts";
+import { getEnrollmentSegWarning } from "@/lib/organization.functions.ts";
 import { enrollProspects, getSequence, previewSchedule } from "@/lib/sequences.functions.ts";
 
 export const Route = createFileRoute("/_protected/sequences/$id/enroll")({
@@ -46,6 +47,9 @@ function EnrollPage() {
   const [enrolling, setEnrolling] = useState(false);
   const [preview, setPreview] = useState<ScheduleRow[] | null>(null);
   const [previewMailboxId, setPreviewMailboxId] = useState<string | null>(null);
+  const [segWarning, setSegWarning] = useState<Awaited<
+    ReturnType<typeof getEnrollmentSegWarning>
+  > | null>(null);
 
   const mailboxIds = sequence.settings.mailbox_ids;
 
@@ -72,6 +76,16 @@ function EnrollPage() {
       setPreviewMailboxId(mailboxIds[0] ?? null);
     }
   }, [mailboxIds, previewMailboxId]);
+
+  useEffect(() => {
+    if (selected.size === 0) {
+      setSegWarning(null);
+      return;
+    }
+    void getEnrollmentSegWarning({ data: { prospectIds: [...selected] } })
+      .then(setSegWarning)
+      .catch(() => setSegWarning(null));
+  }, [selected]);
 
   async function loadPreview() {
     if (!previewMailboxId) {
@@ -193,6 +207,17 @@ function EnrollPage() {
           </div>
 
           <p className="text-sm text-muted-foreground">{selected.size} selected</p>
+
+          {segWarning?.showWarning && (
+            <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+              This selection includes {segWarning.segCount} prospect(s) behind SEGs. Your current
+              mailboxes ({segWarning.unsafeMailboxProviders.join(", ") || "none"}) are not
+              enterprise-safe.{" "}
+              <Link to="/settings/deliverability" className="underline">
+                Learn more
+              </Link>
+            </div>
+          )}
 
           <Button onClick={() => void handleEnroll()} disabled={enrolling || selected.size === 0}>
             {enrolling ? "Enrolling…" : `Enroll ${selected.size || ""} prospect(s)`}

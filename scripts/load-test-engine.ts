@@ -7,6 +7,7 @@
  *   pnpm tsx scripts/load-test-engine.ts --test-mode=permanent-failure
  *   pnpm tsx scripts/load-test-engine.ts --test-mode=outer-rollback
  *   pnpm tsx scripts/load-test-engine.ts --test-mode=suppression-during-run
+ *   pnpm tsx scripts/load-test-engine.ts --test-mode=seg-routing
  */
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -40,9 +41,15 @@ process.env.UNSUBSCRIBE_TOKEN_SECRET ??= "dev-unsubscribe-token-secret";
 process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
 
 import { db, tables, client } from "../packages/db/src/index.ts";
+import { eq, isNull, and } from "../packages/db/node_modules/drizzle-orm/index.js";
 import { getBoss, stopBoss } from "../packages/queue/src/boss.ts";
 
-type TestMode = "happy-path" | "permanent-failure" | "outer-rollback" | "suppression-during-run";
+type TestMode =
+  | "happy-path"
+  | "permanent-failure"
+  | "outer-rollback"
+  | "suppression-during-run"
+  | "seg-routing";
 
 interface Args {
   workspaces: number;
@@ -76,7 +83,14 @@ function parseArgs(): Args {
     if (key === "duration") out.duration = value;
   }
 
-  if (out.testMode !== "happy-path") {
+  if (out.testMode === "seg-routing") {
+    out.workspaces = 1;
+    out.enrollments = 100;
+    out.workers = 2;
+    out.duration = 60;
+  }
+
+  if (out.testMode !== "happy-path" && out.testMode !== "seg-routing") {
     out.workspaces = 1;
     out.enrollments = Math.min(out.enrollments, 5);
     out.workers = 1;
@@ -287,11 +301,178 @@ async function resetQueue(): Promise<void> {
   }
 }
 
-async function seedAll(workspaces: number, enrollments: number): Promise<{ seeds: SeedResult[] }> {
+async function seedSegRoutingWorkspace(): Promise<SeedResult> {
+  const orgId = makeId("org");
+  const userId = makeId("user");
+  const memberId = makeId("member");
+  const now = new Date();
+  const enrollmentIds: string[] = [];
+  const prospectEmails: string[] = [];
+
+  await db.insert(tables.user).values({
+    id: userId,
+    name: "SEG Routing User",
+    email: `seg-${randomUUID().slice(0, 8)}@loadtest.quiksend.local`,
+    emailVerified: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await db.insert(tables.organization).values({
+    id: orgId,
+    name: "SEG Routing Workspace",
+    slug: `seg-${randomUUID().slice(0, 8)}`,
+    metadata: JSON.stringify({
+      postal_address: "100 Test Ave, Load City, CA 94000",
+      deliverability: {
+        routingPolicy: "enforce",
+        contentSanitizerEnabled: true,
+      },
+    }),
+    createdAt: now,
+  });
+
+  await db.insert(tables.member).values({
+    id: memberId,
+    organizationId: orgId,
+    userId,
+    role: "owner",
+    createdAt: now,
+  });
+
+  const mailboxes = [];
+  for (let i = 0; i < 2; i++) {
+    const [mb] = await db
+      .insert(tables.mailbox)
+      .values({
+        organizationId: orgId,
+        ownerUserId: userId,
+        provider: "microsoft",
+        address: `safe-${i}@loadtest.quiksend.local`,
+        enterpriseSafe: true,
+        dailyCap: 50,
+        throttleSeconds: 0,
+        sendWindow: WIDE_WINDOW,
+        status: "active",
+      })
+      .returning();
+    if (mb) mailboxes.push(mb);
+  }
+  for (let i = 0; i < 2; i++) {
+    const [mb] = await db
+      .insert(tables.mailbox)
+      .values({
+        organizationId: orgId,
+        ownerUserId: userId,
+        provider: "gmail",
+        address: `unsafe-${i}@loadtest.quiksend.local`,
+        dailyCap: 50,
+        throttleSeconds: 0,
+        sendWindow: WIDE_WINDOW,
+        status: "active",
+      })
+      .returning();
+    if (mb) mailboxes.push(mb);
+  }
+  const safeMailbox = mailboxes[0];
+  const unsafeMailbox = mailboxes[2];
+  if (!safeMailbox || !unsafeMailbox) throw new Error("Failed to create seg-routing mailboxes");
+
+  const [sequence] = await db
+    .insert(tables.sequence)
+    .values({
+      organizationId: orgId,
+      name: "SEG Routing Sequence",
+      status: "active",
+      settings: {
+        timezone: "UTC",
+        throttle_seconds: 0,
+        mailbox_ids: mailboxes.map((m) => m.id),
+        stop_on_reply: false,
+        business_days_only: false,
+      },
+      createdByUserId: userId,
+    })
+    .returning();
+  if (!sequence) throw new Error("Failed to create sequence");
+
+  await db.insert(tables.sequenceStep).values({
+    organizationId: orgId,
+    sequenceId: sequence.id,
+    stepIndex: 0,
+    stepType: "auto_email",
+    delayMinutes: 0,
+    config: {
+      subject: "SEG test",
+      body_template: "<p>SEG routing load test</p>",
+      ai_generate: false,
+    },
+  });
+
+  for (let i = 0; i < 100; i++) {
+    const domain = i % 10 === 0 ? "shared-seg.test" : `seg-${i}.test`;
+    const [prospect] = await db
+      .insert(tables.prospect)
+      .values({
+        organizationId: orgId,
+        email: `prospect-${i}-${randomUUID().slice(0, 4)}@${domain}`,
+        emailGateway: "proofpoint",
+        status: "active",
+        source: "api",
+      })
+      .returning();
+    if (!prospect) continue;
+    prospectEmails.push(prospect.email);
+
+    const anchorMessageId = `<anchor-${randomUUID()}@loadtest.local>`;
+    await db.insert(tables.message).values({
+      organizationId: orgId,
+      mailboxId: unsafeMailbox.id,
+      prospectId: prospect.id,
+      direction: "outbound",
+      subject: "Anchor",
+      bodyHtml: "<p>anchor</p>",
+      bodyText: "anchor",
+      messageIdHeader: anchorMessageId,
+      providerMessageId: randomUUID(),
+      providerThreadId: `thread-${randomUUID()}`,
+      status: "sent",
+      sentAt: new Date(now.getTime() - 60_000),
+    });
+
+    const [enrollment] = await db
+      .insert(tables.enrollment)
+      .values({
+        organizationId: orgId,
+        sequenceId: sequence.id,
+        prospectId: prospect.id,
+        mailboxId: unsafeMailbox.id,
+        state: "active",
+        currentStepIndex: 0,
+        nextRunAt: new Date(now.getTime() - 1000),
+        anchorMessageId: i === 0 ? null : anchorMessageId,
+        anchorThreadId: i === 0 ? null : `thread-${randomUUID()}`,
+        createdByUserId: userId,
+      })
+      .returning();
+    if (enrollment) enrollmentIds.push(enrollment.id);
+  }
+
+  return { orgId, enrollmentIds, prospectEmails };
+}
+
+async function seedAll(
+  workspaces: number,
+  enrollments: number,
+  testMode: TestMode,
+): Promise<{ seeds: SeedResult[] }> {
   await resetQueue();
   await client`
     truncate table job_log, send_reservation, task, enrollment, sequence_step, sequence, message, mailbox, prospect, suppression restart identity cascade
   `;
+  if (testMode === "seg-routing") {
+    return { seeds: [await seedSegRoutingWorkspace()] };
+  }
   const perWorkspace = Math.ceil(enrollments / workspaces);
   const seeds: SeedResult[] = [];
   for (let w = 0; w < workspaces; w++) {
@@ -504,11 +685,175 @@ async function assertSuppressionMidRunInvariants(targetEnrollmentId: string): Pr
   return violations;
 }
 
+async function runSegRoutingReservationStress(seed: SeedResult): Promise<string[]> {
+  const violations: string[] = [];
+  const { reserveSendSlotInTx } = await import("../apps/worker/src/sequence/reserve-slot.ts");
+  const { selectMailboxForSend } = await import("../apps/worker/src/sequence/mailbox-router.ts");
+
+  process.env.SEG_DAILY_CAP_PER_MAILBOX = "50";
+
+  const mailboxes = await db.query.mailbox.findMany({
+    where: eq(tables.mailbox.organizationId, seed.orgId),
+  });
+  const safe = mailboxes.filter((m) => m.enterpriseSafe);
+  const unsafe = mailboxes.filter((m) => !m.enterpriseSafe);
+  if (safe.length < 2 || unsafe.length < 2) {
+    violations.push("expected 2 safe and 2 unsafe mailboxes");
+    return violations;
+  }
+
+  const enrollment = await db.query.enrollment.findFirst({
+    where: and(
+      eq(tables.enrollment.organizationId, seed.orgId),
+      isNull(tables.enrollment.anchorMessageId),
+    ),
+  });
+  if (!enrollment) {
+    violations.push("missing enrollment for routing stress");
+    return violations;
+  }
+
+  const prospect = await db.query.prospect.findFirst({
+    where: eq(tables.prospect.id, enrollment.prospectId),
+  });
+  const unsafeMailbox = mailboxes.find((m) => m.id === enrollment.mailboxId);
+  if (!prospect || !unsafeMailbox) {
+    violations.push("missing prospect or mailbox for routing stress");
+    return violations;
+  }
+
+  const routing = await db.transaction((tx) =>
+    selectMailboxForSend(tx, seed.orgId, enrollment, unsafeMailbox, prospect.emailGateway, {
+      routingPolicy: "enforce",
+      contentSanitizerEnabled: true,
+    }),
+  );
+  if (routing.kind !== "route") {
+    violations.push("expected auto-swap route when safe mailbox exists");
+  } else if (!safe.some((m) => m.id === routing.mailboxId)) {
+    violations.push("routing did not select a safe mailbox");
+  }
+
+  const settings = {
+    timezone: "UTC",
+    throttle_seconds: 0,
+    mailbox_ids: mailboxes.map((m) => m.id),
+    stop_on_reply: false,
+    business_days_only: false,
+  };
+
+  const targetMailbox = safe[0]!;
+  let reserved = 0;
+  for (let i = 0; i < 55; i++) {
+    const [p] = await db
+      .insert(tables.prospect)
+      .values({
+        organizationId: seed.orgId,
+        email: `cap-${i}-${randomUUID().slice(0, 4)}@cap.test`,
+        emailGateway: "proofpoint",
+      })
+      .returning();
+    const [e] = await db
+      .insert(tables.enrollment)
+      .values({
+        organizationId: seed.orgId,
+        sequenceId: enrollment.sequenceId,
+        prospectId: p!.id,
+        mailboxId: targetMailbox.id,
+        state: "active",
+        createdByUserId: enrollment.createdByUserId,
+      })
+      .returning();
+    const at = new Date();
+    const result = await db.transaction((tx) =>
+      reserveSendSlotInTx(tx, targetMailbox.id, e!.id, seed.orgId, at, settings, {
+        recipientEmail: p!.email,
+        recipientGateway: "proofpoint",
+      }),
+    );
+    if (result.ok) reserved += 1;
+  }
+  if (reserved > 50) violations.push(`SEG sub-cap allowed ${reserved} reservations (max 50)`);
+
+  const [gapP1] = await db
+    .insert(tables.prospect)
+    .values({
+      organizationId: seed.orgId,
+      email: `gap1-${randomUUID().slice(0, 4)}@gap-domain.test`,
+    })
+    .returning();
+  const [gapP2] = await db
+    .insert(tables.prospect)
+    .values({
+      organizationId: seed.orgId,
+      email: `gap2-${randomUUID().slice(0, 4)}@gap-domain.test`,
+    })
+    .returning();
+  const [gapE1] = await db
+    .insert(tables.enrollment)
+    .values({
+      organizationId: seed.orgId,
+      sequenceId: enrollment.sequenceId,
+      prospectId: gapP1!.id,
+      mailboxId: targetMailbox.id,
+      state: "active",
+      createdByUserId: enrollment.createdByUserId,
+    })
+    .returning();
+  const [gapE2] = await db
+    .insert(tables.enrollment)
+    .values({
+      organizationId: seed.orgId,
+      sequenceId: enrollment.sequenceId,
+      prospectId: gapP2!.id,
+      mailboxId: targetMailbox.id,
+      state: "active",
+      createdByUserId: enrollment.createdByUserId,
+    })
+    .returning();
+
+  const gapAt = new Date();
+  const firstGap = await db.transaction((tx) =>
+    reserveSendSlotInTx(tx, targetMailbox.id, gapE1!.id, seed.orgId, gapAt, settings, {
+      recipientEmail: gapP1!.email,
+      recipientGateway: "proofpoint",
+    }),
+  );
+  const secondGap = await db.transaction((tx) =>
+    reserveSendSlotInTx(tx, targetMailbox.id, gapE2!.id, seed.orgId, gapAt, settings, {
+      recipientEmail: gapP2!.email,
+      recipientGateway: "proofpoint",
+    }),
+  );
+  if (!firstGap.ok || secondGap.ok) {
+    violations.push("5-minute domain gap did not defer second same-domain reservation");
+  }
+
+  return violations;
+}
+
 async function main(): Promise<void> {
   const args = parseArgs();
   console.log("Load test starting", args);
 
-  const { seeds } = await seedAll(args.workspaces, args.enrollments);
+  const { seeds } = await seedAll(args.workspaces, args.enrollments, args.testMode);
+
+  if (args.testMode === "seg-routing") {
+    const seed = seeds[0];
+    if (!seed) {
+      console.error("FAIL", ["no seed workspace for seg-routing"]);
+      process.exit(1);
+    }
+    const violations = await runSegRoutingReservationStress(seed);
+    await client.end();
+    await stopBoss().catch(() => undefined);
+    if (violations.length > 0) {
+      console.error("FAIL", violations);
+      process.exit(1);
+    }
+    console.log("OK — seg-routing invariants passed");
+    return;
+  }
 
   const { tick } = await import("../apps/worker/src/sequence/tick.ts");
 
