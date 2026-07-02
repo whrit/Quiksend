@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/whrit/Quiksend/compare/v1.2.0...v1.3.0) (2026-07-02)
+
+
+### Features
+
+* **phase-3-crm:** Phase 3 back-half complete ([#12](https://github.com/whrit/Quiksend/issues/12)) ([c98a963](https://github.com/whrit/Quiksend/commit/c98a963eb3ae6b24979116d07052a974ee662d45))
+
 ## [1.2.0](https://github.com/whrit/Quiksend/compare/v1.1.0...v1.2.0) (2026-07-02)
 
 
