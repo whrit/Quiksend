@@ -15,6 +15,20 @@
       "when": 1782875450373,
       "tag": "0001_auth_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783000000000,
+      "tag": "0002_wave1_prospects_bootstrap",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782957915867,
+      "tag": "0003_phase3_crm_connection",
+      "breakpoints": true
     }
   ]
 }

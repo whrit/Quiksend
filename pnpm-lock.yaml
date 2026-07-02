@@ -243,6 +243,9 @@ importers:
       '@hookform/resolvers':
         specifier: 5.4.0
         version: 5.4.0(react-hook-form@7.80.0(react@19.2.7))
+      '@nangohq/frontend':
+        specifier: 0.70.9
+        version: 0.70.9
       '@quiksend/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -490,9 +493,19 @@ importers:
       '@quiksend/config':
         specifier: workspace:*
         version: link:../config
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.1)(@prisma/client@5.22.0)(@types/pg@8.20.0)(better-sqlite3@12.11.1)(kysely@0.29.2)(pg@8.22.0)(postgres@3.4.9)
       zod:
         specifier: 4.4.3
         version: 4.4.3
+    devDependencies:
+      '@quiksend/db':
+        specifier: workspace:*
+        version: link:../db
+      postgres:
+        specifier: 3.4.9
+        version: 3.4.9
 
   packages/mail:
     dependencies:
@@ -1223,6 +1236,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@nangohq/frontend@0.70.9':
+    resolution: {integrity: sha512-yfG3JXlQQ6D3ZO/8Tyu+wt0VWwomACXaecBQykqmAuFQ/KtI77THZR2DFSAydFUVgQRt3UoO5PGP+YCak5aTUQ==}
 
   '@nangohq/node@0.70.9':
     resolution: {integrity: sha512-wbhrNPrHTjKE7/4AiiVSzc6sxuLFUMshX0ENB2SJc4N/z7GdY+VOIqRn2Hx7/ggvfzxU5dNaYpqxLzay6TyrXQ==}
@@ -4547,6 +4563,13 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@nangohq/frontend@0.70.9':
+    dependencies:
+      '@nangohq/types': 0.70.9
+    transitivePeerDependencies:
+      - debug
+      - supports-color
 
   '@nangohq/node@0.70.9':
     dependencies:
