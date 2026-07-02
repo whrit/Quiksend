@@ -311,7 +311,10 @@ async function captureManualAnchorForEnrollment(input: {
   });
 
   const sequence = await db.query.sequence.findFirst({
-    where: eq(tables.sequence.id, enrollment.sequenceId),
+    where: and(
+      eq(tables.sequence.id, enrollment.sequenceId),
+      eq(tables.sequence.organizationId, input.organizationId),
+    ),
   });
   if (!sequence) throw new Error("Sequence not found");
 
