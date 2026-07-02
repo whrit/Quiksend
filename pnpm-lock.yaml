@@ -512,6 +512,9 @@ importers:
       '@quiksend/config':
         specifier: workspace:*
         version: link:../config
+      '@quiksend/integrations':
+        specifier: workspace:*
+        version: link:../integrations
       nodemailer:
         specifier: 9.0.3
         version: 9.0.3
