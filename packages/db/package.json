@@ -14,6 +14,8 @@
     "build": "tsc --noEmit",
     "generate": "dotenv -e ../../.env -- drizzle-kit generate",
     "migrate": "dotenv -e ../../.env -- tsx src/migrate.ts",
+    "seed": "dotenv -e ../../.env -- tsx src/seed.ts",
+    "load-test": "dotenv -e ../../.env -- tsx src/load-test-scheduler.ts",
     "push": "dotenv -e ../../.env -- drizzle-kit push",
     "studio": "dotenv -e ../../.env -- drizzle-kit studio"
   },

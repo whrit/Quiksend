@@ -35,6 +35,12 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "researchProfile",
   // Phase 6:
   "task",
+  // Phase 10:
+  "apiKeyUsage",
+  "webhookEndpoint",
+  "webhookDelivery",
+  "domainEvent",
+  "suppression",
 ];
 
 const SCAN_ROOTS = ["apps/web/src", "apps/worker/src", "packages"];

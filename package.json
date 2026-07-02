@@ -19,7 +19,9 @@
     "worker:dev": "pnpm --filter @quiksend/worker dev",
     "web:dev": "pnpm --filter @quiksend/web dev",
     "web:build": "pnpm --filter @quiksend/web build",
-    "auth:generate": "pnpm --filter @quiksend/auth auth:generate"
+    "auth:generate": "pnpm --filter @quiksend/auth auth:generate",
+    "db:seed": "pnpm --filter @quiksend/db seed",
+    "load-test": "pnpm --filter @quiksend/db load-test"
   },
   "devDependencies": {
     "@types/node": "26.0.1",

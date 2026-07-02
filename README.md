@@ -45,6 +45,21 @@ pnpm web:dev
 
 Mailpit UI: <http://localhost:8025>. Drizzle Studio: `pnpm db:studio`.
 
+## Self-host quickstart (production overlay)
+
+For a full stack (Postgres + Mailpit + web + worker):
+
+```bash
+cp .env.example .env   # set BETTER_AUTH_SECRET, UNSUBSCRIBE_TOKEN_SECRET, WEBHOOK_SIGNING_SECRET
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+pnpm db:migrate
+pnpm db:seed             # optional demo data
+```
+
+Public API docs: [docs/api.md](./docs/api.md) · Webhook signing: [docs/webhooks.md](./docs/webhooks.md) · OpenAPI: `GET /api/v1/openapi.json`
+
+Create API keys and webhooks under **Settings → API keys** / **Settings → Webhooks** in the UI.
+
 ## Auth & workspaces (Phase 1)
 
 - `packages/auth` owns the Better Auth server instance (`auth`) and the browser client
@@ -67,20 +82,21 @@ Mailpit UI: <http://localhost:8025>. Drizzle Studio: `pnpm db:studio`.
 
 ## Scripts (root)
 
-| Script                                                      | What it does                                                |
-| ----------------------------------------------------------- | ----------------------------------------------------------- |
-| `pnpm lint`                                                 | Oxlint over the whole tree (`--deny-warnings`)              |
-| `pnpm lint:fix`                                             | Oxlint autofix                                              |
-| `pnpm format`                                               | Oxfmt check                                                 |
-| `pnpm format:fix`                                           | Oxlint fix, then Oxfmt write (formatter is the last writer) |
-| `pnpm typecheck`                                            | `tsc --noEmit` per package via Turbo                        |
-| `pnpm test`                                                 | Vitest across the workspace                                 |
-| `pnpm check`                                                | lint + format + typecheck + test (the CI gate)              |
-| `pnpm build`                                                | Build all packages + apps via Turbo                         |
-| `pnpm db:generate` / `db:migrate` / `db:push` / `db:studio` | Drizzle Kit (loads root `.env`)                             |
-| `pnpm auth:generate`                                        | Regenerate the Better Auth Drizzle schema                   |
-| `pnpm web:dev` / `web:build`                                | Run / build the TanStack Start app                          |
-| `pnpm worker:dev`                                           | Run the worker with watch                                   |
+| Script                                                      | What it does                                                 |
+| ----------------------------------------------------------- | ------------------------------------------------------------ |
+| `pnpm lint`                                                 | Oxlint over the whole tree (`--deny-warnings`)               |
+| `pnpm lint:fix`                                             | Oxlint autofix                                               |
+| `pnpm format`                                               | Oxfmt check                                                  |
+| `pnpm format:fix`                                           | Oxlint fix, then Oxfmt write (formatter is the last writer)  |
+| `pnpm typecheck`                                            | `tsc --noEmit` per package via Turbo                         |
+| `pnpm test`                                                 | Vitest across the workspace                                  |
+| `pnpm check`                                                | lint + format + typecheck + test (the CI gate)               |
+| `pnpm build`                                                | Build all packages + apps via Turbo                          |
+| `pnpm db:generate` / `db:migrate` / `db:push` / `db:studio` | Drizzle Kit (loads root `.env`)                              |
+| `pnpm db:seed`                                              | Demo workspace + prospects + sequence (self-host onboarding) |
+| `pnpm auth:generate`                                        | Regenerate the Better Auth Drizzle schema                    |
+| `pnpm web:dev` / `web:build`                                | Run / build the TanStack Start app                           |
+| `pnpm worker:dev`                                           | Run the worker with watch                                    |
 
 ## Structure
 

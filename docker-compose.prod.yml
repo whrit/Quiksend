@@ -1,0 +1,36 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      DATABASE_URL: postgres://quiksend:quiksend@postgres:5432/quiksend
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-in-production}
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:-dev-unsubscribe-secret}
+      WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET:-dev-webhook-secret}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      DATABASE_URL: postgres://quiksend:quiksend@postgres:5432/quiksend
+      BETTER_AUTH_URL: http://web:3000
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-in-production}
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:-dev-unsubscribe-secret}
+      WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET:-dev-webhook-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
