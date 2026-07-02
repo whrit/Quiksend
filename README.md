@@ -1,126 +1,99 @@
 # Quiksend
 
-Open-source, self-hostable sales engagement platform — AI-personalized email sequences
-with first-class Salesforce/HubSpot operations. An alternative to Outreach.io and
-Salesforge.ai.
+Open-source, self-hosted sales engagement platform — AI-personalized email sequences
+with Salesforce and HubSpot writeback.
 
-> **Phases 0–1 built.** The monorepo foundation (tooling, shared config, database, CI)
-> plus **auth & workspaces**: Better Auth (email/password + Google/Microsoft), the
-> `organization` plugin as multi-tenant workspaces, an `apiKey` plugin for the future
-> public API, and a TanStack Start app shell (login, protected dashboard, workspace
-> switcher). Product features (sequences, prospects, sending, inbox) land in Phases 2+.
+## Why Quiksend
 
-## Stack
+Outreach.io and Salesforge.ai are powerful, but they are closed SaaS: your data,
+credentials, and sending reputation live on someone else's infrastructure. Quiksend
+is AGPL-licensed, self-hostable, and source-visible — you run the app, Postgres, and
+worker on your own terms.
 
-TypeScript · pnpm workspaces · Turborepo · TanStack Start · Better Auth · PostgreSQL +
-Drizzle · Tailwind v4 + shadcn/ui · Nango.dev (Phase 3) · Oxlint + Oxfmt.
+CRM connectivity goes through [Nango](https://nango.dev), which covers 250+ providers
+(Salesforce, HubSpot, Gmail, Microsoft Graph, and more) behind one OAuth and sync
+layer. Sequences are manual-first with optional AI generation grounded in web research
+and CRM context, so reps stay in control while automation handles follow-up.
 
-## Prerequisites
+## Get started
 
-- **Node** — version pinned in `.nvmrc` (22.18+). `nvm use` or `fnm use`.
-- **pnpm** — `corepack enable` (the version is pinned via `packageManager`).
-- **Docker** — for local Postgres + Mailpit.
+### Prerequisites
 
-## Quickstart
+- **Node** 24.18+ (see `.nvmrc`) and **pnpm** 11.9+ (`corepack enable`)
+- **Docker** + **Docker Compose** (local Postgres + Mailpit)
+- _(Optional)_ [Nango Cloud](https://nango.dev) account for Gmail / Microsoft OAuth mailboxes
+- _(Optional)_ Anthropic or OpenAI API key for AI-personalized email generation
+
+### 5-minute local demo
 
 ```bash
-# 1. install
+# 1. Clone and install
+git clone https://github.com/whrit/Quiksend.git
+cd Quiksend
 pnpm install
 
-# 2. env — set a real BETTER_AUTH_SECRET (openssl rand -base64 32)
+# 2. Environment — generate a secret: openssl rand -base64 32
 cp .env.example .env
+# Set BETTER_AUTH_SECRET in .env (required for the web app)
 
-# 3. infra (Postgres + Mailpit)
+# 3. Infra (Postgres + Mailpit)
 docker compose up -d
 
-# 4. database: apply migrations (auth tables land in 0001)
+# 4. Database
 pnpm db:migrate
 
-# 5. verify the whole gate
-pnpm check
+# 5. (Optional) Demo data — see note below
+pnpm db:seed
 
-# 6. run the web app, then open http://localhost:3000
-pnpm web:dev
+# 6. Start the app and worker (two terminals)
+pnpm web:dev          # → http://localhost:3000
+pnpm worker:dev       # required for sequences, CRM sync, and inbound polling
 ```
 
-Mailpit UI: <http://localhost:8025>. Drizzle Studio: `pnpm db:studio`.
+7. Open http://localhost:3000 → **Sign up** at `/login` (Create account).
+8. Complete **onboarding** to create your workspace.
+9. **Settings → Mailboxes → Add mailbox** — choose SMTP with host `localhost`, port `1025`
+   (Mailpit defaults). Enroll prospects in a sequence; outbound mail appears in
+   [Mailpit](http://localhost:8025).
 
-## Self-host quickstart (production overlay)
+> **Seed note:** `pnpm db:seed` inserts a demo workspace (mailbox, sequence, 20 prospects)
+> but does not set a login password for `demo@quiksend.local`. Use your own account for
+> the UI demo. See [NEEDS.md](./NEEDS.md) for the planned seed login fix.
 
-For a full stack (Postgres + Mailpit + web + worker):
+Drizzle Studio: `pnpm db:studio`. CI gate for contributors: `pnpm check`.
 
-```bash
-cp .env.example .env   # set BETTER_AUTH_SECRET, UNSUBSCRIBE_TOKEN_SECRET, WEBHOOK_SIGNING_SECRET
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-pnpm db:migrate
-pnpm db:seed             # optional demo data
-```
+### Self-hosting
 
-Public API docs: [docs/api.md](./docs/api.md) · Webhook signing: [docs/webhooks.md](./docs/webhooks.md) · OpenAPI: `GET /api/v1/openapi.json`
+See [docs/self-host.md](docs/self-host.md) for production deployment with Docker Compose
+and GHCR images.
 
-Create API keys and webhooks under **Settings → API keys** / **Settings → Webhooks** in the UI.
+## Features
 
-## Auth & workspaces (Phase 1)
+- Manual-first sequences → automated follow-up (Gmail, Microsoft 365, SMTP)
+- AI research + generation grounded in web and CRM context
+- Salesforce + HubSpot bi-directional sync via Nango
+- Unified inbox with sentiment classification
+- Public REST API + outbound webhooks — [docs/api.md](docs/api.md), [docs/webhooks.md](docs/webhooks.md)
+- Multi-tenant workspaces from day one (Better Auth `organization` plugin)
 
-- `packages/auth` owns the Better Auth server instance (`auth`) and the browser client
-  (`@quiksend/auth/client`). Plugins: `organization` (→ workspaces), `apiKey`, and
-  `tanstackStartCookies` (kept last so cookie handling works with Start).
-- Auth tables live in `packages/db/src/schema/auth.ts`. They're **generated** from the
-  auth config — regenerate after changing plugins/options:
-
-  ```bash
-  pnpm auth:generate        # writes packages/db/src/schema/auth.ts
-  pnpm db:generate          # new Drizzle migration for the delta
-  pnpm db:migrate
-  ```
-
-- Social login is optional: leave the `GOOGLE_*` / `MS_*` vars blank and those buttons
-  simply don't wire up.
-- **UI lives in `apps/web/src/components`, not a separate `packages/ui`.** With one
-  consumer that's the lower-friction choice (shared Tailwind config, no cross-package
-  build step); extract to `packages/ui` when a second app needs the components.
-
-## Scripts (root)
-
-| Script                                                      | What it does                                                 |
-| ----------------------------------------------------------- | ------------------------------------------------------------ |
-| `pnpm lint`                                                 | Oxlint over the whole tree (`--deny-warnings`)               |
-| `pnpm lint:fix`                                             | Oxlint autofix                                               |
-| `pnpm format`                                               | Oxfmt check                                                  |
-| `pnpm format:fix`                                           | Oxlint fix, then Oxfmt write (formatter is the last writer)  |
-| `pnpm typecheck`                                            | `tsc --noEmit` per package via Turbo                         |
-| `pnpm test`                                                 | Vitest across the workspace                                  |
-| `pnpm check`                                                | lint + format + typecheck + test (the CI gate)               |
-| `pnpm build`                                                | Build all packages + apps via Turbo                          |
-| `pnpm db:generate` / `db:migrate` / `db:push` / `db:studio` | Drizzle Kit (loads root `.env`)                              |
-| `pnpm db:seed`                                              | Demo workspace + prospects + sequence (self-host onboarding) |
-| `pnpm auth:generate`                                        | Regenerate the Better Auth Drizzle schema                    |
-| `pnpm web:dev` / `web:build`                                | Run / build the TanStack Start app                           |
-| `pnpm worker:dev`                                           | Run the worker with watch                                    |
-
-## Structure
+## Architecture
 
 ```
-apps/
-  web/        TanStack Start app — routes, server fns, auth handler, UI  ← Phase 1
-  worker/     scheduler, senders, pollers, sync runners                  ← core from Phase 6
-packages/
-  auth/       Better Auth server instance + browser client               ← Phase 1
-  config/     zod-validated env + pino logger
-  db/         Drizzle schema (incl. generated auth tables), client, migrations
+Browser → apps/web (TanStack Start) → Postgres
+                    ↓ enqueue              ↑
+              pg-boss queue ← apps/worker → Nango → Gmail / Microsoft / CRMs
 ```
 
-## Tooling notes
+Details: [docs/architecture.md](docs/architecture.md). Contributor conventions:
+[CLAUDE.md](./CLAUDE.md).
 
-- **Oxlint + Oxfmt** are pinned exactly (`package.json`), since Oxc iterates quickly and
-  format output can shift between releases. Configs: `oxlint.config.ts`, `oxfmt.config.ts`.
-- Oxlint stays on correctness/logic; **Oxfmt owns all formatting** — they don't fight.
-- The generated `apps/web/src/routeTree.gen.ts` is **committed** (so `pnpm check` works on
-  a fresh clone) but excluded from lint/format.
-- Install the **Oxc** editor extension (see `.vscode/extensions.json`) for format-on-save
-  matching the CLI.
+## Contributing
+
+- Read [CLAUDE.md](./CLAUDE.md) for monorepo layout, scripts, and conventions.
+- Run `pnpm check` before opening a PR (lint + format + typecheck + test).
+- Releases are automated — see [RELEASING.md](./RELEASING.md). PR titles must use
+  [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, …).
 
 ## License
 
-[AGPL-3.0](./LICENSE). A CLA (to preserve dual-licensing / commercial options) and a
-trademark on the name are planned separately — a license file alone doesn't cover those.
+[AGPL-3.0](./LICENSE)

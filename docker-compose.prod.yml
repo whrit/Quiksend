@@ -1,36 +1,54 @@
+# Production overlay — web + worker on top of docker-compose.yml (Postgres + Mailpit).
+# Usage:
+#   cp .env.example .env   # set production secrets
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   DATABASE_URL=postgres://quiksend:quiksend@localhost:5432/quiksend pnpm db:migrate
+#
+# Pin a release: QUIKSEND_IMAGE_TAG=v2.1.0
+
 services:
   web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
+    image: ghcr.io/whrit/quiksend-web:${QUIKSEND_IMAGE_TAG:-latest}
+    restart: unless-stopped
     environment:
+      NODE_ENV: production
+      PORT: "3000"
       DATABASE_URL: postgres://quiksend:quiksend@postgres:5432/quiksend
-      BETTER_AUTH_URL: http://localhost:3000
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-in-production}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:?Set UNSUBSCRIBE_TOKEN_SECRET in .env}
+      NANGO_SECRET_KEY: ${NANGO_SECRET_KEY:-}
+      NANGO_WEBHOOK_SECRET: ${NANGO_WEBHOOK_SECRET:?Set NANGO_WEBHOOK_SECRET in .env}
+      MAILBOX_ENCRYPTION_KEY: ${MAILBOX_ENCRYPTION_KEY:?Set MAILBOX_ENCRYPTION_KEY in .env}
       SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:-dev-unsubscribe-secret}
-      WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET:-dev-webhook-secret}
+      SMTP_PORT: "1025"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      POSTHOG_KEY: ${POSTHOG_KEY:-}
     ports:
       - "3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
-      mailpit:
-        condition: service_started
 
   worker:
-    build:
-      context: .
-      dockerfile: apps/worker/Dockerfile
+    image: ghcr.io/whrit/quiksend-worker:${QUIKSEND_IMAGE_TAG:-latest}
+    restart: unless-stopped
     environment:
+      NODE_ENV: production
       DATABASE_URL: postgres://quiksend:quiksend@postgres:5432/quiksend
-      BETTER_AUTH_URL: http://web:3000
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-in-production}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://web:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:?Set UNSUBSCRIBE_TOKEN_SECRET in .env}
+      NANGO_SECRET_KEY: ${NANGO_SECRET_KEY:-}
+      NANGO_WEBHOOK_SECRET: ${NANGO_WEBHOOK_SECRET:?Set NANGO_WEBHOOK_SECRET in .env}
+      MAILBOX_ENCRYPTION_KEY: ${MAILBOX_ENCRYPTION_KEY:?Set MAILBOX_ENCRYPTION_KEY in .env}
       SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:-dev-unsubscribe-secret}
-      WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET:-dev-webhook-secret}
+      SMTP_PORT: "1025"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      POSTHOG_KEY: ${POSTHOG_KEY:-}
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=2048}
     depends_on:
       postgres:
         condition: service_healthy
+      web:
+        condition: service_started
