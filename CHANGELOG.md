@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/whrit/Quiksend/compare/v1.5.0...v1.6.0) (2026-07-02)
+
+
+### Features
+
+* **phase-4-gmail-graph:** Phase 4 remainder complete ([#17](https://github.com/whrit/Quiksend/issues/17)) ([9668eb9](https://github.com/whrit/Quiksend/commit/9668eb9d2da2c1df7ec014edc99afafdbdf65217))
+
 ## [1.5.0](https://github.com/whrit/Quiksend/compare/v1.4.0...v1.5.0) (2026-07-02)
 
 
