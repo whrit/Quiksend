@@ -115,6 +115,21 @@ export const sendComposedMessage = orgFn({ method: "POST" })
     });
     if (!mailbox) throw new Error("Mailbox not found");
 
+    if (data.enrollmentId) {
+      const enrollment = await db.query.enrollment.findFirst({
+        where: and(
+          eq(tables.enrollment.id, data.enrollmentId),
+          eq(tables.enrollment.organizationId, organizationId),
+        ),
+      });
+      if (!enrollment) throw new Error("Enrollment not found");
+      if (enrollment.mailboxId !== data.mailboxId) {
+        throw new Error(
+          "Mailbox must match the enrollment mailbox — follow-ups must continue on the same thread",
+        );
+      }
+    }
+
     const prospect = await loadProspect(data.prospectId, organizationId);
 
     const org = await db.query.organization.findFirst({
@@ -295,7 +310,10 @@ async function captureManualAnchorForEnrollment(input: {
   });
 
   const sequence = await db.query.sequence.findFirst({
-    where: eq(tables.sequence.id, enrollment.sequenceId),
+    where: and(
+      eq(tables.sequence.id, enrollment.sequenceId),
+      eq(tables.sequence.organizationId, input.organizationId),
+    ),
   });
   if (!sequence) throw new Error("Sequence not found");
 

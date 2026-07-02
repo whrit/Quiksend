@@ -8,6 +8,7 @@ import { registerCrmSyncHandler } from "./handlers/crm-sync.ts";
 import { registerWebhookFanoutHandler } from "./handlers/webhook-fanout.ts";
 import { registerCrmWritebackHandler } from "./handlers/crm-writeback.ts";
 import { registerMailboxPollHandler, registerMailboxPollTick } from "./handlers/mailbox-poll.ts";
+import { registerNangoWebhookSweep } from "./handlers/nango-webhook-sweep.ts";
 import { registerSequenceHandlers } from "./sequence/register.ts";
 
 /**
@@ -53,6 +54,7 @@ async function main(): Promise<void> {
   await registerSequenceHandlers();
   await registerMailboxPollHandler();
   await registerMailboxPollTick();
+  await registerNangoWebhookSweep();
 
   if (env.NODE_ENV !== "production") {
     await enqueue("hello.ping", { message: "worker boot smoke test" });

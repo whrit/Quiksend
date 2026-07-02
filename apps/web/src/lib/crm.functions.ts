@@ -166,7 +166,12 @@ export const disconnectCrm = orgFn({ method: "POST" })
     const [row] = await db
       .update(tables.crmConnection)
       .set({ status: "disconnected" })
-      .where(eq(tables.crmConnection.id, connection.id))
+      .where(
+        and(
+          eq(tables.crmConnection.id, connection.id),
+          eq(tables.crmConnection.organizationId, context.orgContext.organizationId),
+        ),
+      )
       .returning();
     if (!row) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
     return toDto(row);

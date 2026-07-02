@@ -1,6 +1,6 @@
 {
-  "id": "66db118c-5391-4f96-93b2-fc5b82934621",
-  "prevId": "fccc5426-d55c-402e-8849-e44f03326ea3",
+  "id": "dfc2c2e5-9ca1-432e-8eef-da1aaaa1bc7c",
+  "prevId": "66db118c-5391-4f96-93b2-fc5b82934621",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1148,6 +1148,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'sent'"
+        },
+        "sentiment": {
+          "name": "sentiment",
+          "type": "message_sentiment",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
         },
         "bounce_type": {
           "name": "bounce_type",
@@ -4639,6 +4646,11 @@
       "name": "message_direction",
       "schema": "public",
       "values": ["outbound", "inbound"]
+    },
+    "public.message_sentiment": {
+      "name": "message_sentiment",
+      "schema": "public",
+      "values": ["interested", "not_now", "objection", "out_of_office", "unsubscribe_request"]
     },
     "public.prospect_source": {
       "name": "prospect_source",

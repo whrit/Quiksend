@@ -44,4 +44,29 @@ describe("EnvSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("requires production-critical secrets when NODE_ENV is production", () => {
+    const result = EnvSchema.safeParse({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+    });
+    expect(result.success).toBe(false);
+    const message = result.success ? "" : (result.error.issues[0]?.message ?? "");
+    expect(message).toContain("BETTER_AUTH_SECRET");
+    expect(message).toContain("NANGO_WEBHOOK_SECRET");
+    expect(message).toContain("MAILBOX_ENCRYPTION_KEY");
+    expect(message).toContain("UNSUBSCRIBE_TOKEN_SECRET");
+  });
+
+  it("accepts production env when all critical secrets are present", () => {
+    const result = EnvSchema.safeParse({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      BETTER_AUTH_SECRET: "a".repeat(32),
+      NANGO_WEBHOOK_SECRET: "nango-secret",
+      MAILBOX_ENCRYPTION_KEY: "mailbox-key",
+      UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
+    });
+    expect(result.success).toBe(true);
+  });
 });

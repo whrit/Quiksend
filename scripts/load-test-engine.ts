@@ -3,7 +3,10 @@
  * Phase 6 engine load test — seeds enrollments, runs concurrent workers, asserts invariants.
  *
  * Usage:
- *   pnpm --filter @quiksend/worker exec dotenv -e ../../.env -- tsx ../../scripts/load-test-engine.ts --workspaces=3 --enrollments=100 --workers=2 --duration=120
+ *   pnpm tsx scripts/load-test-engine.ts --workspaces=3 --enrollments=100 --workers=2 --duration=120
+ *   pnpm tsx scripts/load-test-engine.ts --test-mode=permanent-failure
+ *   pnpm tsx scripts/load-test-engine.ts --test-mode=outer-rollback
+ *   pnpm tsx scripts/load-test-engine.ts --test-mode=suppression-during-run
  */
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -32,28 +35,54 @@ function loadEnvFile(): void {
 
 loadEnvFile();
 
+// Test defaults when .env is absent (fresh worktrees).
+process.env.UNSUBSCRIBE_TOKEN_SECRET ??= "dev-unsubscribe-token-secret";
+process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
+
 import { db, tables, client } from "../packages/db/src/index.ts";
 import { getBoss, stopBoss } from "../packages/queue/src/boss.ts";
+
+type TestMode = "happy-path" | "permanent-failure" | "outer-rollback" | "suppression-during-run";
 
 interface Args {
   workspaces: number;
   enrollments: number;
   workers: number;
   duration: number;
+  testMode: TestMode;
 }
 
 function parseArgs(): Args {
-  const defaults = { workspaces: 3, enrollments: 100, workers: 2, duration: 120 };
+  const defaults: Args = {
+    workspaces: 3,
+    enrollments: 100,
+    workers: 2,
+    duration: 120,
+    testMode: "happy-path",
+  };
   const out = { ...defaults };
   for (const arg of process.argv.slice(2)) {
     const [key, raw] = arg.replace(/^--/, "").split("=");
+    if (!key) continue;
+    if (key === "test-mode" && raw) {
+      out.testMode = raw as TestMode;
+      continue;
+    }
     const value = Number(raw);
-    if (!key || Number.isNaN(value)) continue;
+    if (Number.isNaN(value)) continue;
     if (key === "workspaces") out.workspaces = value;
     if (key === "enrollments") out.enrollments = value;
     if (key === "workers") out.workers = value;
     if (key === "duration") out.duration = value;
   }
+
+  if (out.testMode !== "happy-path") {
+    out.workspaces = 1;
+    out.enrollments = Math.min(out.enrollments, 5);
+    out.workers = 1;
+    out.duration = Math.min(out.duration, 30);
+  }
+
   return out;
 }
 
@@ -74,11 +103,19 @@ const WIDE_WINDOW = {
   },
 };
 
-async function seedWorkspace(label: string, enrollmentCount: number): Promise<void> {
+interface SeedResult {
+  orgId: string;
+  enrollmentIds: string[];
+  prospectEmails: string[];
+}
+
+async function seedWorkspace(label: string, enrollmentCount: number): Promise<SeedResult> {
   const orgId = makeId("org");
   const userId = makeId("user");
   const memberId = makeId("member");
   const now = new Date();
+  const enrollmentIds: string[] = [];
+  const prospectEmails: string[] = [];
 
   await db.insert(tables.user).values({
     id: userId,
@@ -93,6 +130,7 @@ async function seedWorkspace(label: string, enrollmentCount: number): Promise<vo
     id: orgId,
     name: `${label} Workspace`,
     slug: `${label}-${randomUUID().slice(0, 8)}`,
+    metadata: JSON.stringify({ postal_address: "100 Test Ave, Load City, CA 94000" }),
     createdAt: now,
   });
 
@@ -191,6 +229,8 @@ async function seedWorkspace(label: string, enrollmentCount: number): Promise<vo
       .returning();
     if (!prospect) continue;
 
+    prospectEmails.push(prospect.email);
+
     const anchorMessageId = `<anchor-${randomUUID()}@loadtest.local>`;
     const sentAt = new Date(now.getTime() - 60_000);
 
@@ -213,19 +253,25 @@ async function seedWorkspace(label: string, enrollmentCount: number): Promise<vo
       .returning();
     if (!anchorMessage) continue;
 
-    await db.insert(tables.enrollment).values({
-      organizationId: orgId,
-      sequenceId: sequence.id,
-      prospectId: prospect.id,
-      mailboxId: mailbox.id,
-      state: "active",
-      currentStepIndex: 0,
-      nextRunAt: new Date(now.getTime() - 1000),
-      anchorMessageId,
-      anchorThreadId: anchorMessage.providerThreadId,
-      createdByUserId: userId,
-    });
+    const [enrollment] = await db
+      .insert(tables.enrollment)
+      .values({
+        organizationId: orgId,
+        sequenceId: sequence.id,
+        prospectId: prospect.id,
+        mailboxId: mailbox.id,
+        state: "active",
+        currentStepIndex: 0,
+        nextRunAt: new Date(now.getTime() - 1000),
+        anchorMessageId,
+        anchorThreadId: anchorMessage.providerThreadId,
+        createdByUserId: userId,
+      })
+      .returning();
+    if (enrollment) enrollmentIds.push(enrollment.id);
   }
+
+  return { orgId, enrollmentIds, prospectEmails };
 }
 
 async function resetQueue(): Promise<void> {
@@ -234,20 +280,42 @@ async function resetQueue(): Promise<void> {
   await boss.deleteAllJobs("sequence.tick");
 }
 
-async function seedAll(workspaces: number, enrollments: number): Promise<void> {
+async function seedAll(workspaces: number, enrollments: number): Promise<{ seeds: SeedResult[] }> {
   await resetQueue();
   await client`
-    truncate table job_log, send_reservation, task, enrollment, sequence_step, sequence, message, mailbox, prospect restart identity cascade
+    truncate table job_log, send_reservation, task, enrollment, sequence_step, sequence, message, mailbox, prospect, suppression restart identity cascade
   `;
   const perWorkspace = Math.ceil(enrollments / workspaces);
+  const seeds: SeedResult[] = [];
   for (let w = 0; w < workspaces; w++) {
     const count =
       w === workspaces - 1 ? enrollments - perWorkspace * (workspaces - 1) : perWorkspace;
-    await seedWorkspace(`ws${w}`, count);
+    seeds.push(await seedWorkspace(`ws${w}`, count));
   }
+  return { seeds };
 }
 
-function spawnWorkers(count: number): ChildProcess[] {
+function workerEnv(testMode: TestMode): NodeJS.ProcessEnv {
+  const base: NodeJS.ProcessEnv = {
+    ...process.env,
+    QUIKSEND_ENGINE_FAKE_MAIL: "1",
+    NODE_ENV: "test",
+    UNSUBSCRIBE_TOKEN_SECRET:
+      process.env.UNSUBSCRIBE_TOKEN_SECRET ?? "dev-unsubscribe-token-secret",
+    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+  };
+
+  if (testMode === "permanent-failure") {
+    base.QUIKSEND_ENGINE_TEST_MODE = "permanent-failure";
+  }
+  if (testMode === "outer-rollback") {
+    base.QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK = "1";
+  }
+
+  return base;
+}
+
+function spawnWorkers(count: number, testMode: TestMode): ChildProcess[] {
   const workerDir = join(repoRoot, "apps/worker");
   const children: ChildProcess[] = [];
   for (let i = 0; i < count; i++) {
@@ -256,11 +324,7 @@ function spawnWorkers(count: number): ChildProcess[] {
       ["exec", "dotenv", "-e", "../../.env", "--", "tsx", "src/index.ts"],
       {
         cwd: workerDir,
-        env: {
-          ...process.env,
-          QUIKSEND_ENGINE_FAKE_MAIL: "1",
-          NODE_ENV: "test",
-        },
+        env: workerEnv(testMode),
         stdio: ["ignore", "pipe", "pipe"],
       },
     );
@@ -315,7 +379,7 @@ async function drainQueue(tickFn: () => Promise<void>, maxMs: number): Promise<v
   }
 }
 
-async function assertInvariants(): Promise<string[]> {
+async function assertHappyPathInvariants(): Promise<string[]> {
   const violations: string[] = [];
 
   const dupKeys = await client<{ idempotency_key: string; count: string }[]>`
@@ -367,13 +431,106 @@ async function assertInvariants(): Promise<string[]> {
   return violations;
 }
 
+async function assertPermanentFailureInvariants(): Promise<string[]> {
+  const violations: string[] = [];
+
+  const failed = await client<{ count: string }[]>`
+    select count(*)::text as count from enrollment e
+    join prospect p on p.id = e.prospect_id
+    where p.email like '%@loadtest.local' and e.state = 'failed'
+  `;
+  if (Number(failed[0]?.count ?? 0) === 0) {
+    violations.push("expected enrollments in state=failed");
+  }
+
+  const deadJobs = await client<{ count: string }[]>`
+    select count(*)::text as count from job_log where status = 'dead'
+  `;
+  if (Number(deadJobs[0]?.count ?? 0) === 0) {
+    violations.push("expected job_log rows with status=dead");
+  }
+
+  return violations;
+}
+
+async function assertOuterRollbackInvariants(): Promise<string[]> {
+  const violations: string[] = [];
+
+  const dupKeys = await client<{ idempotency_key: string; count: string }[]>`
+    select m.idempotency_key, count(*)::text as count
+    from message m
+    join prospect p on p.id = m.prospect_id
+    where m.idempotency_key is not null
+      and p.email like '%@loadtest.local'
+      and m.status = 'sent'
+    group by m.idempotency_key
+    having count(*) > 1
+  `;
+  if (dupKeys.length > 0) {
+    violations.push(`double-send after forced rollback: ${dupKeys.length} duplicate keys`);
+  }
+
+  return violations;
+}
+
+async function assertSuppressionMidRunInvariants(targetEnrollmentId: string): Promise<string[]> {
+  const violations: string[] = [];
+
+  const row = await client<{ state: string; outbound_count: string }[]>`
+    select e.state, (
+      select count(*)::text from message m
+      where m.enrollment_id = e.id and m.direction = 'outbound' and m.status = 'sent'
+    ) as outbound_count
+    from enrollment e
+    where e.id = ${targetEnrollmentId}
+  `;
+
+  const state = row[0]?.state;
+  const outboundCount = Number(row[0]?.outbound_count ?? 0);
+
+  if (state !== "stopped" && outboundCount > 1) {
+    violations.push(
+      `suppressed enrollment should not send follow-ups (state=${state}, sent=${outboundCount})`,
+    );
+  }
+
+  return violations;
+}
+
 async function main(): Promise<void> {
   const args = parseArgs();
   console.log("Load test starting", args);
 
-  await seedAll(args.workspaces, args.enrollments);
+  const { seeds } = await seedAll(args.workspaces, args.enrollments);
 
   const { tick } = await import("../apps/worker/src/sequence/tick.ts");
+
+  let suppressionTimer: ReturnType<typeof setTimeout> | null = null;
+  let suppressionTargetEnrollmentId: string | null = null;
+
+  if (args.testMode === "suppression-during-run" && seeds[0]?.enrollmentIds[0]) {
+    suppressionTargetEnrollmentId = seeds[0].enrollmentIds[0];
+    const orgId = seeds[0].orgId;
+    const email = seeds[0].prospectEmails[0];
+    suppressionTimer = setTimeout(() => {
+      void db
+        .insert(tables.suppression)
+        .values({
+          organizationId: orgId,
+          value: email!.toLowerCase(),
+          valueType: "email",
+          reason: "manual",
+        })
+        .onConflictDoNothing()
+        .then(() => console.log("Inserted mid-run suppression for", email))
+        .catch((err: unknown) => {
+          process.stderr.write(
+            `suppression insert failed: ${err instanceof Error ? err.message : String(err)}\n`,
+          );
+        });
+    }, 5000);
+  }
+
   const tickTimer = setInterval(() => {
     void tick().catch((err: unknown) => {
       process.stderr.write(`tick error: ${err instanceof Error ? err.message : String(err)}\n`);
@@ -381,22 +538,40 @@ async function main(): Promise<void> {
   }, 10_000);
   await tick().catch(() => undefined);
 
-  const workers = spawnWorkers(args.workers);
+  const workers = spawnWorkers(args.workers, args.testMode);
   console.log(`Spawned ${workers.length} worker processes`);
 
   await new Promise((resolve) => setTimeout(resolve, args.duration * 1000));
 
-  await drainQueue(tick, 90_000);
+  await drainQueue(tick, args.testMode === "happy-path" ? 90_000 : 45_000);
 
   await stopWorkers(workers);
   clearInterval(tickTimer);
+  if (suppressionTimer) clearTimeout(suppressionTimer);
 
-  // Final grace for in-flight handlers.
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
   await stopBoss().catch(() => undefined);
 
-  const violations = await assertInvariants();
+  let violations: string[] = [];
+  switch (args.testMode) {
+    case "permanent-failure":
+      violations = await assertPermanentFailureInvariants();
+      break;
+    case "outer-rollback":
+      violations = await assertOuterRollbackInvariants();
+      break;
+    case "suppression-during-run":
+      if (suppressionTargetEnrollmentId) {
+        violations = await assertSuppressionMidRunInvariants(suppressionTargetEnrollmentId);
+      } else {
+        violations.push("no enrollment to test suppression");
+      }
+      break;
+    default:
+      violations = await assertHappyPathInvariants();
+  }
+
   await client.end();
 
   if (violations.length > 0) {
@@ -404,9 +579,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  console.log(
-    "OK — no duplicate idempotency_keys, no cap breaches, enrollments valid, no dead jobs",
-  );
+  console.log(`OK — ${args.testMode} invariants passed`);
 }
 
 main().catch((err: unknown) => {

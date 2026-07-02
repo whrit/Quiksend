@@ -21,7 +21,7 @@ Quiksend delivers HMAC-signed JSON payloads to HTTPS endpoints you register via 
 
 ## Signature verification
 
-The signature covers `timestamp + "." + JSON.stringify(payload)` using the endpoint secret generated at registration time.
+The signature covers `timestamp + "." + deliveryId + "." + JSON.stringify(payload)` using the endpoint secret generated at registration time.
 
 ```ts
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -31,11 +31,12 @@ function verifyQuiksendWebhook(input: {
   secret: string;
   timestamp: number;
   signature: string;
+  deliveryId: string;
 }): boolean {
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - input.timestamp) > 300) return false;
 
-  const body = `${input.timestamp}.${JSON.stringify(input.payload)}`;
+  const body = `${input.timestamp}.${input.deliveryId}.${JSON.stringify(input.payload)}`;
   const expected = createHmac("sha256", input.secret)
     .update(body)
     .digest("hex");
