@@ -6,19 +6,13 @@ import {
   type StepKind as SmStepKind,
 } from "@quiksend/core/state-machine";
 import { env } from "@quiksend/config";
-import { buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
+import { buildUnsubscribeUrl, buildComplianceParts, mintUnsubscribeToken } from "@quiksend/mail";
 import { db, tables } from "@quiksend/db";
-import {
-  createSmtpTransport,
-  decryptSmtpConfig,
-  sendMime,
-  type ComplianceInput,
-} from "@quiksend/mail";
-import { buildMime } from "@quiksend/mail/mime";
-import { normalizeMessageId } from "@quiksend/mail/threading";
+import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { orgFn } from "./org-fn.ts";
+import { resolveMailboxAdapter } from "./mailboxes.functions.ts";
 
 const anchorSchema = z.object({
   messageId: z.string().min(1),
@@ -120,7 +114,21 @@ export const sendComposedMessage = orgFn({ method: "POST" })
       ),
     });
     if (!mailbox) throw new Error("Mailbox not found");
-    if (mailbox.provider !== "smtp") throw new Error("Only SMTP mailboxes are supported in Wave 1");
+
+    if (data.enrollmentId) {
+      const enrollment = await db.query.enrollment.findFirst({
+        where: and(
+          eq(tables.enrollment.id, data.enrollmentId),
+          eq(tables.enrollment.organizationId, organizationId),
+        ),
+      });
+      if (!enrollment) throw new Error("Enrollment not found");
+      if (enrollment.mailboxId !== data.mailboxId) {
+        throw new Error(
+          "Mailbox must match the enrollment mailbox — follow-ups must continue on the same thread",
+        );
+      }
+    }
 
     const prospect = await loadProspect(data.prospectId, organizationId);
 
@@ -130,49 +138,40 @@ export const sendComposedMessage = orgFn({ method: "POST" })
     const senderOrgName = org?.name ?? "Quiksend";
     const senderPostalAddress = parseOrgPostalAddress(org?.metadata ?? null);
 
-    const compliance: ComplianceInput = {
+    const compliance = buildComplianceParts({
       unsubscribeUrl: buildUnsubscribeUrl(
         env.BETTER_AUTH_URL ?? "http://localhost:3000",
         mintUnsubscribeToken({ prospectId: prospect.id, orgId: organizationId }),
       ),
       senderPostalAddress,
       senderOrgName,
-    };
+    });
 
     const bodyText = data.bodyText ?? stripHtml(data.bodyHtml);
     const signature = mailbox.signatureHtml ? `\n\n${mailbox.signatureHtml}` : "";
 
-    const mime = buildMime({
+    const threading = data.anchor
+      ? buildThreadingHeaders({
+          messageId: data.anchor.messageId,
+          subject: data.subject,
+          providerThreadId: data.anchor.providerThreadId,
+          priorReferences: data.anchor.priorReferences,
+        })
+      : null;
+
+    const adapter = resolveMailboxAdapter(mailbox);
+    const sendResult = await adapter.send({
       from: { email: mailbox.address, name: mailbox.fromName ?? undefined },
       to: [{ email: prospect.email, name: formatProspectName(prospect) }],
-      subject: data.subject,
-      html: `${data.bodyHtml}${signature}`,
-      text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}`,
-      anchor: data.anchor,
-      compliance,
+      subject: threading?.subject ?? data.subject,
+      html: `${data.bodyHtml}${signature}${compliance.footerHtml}`,
+      text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}${compliance.footerText}`,
+      threading: threading ?? undefined,
+      extraHeaders: compliance.headers,
     });
 
-    const smtpKey = env.MAILBOX_ENCRYPTION_KEY;
-    if (!smtpKey || typeof mailbox.smtpConfig !== "string") {
-      throw new Error("Mailbox SMTP configuration is unavailable");
-    }
-    const smtp = decryptSmtpConfig(mailbox.smtpConfig, smtpKey);
-
-    const sendResult = await sendMime(
-      createSmtpTransport({
-        host: smtp.host,
-        port: smtp.port,
-        secure: smtp.secure,
-        auth: smtp.auth,
-        fromAddress: mailbox.address,
-        fromName: mailbox.fromName ?? undefined,
-      }),
-      mime,
-      { from: mailbox.address, to: [prospect.email] },
-    );
-
     const messageIdHeader = normalizeMessageId(sendResult.messageId);
-    const threading = data.anchor
+    const threadingMeta = data.anchor
       ? {
           inReplyTo: normalizeMessageId(data.anchor.messageId),
           referencesHeader: [
@@ -188,14 +187,14 @@ export const sendComposedMessage = orgFn({ method: "POST" })
       prospectId: prospect.id,
       enrollmentId: data.enrollmentId ?? null,
       direction: "outbound",
-      subject: mime.subject,
+      subject: threading?.subject ?? data.subject,
       bodyHtml: data.bodyHtml,
       bodyText,
       messageIdHeader,
       providerMessageId: sendResult.providerMessageId,
       providerThreadId: sendResult.providerThreadId,
-      inReplyTo: threading.inReplyTo,
-      referencesHeader: threading.referencesHeader,
+      inReplyTo: threadingMeta.inReplyTo,
+      referencesHeader: threadingMeta.referencesHeader,
       status: "sent",
       sentAt: sendResult.sentAt,
     });
@@ -311,7 +310,10 @@ async function captureManualAnchorForEnrollment(input: {
   });
 
   const sequence = await db.query.sequence.findFirst({
-    where: eq(tables.sequence.id, enrollment.sequenceId),
+    where: and(
+      eq(tables.sequence.id, enrollment.sequenceId),
+      eq(tables.sequence.organizationId, input.organizationId),
+    ),
   });
   if (!sequence) throw new Error("Sequence not found");
 

@@ -12,7 +12,9 @@
     "./adapters/smtp": "./src/adapters/smtp.ts",
     "./adapters/gmail": "./src/adapters/gmail.ts",
     "./adapters/microsoft": "./src/adapters/microsoft.ts",
-    "./adapters/fake": "./src/adapters/fake.ts"
+    "./adapters/fake": "./src/adapters/fake.ts",
+    "./adapters/index": "./src/adapters/index.ts",
+    "./nango-proxy": "./src/nango-proxy.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -20,7 +22,6 @@
   },
   "dependencies": {
     "@quiksend/config": "workspace:*",
-    "@quiksend/integrations": "workspace:*",
     "nodemailer": "9.0.3"
   },
   "devDependencies": {

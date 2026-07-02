@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { logger } from "@quiksend/config";
+import { env, logger } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
 import { enqueue, registerHandler } from "@quiksend/queue";
 import { and, eq, lte } from "drizzle-orm";
@@ -14,8 +14,13 @@ export const WEBHOOK_RETRY_DELAYS_MS = [
 
 export const MAX_WEBHOOK_ATTEMPTS = WEBHOOK_RETRY_DELAYS_MS.length;
 
-export function signWebhookPayload(payload: unknown, secret: string, timestamp: number): string {
-  const body = `${timestamp}.${JSON.stringify(payload)}`;
+export function signWebhookPayload(
+  payload: unknown,
+  secret: string,
+  timestamp: number,
+  deliveryId: string,
+): string {
+  const body = `${timestamp}.${deliveryId}.${JSON.stringify(payload)}`;
   return createHmac("sha256", secret).update(body).digest("hex");
 }
 
@@ -24,13 +29,19 @@ export function verifyWebhookSignature(input: {
   secret: string;
   timestamp: number;
   signature: string;
+  deliveryId: string;
   maxSkewSeconds?: number;
 }): boolean {
   const maxSkew = input.maxSkewSeconds ?? 300;
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - input.timestamp) > maxSkew) return false;
 
-  const expected = signWebhookPayload(input.payload, input.secret, input.timestamp);
+  const expected = signWebhookPayload(
+    input.payload,
+    input.secret,
+    input.timestamp,
+    input.deliveryId,
+  );
   const sig = input.signature.trim().toLowerCase();
   const exp = expected.toLowerCase();
   if (sig.length !== exp.length) return false;
@@ -43,7 +54,16 @@ export function computeNextAttemptAt(attempts: number): Date | null {
   return new Date(Date.now() + delay);
 }
 
-export async function sweepPendingWebhookDeliveries(limit = 50): Promise<number> {
+export function getWebhookSweepConfig(): { intervalMs: number; batchSize: number } {
+  return {
+    intervalMs: env.WEBHOOK_SWEEP_INTERVAL_MS,
+    batchSize: env.WEBHOOK_SWEEP_BATCH_SIZE,
+  };
+}
+
+export async function sweepPendingWebhookDeliveries(
+  limit = env.WEBHOOK_SWEEP_BATCH_SIZE,
+): Promise<number> {
   const now = new Date();
   const pending = await db.query.webhookDelivery.findMany({
     where: and(
@@ -57,6 +77,16 @@ export async function sweepPendingWebhookDeliveries(limit = 50): Promise<number>
     await enqueue("webhook.deliver", { deliveryId: row.id });
   }
   return pending.length;
+}
+
+export async function registerWebhookSweep(): Promise<void> {
+  const { intervalMs, batchSize } = getWebhookSweepConfig();
+  const interval = setInterval(() => {
+    void sweepPendingWebhookDeliveries(batchSize).catch((err) => {
+      logger.error({ err }, "webhook delivery sweep failed");
+    });
+  }, intervalMs);
+  interval.unref();
 }
 
 export async function registerWebhookDeliverHandler(): Promise<void> {
@@ -76,7 +106,7 @@ export async function registerWebhookDeliverHandler(): Promise<void> {
     const endpoint = delivery.endpoint;
     const timestamp = Math.floor(Date.now() / 1000);
     const payload = delivery.payload as Record<string, unknown>;
-    const signature = signWebhookPayload(payload, endpoint.secret, timestamp);
+    const signature = signWebhookPayload(payload, endpoint.secret, timestamp, deliveryId);
     const attempt = delivery.attempts + 1;
 
     let responseStatus: number | null = null;

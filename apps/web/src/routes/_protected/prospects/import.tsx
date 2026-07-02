@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Download, Upload } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -122,16 +122,36 @@ function ImportPage() {
         },
       });
       setBatchId(result.batch.id);
-      const full = await getImportBatch({ data: { id: result.batch.id } });
-      setBatchResult(full);
       setStep(5);
-      toast.success("Import complete");
+      toast.success("Import queued");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Import failed");
     } finally {
       setImporting(false);
     }
   };
+
+  useEffect(() => {
+    if (!batchId) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      const full = await getImportBatch({ data: { id: batchId } });
+      if (cancelled) return;
+      setBatchResult(full);
+      if (full.status === "completed" || full.status === "failed") {
+        if (full.status === "completed") toast.success("Import complete");
+        else toast.error("Import failed");
+        return;
+      }
+      window.setTimeout(() => void poll(), 1500);
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+    };
+  }, [batchId]);
 
   const downloadErrors = () => {
     if (!batchResult?.errors.length) return;
@@ -331,40 +351,52 @@ function ImportPage() {
         </Card>
       )}
 
-      {step === 5 && batchResult && (
+      {step === 5 && (
         <Card>
           <CardHeader>
-            <CardTitle>Import complete</CardTitle>
-            <CardDescription>Batch {batchResult.id}</CardDescription>
+            <CardTitle>
+              {batchResult?.status === "completed" ? "Import complete" : "Import in progress"}
+            </CardTitle>
+            <CardDescription>
+              {batchId ? `Batch ${batchId}` : "Waiting for batch status…"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-              <div>
-                <dt className="text-muted-foreground">Created</dt>
-                <dd className="text-lg font-semibold">{batchResult.createdCount}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Updated</dt>
-                <dd className="text-lg font-semibold">{batchResult.updatedCount}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Skipped</dt>
-                <dd className="text-lg font-semibold">{batchResult.skippedCount}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Errors</dt>
-                <dd className="text-lg font-semibold">{batchResult.erroredCount}</dd>
-              </div>
-            </dl>
-            {batchResult.errors.length > 0 && (
-              <Button variant="outline" onClick={downloadErrors}>
-                <Download className="mr-2 h-4 w-4" />
-                Download error CSV
-              </Button>
+            {batchResult ? (
+              <>
+                <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                  <div>
+                    <dt className="text-muted-foreground">Created</dt>
+                    <dd className="text-lg font-semibold">{batchResult.createdCount}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Updated</dt>
+                    <dd className="text-lg font-semibold">{batchResult.updatedCount}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Skipped</dt>
+                    <dd className="text-lg font-semibold">{batchResult.skippedCount}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Errors</dt>
+                    <dd className="text-lg font-semibold">{batchResult.erroredCount}</dd>
+                  </div>
+                </dl>
+                {batchResult.errors.length > 0 && (
+                  <Button variant="outline" onClick={downloadErrors}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download error CSV
+                  </Button>
+                )}
+                {batchResult.status === "completed" && (
+                  <Link to="/prospects" className={buttonVariants()}>
+                    View prospects
+                  </Link>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Processing import batch…</p>
             )}
-            <Link to="/prospects" className={buttonVariants()}>
-              View prospects
-            </Link>
           </CardContent>
         </Card>
       )}

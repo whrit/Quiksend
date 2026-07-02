@@ -29,15 +29,4 @@ export {
   verifyUnsubscribeToken,
   type UnsubscribeTokenPayload,
 } from "./unsubscribe.ts";
-export {
-  createAdapterForMailbox,
-  createFakeAdapter,
-  createGmailAdapter,
-  createMicrosoftAdapter,
-  createSmtpAdapter,
-  createSmtpTransport,
-  sendMime,
-  type GmailAdapterConfig,
-  type MicrosoftAdapterConfig,
-  type NangoProxyClient,
-} from "./adapters/index.ts";
+export { createAdapterForMailbox, createFakeAdapter } from "./adapters/index.ts";

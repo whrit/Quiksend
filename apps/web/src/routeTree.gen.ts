@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
@@ -47,6 +48,11 @@ import { Route as ApiV1SequencesIdAnalyticsRouteImport } from './routes/api/v1/s
 import { Route as ProtectedSettingsMailboxesIdHealthRouteImport } from './routes/_protected/settings/mailboxes/$id/health'
 import { Route as ProtectedSettingsCrmConnectionIdMappingRouteImport } from './routes/_protected/settings/crm/$connectionId/mapping'
 
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -252,6 +258,7 @@ const ProtectedSettingsCrmConnectionIdMappingRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/compose': typeof ProtectedComposeRoute
   '/dashboard': typeof ProtectedDashboardRoute
   '/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
@@ -290,6 +297,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/compose': typeof ProtectedComposeRoute
   '/dashboard': typeof ProtectedDashboardRoute
   '/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
@@ -330,6 +338,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_protected': typeof ProtectedRouteWithChildren
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/_protected/compose': typeof ProtectedComposeRoute
   '/_protected/dashboard': typeof ProtectedDashboardRoute
   '/_protected/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
@@ -370,6 +379,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/onboarding'
     | '/compose'
     | '/dashboard'
     | '/prospects/$id'
@@ -408,6 +418,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/onboarding'
     | '/compose'
     | '/dashboard'
     | '/prospects/$id'
@@ -447,6 +458,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_protected'
     | '/login'
+    | '/onboarding'
     | '/_protected/compose'
     | '/_protected/dashboard'
     | '/_protected/prospects/$id'
@@ -487,6 +499,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ProtectedRoute: typeof ProtectedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  OnboardingRoute: typeof OnboardingRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiNangoWebhookRoute: typeof ApiNangoWebhookRoute
   ApiV1EnrollmentsRoute: typeof ApiV1EnrollmentsRoute
@@ -500,6 +513,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -857,6 +877,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ProtectedRoute: ProtectedRouteWithChildren,
   LoginRoute: LoginRoute,
+  OnboardingRoute: OnboardingRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiNangoWebhookRoute: ApiNangoWebhookRoute,
   ApiV1EnrollmentsRoute: ApiV1EnrollmentsRoute,

@@ -23,7 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { getProspect, updateProspect } from "@/lib/prospects.functions.ts";
+import {
+  getProspect,
+  getProspectEnrollments,
+  getProspectMessages,
+  getProspectResearchProfile,
+  updateProspect,
+} from "@/lib/prospects.functions.ts";
 import { getProspectWritebackLogs } from "@/lib/analytics.functions.ts";
 
 const statusOptions = [
@@ -47,18 +53,21 @@ const editSchema = z.object({
 
 export const Route = createFileRoute("/_protected/prospects/$id")({
   loader: async ({ params }) => {
-    const [data, writebackLogs] = await Promise.all([
+    const [data, writebackLogs, enrollments, messages, researchProfile] = await Promise.all([
       getProspect({ data: { id: params.id } }),
       getProspectWritebackLogs({ data: { prospectId: params.id } }),
+      getProspectEnrollments({ data: { prospectId: params.id } }),
+      getProspectMessages({ data: { prospectId: params.id, limit: 20 } }),
+      getProspectResearchProfile({ data: { prospectId: params.id } }),
     ]);
-    return { ...data, writebackLogs };
+    return { ...data, writebackLogs, enrollments, messages, researchProfile };
   },
   component: ProspectDetailPage,
 });
 
 function ProspectDetailPage() {
   const data = Route.useLoaderData();
-  const { prospect, company, lists, writebackLogs } = data;
+  const { prospect, company, lists, writebackLogs, enrollments, messages, researchProfile } = data;
 
   const form = useForm<z.infer<typeof editSchema>>({
     resolver: zodResolver(editSchema),
@@ -337,14 +346,76 @@ function ProspectDetailPage() {
           </div>
           <Separator />
           <div>
-            <h3 className="mb-1 text-sm font-medium text-muted-foreground">
-              Sequence history (Phase 5)
-            </h3>
-            <p className="text-sm text-muted-foreground">No enrollments yet.</p>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-medium">Sequence history</h3>
+              {researchProfile ? (
+                <Link
+                  to="/prospects/$id/generate"
+                  params={{ id: prospect.id }}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  View research
+                </Link>
+              ) : (
+                <Link
+                  to="/prospects/$id/generate"
+                  params={{ id: prospect.id }}
+                  className={buttonVariants({ variant: "ghost", size: "sm" })}
+                >
+                  Generate research
+                </Link>
+              )}
+            </div>
+            {enrollments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No enrollments yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {enrollments.map((enrollment) => (
+                  <li
+                    key={enrollment.id}
+                    className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                  >
+                    <div>
+                      <p className="font-medium">{enrollment.sequenceName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Step {enrollment.currentStepIndex} · Updated{" "}
+                        {new Date(enrollment.updatedAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <Badge variant="secondary">{enrollment.state}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div>
-            <h3 className="mb-1 text-sm font-medium text-muted-foreground">Messages (Phase 4/7)</h3>
-            <p className="text-sm text-muted-foreground">No messages yet.</p>
+            <h3 className="mb-2 text-sm font-medium">Messages</h3>
+            {messages.items.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No messages yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {messages.items.map((message) => (
+                  <li
+                    key={message.id}
+                    className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{message.subject ?? "(no subject)"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {message.direction} ·{" "}
+                        {new Date(message.sentAt ?? message.receivedAt ?? "").toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {message.sentiment && <Badge variant="outline">{message.sentiment}</Badge>}
+                      <Badge variant={message.direction === "inbound" ? "default" : "secondary"}>
+                        {message.status}
+                      </Badge>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </CardContent>
       </Card>

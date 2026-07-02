@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ArrowLeft, Download, Loader2, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -13,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { listSuppressions, unsuppressEmail } from "@/lib/inbox.functions.ts";
+import { bulkUnsuppressEmails, listSuppressions, unsuppressEmail } from "@/lib/inbox.functions.ts";
 
 export const Route = createFileRoute("/_protected/settings/suppression")({
   component: SuppressionPage,
@@ -24,6 +25,8 @@ function SuppressionPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -32,6 +35,7 @@ function SuppressionPage() {
         data: { search: search.trim() || undefined, limit: 100 },
       });
       setItems(result.items);
+      setSelected({});
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load suppressions");
     } finally {
@@ -44,6 +48,24 @@ function SuppressionPage() {
     return () => clearTimeout(handle);
   }, [reload]);
 
+  const selectedEmails = useMemo(
+    () => items.filter((row) => selected[row.id]).map((row) => row.value),
+    [items, selected],
+  );
+
+  const allSelected = items.length > 0 && selectedEmails.length === items.length;
+  const someSelected = selectedEmails.length > 0 && !allSelected;
+
+  const toggleAll = (checked: boolean) => {
+    if (!checked) {
+      setSelected({});
+      return;
+    }
+    const next: Record<string, boolean> = {};
+    for (const row of items) next[row.id] = true;
+    setSelected(next);
+  };
+
   const handleRemove = async (email: string, id: string) => {
     setBusyId(id);
     try {
@@ -55,6 +77,34 @@ function SuppressionPage() {
     } finally {
       setBusyId(null);
     }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedEmails.length === 0) return;
+    setBulkBusy(true);
+    try {
+      await bulkUnsuppressEmails({ data: { emails: selectedEmails } });
+      toast.success(`Removed ${selectedEmails.length} suppression(s)`);
+      void reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Bulk delete failed");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleExportCsv = () => {
+    const rows = (selectedEmails.length > 0 ? items.filter((row) => selected[row.id]) : items).map(
+      (row) => [row.value, row.reason, row.createdAt].join(","),
+    );
+    const csv = ["email,reason,created_at", ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "suppressions.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -72,12 +122,41 @@ function SuppressionPage() {
         </p>
       </div>
 
-      <Input
-        placeholder="Search by email…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="max-w-sm"
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          placeholder="Search by email…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-sm"
+        />
+        {selectedEmails.length > 0 && (
+          <>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={bulkBusy}
+              onClick={() => void handleBulkDelete()}
+            >
+              {bulkBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-1 h-4 w-4" />
+              )}
+              Delete selected ({selectedEmails.length})
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleExportCsv}>
+              <Download className="mr-1 h-4 w-4" />
+              Export CSV
+            </Button>
+          </>
+        )}
+        {selectedEmails.length === 0 && items.length > 0 && (
+          <Button size="sm" variant="outline" onClick={handleExportCsv}>
+            <Download className="mr-1 h-4 w-4" />
+            Export all CSV
+          </Button>
+        )}
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-12">
@@ -87,6 +166,13 @@ function SuppressionPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={allSelected || (someSelected && "indeterminate")}
+                  onCheckedChange={(v) => toggleAll(!!v)}
+                  aria-label="Select all"
+                />
+              </TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Reason</TableHead>
               <TableHead>Added</TableHead>
@@ -96,13 +182,20 @@ function SuppressionPage() {
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   No suppressions found.
                 </TableCell>
               </TableRow>
             ) : (
               items.map((row) => (
                 <TableRow key={row.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={!!selected[row.id]}
+                      onCheckedChange={(v) => setSelected((prev) => ({ ...prev, [row.id]: !!v }))}
+                      aria-label={`Select ${row.value}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-mono text-sm">{row.value}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">{row.reason}</Badge>

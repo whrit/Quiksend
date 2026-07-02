@@ -10,7 +10,7 @@ import { SendError } from "../adapter.ts";
 import { checkDomainAuth } from "../dns.ts";
 import { buildMime, type BuildMimeInput } from "../mime.ts";
 import { normalizeMessageId, type ThreadingHeaders } from "../threading.ts";
-import type { NangoProxyClient } from "./gmail.ts";
+import type { NangoProxyClient } from "../nango-proxy.ts";
 
 const MICROSOFT_PROVIDER_KEY = "microsoft";
 
@@ -19,7 +19,7 @@ export interface MicrosoftAdapterConfig {
   readonly fromAddress: string;
   readonly fromName?: string;
   readonly compliance?: ComplianceInput;
-  readonly nango?: NangoProxyClient;
+  readonly nango: NangoProxyClient;
 }
 
 interface GraphMessageSummary {
@@ -34,11 +34,6 @@ interface GraphListResponse {
 
 export function createMicrosoftAdapter(config: MicrosoftAdapterConfig): MailboxAdapter {
   const nango = config.nango;
-  if (!nango) {
-    throw new Error(
-      "Microsoft adapter requires a Nango client (inject via config.nango or use createAdapterForMailbox)",
-    );
-  }
 
   const from: EmailAddress = {
     email: config.fromAddress,

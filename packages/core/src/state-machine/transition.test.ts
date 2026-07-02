@@ -121,6 +121,29 @@ describe("transition", () => {
     expect(terminal.nextState).toBe("failed");
   });
 
+  it("step_failed with retryAt schedules backoff on transient failure", () => {
+    const retryAt = new Date("2026-07-01T12:00:00Z");
+    const result = transition(activeSnapshot({ attemptCount: 0 }), {
+      kind: "step_failed",
+      error: "transient",
+      at: new Date(),
+      maxAttempts: 5,
+      retryAt,
+    });
+    expect(result.nextState).toBe("active");
+    expect(result.effects.map((e) => e.kind)).toEqual(["increment_attempt", "schedule_at"]);
+    expect(result.effects[1]).toEqual({ kind: "schedule_at", at: retryAt });
+  });
+
+  it("suppressed terminates as stopped with emit_event", () => {
+    const result = transition(activeSnapshot(), {
+      kind: "suppressed",
+      at: new Date(),
+    });
+    expect(result.nextState).toBe("stopped");
+    expect(result.effects.map((e) => e.kind)).toEqual(["terminate", "emit_event"]);
+  });
+
   it("pause and resume round-trip cleanly", () => {
     const paused = transition(activeSnapshot(), { kind: "pause" });
     expect(paused.nextState).toBe("paused");

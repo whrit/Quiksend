@@ -4,10 +4,12 @@ import { initSentry, Sentry, shutdownPostHog } from "@quiksend/observability";
 import { enqueue, getBoss, registerHandler, stopBoss } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
 import { registerAiResearchHandler } from "./handlers/ai-research.ts";
+import { registerImportProspectsHandler } from "./handlers/import-prospects.ts";
 import { registerCrmSyncHandler } from "./handlers/crm-sync.ts";
 import { registerWebhookFanoutHandler } from "./handlers/webhook-fanout.ts";
 import { registerCrmWritebackHandler } from "./handlers/crm-writeback.ts";
 import { registerMailboxPollHandler, registerMailboxPollTick } from "./handlers/mailbox-poll.ts";
+import { registerNangoWebhookSweep } from "./handlers/nango-webhook-sweep.ts";
 import { registerSequenceHandlers } from "./sequence/register.ts";
 
 /**
@@ -50,9 +52,11 @@ async function main(): Promise<void> {
   await registerWebhookFanoutHandler();
   await registerCrmWritebackHandler();
   await registerAiResearchHandler();
+  await registerImportProspectsHandler();
   await registerSequenceHandlers();
   await registerMailboxPollHandler();
   await registerMailboxPollTick();
+  await registerNangoWebhookSweep();
 
   if (env.NODE_ENV !== "production") {
     await enqueue("hello.ping", { message: "worker boot smoke test" });

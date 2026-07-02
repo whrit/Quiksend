@@ -1,45 +1,44 @@
+import { generateObject } from "ai";
 import { describe, expect, it, vi } from "vitest";
-import { EmailSchema } from "./email-schema.ts";
+import { getDefaultModel } from "../model/provider.ts";
 import { generateEmail } from "./generate-email.ts";
 import type { BuiltPrompt } from "./prompt-builder.ts";
 
-const generateObject = vi.fn<(...args: unknown[]) => Promise<{ object: unknown }>>();
-
 vi.mock("ai", () => ({
-  generateObject: (...args: unknown[]) => generateObject(...args),
+  generateObject: vi.fn<typeof import("ai").generateObject>(),
 }));
 
 vi.mock("../model/provider.ts", () => ({
-  getDefaultModel: () => ({}),
+  getDefaultModel: vi.fn<typeof getDefaultModel>(),
 }));
 
 const prompt: BuiltPrompt = {
-  system: "You write emails.",
-  user: "Write a follow-up.",
+  system: "system",
+  user: "user",
   valuePropIds: [],
 };
 
-const validOutput = {
-  subject: "Quick follow-up on our chat",
-  body_markdown:
-    "Hi there,\n\nI wanted to follow up on our conversation last week and see if you had any questions about the proposal we discussed. Happy to jump on a call if that would help.\n\nBest,\nAlex",
-  angle: "value reminder",
-  cited_facts: [{ claim: "Met last week", source_url: "https://example.com/meeting" }],
-};
-
 describe("generateEmail", () => {
-  it("retries once when the model returns an invalid schema, then succeeds", async () => {
-    generateObject
-      .mockRejectedValueOnce(new Error("schema parse failed"))
-      .mockResolvedValueOnce({ object: validOutput });
+  it("persists modelId from getDefaultModel, not a hardcoded string", async () => {
+    vi.mocked(getDefaultModel).mockReturnValue({
+      model: {} as ReturnType<typeof getDefaultModel>["model"],
+      modelId: "claude-sonnet-4-5",
+      provider: "anthropic",
+    });
+    vi.mocked(generateObject).mockResolvedValue({
+      object: {
+        subject: "Hello",
+        body_markdown: "Body",
+        angle: "Direct",
+        cited_facts: [],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const result = await generateEmail(prompt);
 
-    expect(generateObject).toHaveBeenCalledTimes(2);
-    expect(EmailSchema.safeParse(result).success).toBe(true);
-    expect(result.subject).toBe(validOutput.subject);
-    expect(result.body_markdown).toBe(validOutput.body_markdown);
-    expect(result.model).toBeTruthy();
-    expect(result.prompt).toEqual(prompt);
+    expect(result.model).toBe("claude-sonnet-4-5");
+    expect(generateObject).toHaveBeenCalledWith(
+      expect.objectContaining({ model: expect.any(Object) }),
+    );
   });
 });

@@ -498,9 +498,6 @@ importers:
 
   packages/core:
     dependencies:
-      '@quiksend/config':
-        specifier: workspace:*
-        version: link:../config
       date-fns:
         specifier: 4.1.0
         version: 4.1.0
@@ -557,9 +554,6 @@ importers:
       '@quiksend/config':
         specifier: workspace:*
         version: link:../config
-      '@quiksend/integrations':
-        specifier: workspace:*
-        version: link:../integrations
       nodemailer:
         specifier: 9.0.3
         version: 9.0.3

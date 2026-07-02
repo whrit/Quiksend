@@ -1,4 +1,5 @@
 import { env, logger } from "@quiksend/config";
+import { classifyInboundSentiment } from "@quiksend/ai";
 import { db, tables } from "@quiksend/db";
 import { getNango } from "@quiksend/integrations";
 import { detectAutoReply, matchInbound, parseBounce, type OutboundAnchor } from "@quiksend/mail";
@@ -13,6 +14,13 @@ import {
   handleInboundReply,
   type InboundEmail,
 } from "../sequence/inbound-handler.ts";
+import {
+  dedupeGraphMessages,
+  filterMessagesSince,
+  graphEndpointFromDeltaLink,
+  MS_DELTA_PAGE_CAP,
+  type GraphDeltaPage,
+} from "./microsoft-delta.ts";
 
 const GMAIL_PROVIDER_KEY = "google-mail";
 const MS_PROVIDER_KEY = "microsoft";
@@ -50,6 +58,17 @@ export async function registerMailboxPollHandler(): Promise<void> {
   });
 }
 
+const MAILBOX_POLL_STAGGER_BUCKETS = 4;
+const MAILBOX_POLL_STAGGER_SECONDS = 30;
+
+function mailboxPollBucket(mailboxId: string): number {
+  let hash = 0;
+  for (let i = 0; i < mailboxId.length; i++) {
+    hash = (hash * 31 + mailboxId.charCodeAt(i)) >>> 0;
+  }
+  return hash % MAILBOX_POLL_STAGGER_BUCKETS;
+}
+
 export async function registerMailboxPollTick(): Promise<void> {
   const { getBoss } = await import("@quiksend/queue");
   const boss = await getBoss();
@@ -61,7 +80,9 @@ export async function registerMailboxPollTick(): Promise<void> {
     });
     const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     for (const mailbox of mailboxes) {
-      await enqueue("mailbox.poll", { mailboxId: mailbox.id, since });
+      const bucket = mailboxPollBucket(mailbox.id);
+      const startAfter = bucket * MAILBOX_POLL_STAGGER_SECONDS;
+      await enqueue("mailbox.poll", { mailboxId: mailbox.id, since }, { startAfter });
     }
     logger.debug({ count: mailboxes.length }, "mailbox.poll.tick enqueued mailboxes");
   });
@@ -234,6 +255,14 @@ async function processInboundMessage(
 
   if (!inserted) return;
 
+  if (!isBounce) {
+    await storeInboundSentiment(inserted.id, {
+      subject: inbound.subject,
+      bodyText: inbound.bodyText,
+      bodyHtml: inbound.bodyHtml,
+    });
+  }
+
   const inboundEmail: InboundEmail = {
     id: inserted.id,
     organizationId: mailbox.organizationId,
@@ -275,6 +304,15 @@ async function processInboundMessage(
   if (matchedOutbound?.enrollmentId) {
     await handleInboundReply(inboundEmail, matchedOutbound.enrollmentId);
   }
+}
+
+async function storeInboundSentiment(
+  messageId: string,
+  inbound: { subject: string | null; bodyText: string | null; bodyHtml: string | null },
+): Promise<void> {
+  const sentiment = await classifyInboundSentiment(inbound);
+  if (!sentiment) return;
+  await db.update(tables.message).set({ sentiment }).where(eq(tables.message.id, messageId));
 }
 
 async function pollGmail(
@@ -404,39 +442,48 @@ async function pollMicrosoft(
     return { messages: [], cursor };
   }
   const nango = getNango();
-  const endpoint = cursor.microsoftDeltaLink
-    ? cursor.microsoftDeltaLink.replace(/^https:\/\/graph\.microsoft\.com\/v1\.0/, "")
-    : "/v1.0/me/mailFolders/inbox/messages/delta";
+  let endpoint = graphEndpointFromDeltaLink(cursor.microsoftDeltaLink);
+  const rawItems: NonNullable<GraphDeltaPage["value"]>[number][] = [];
+  let deltaLink = cursor.microsoftDeltaLink;
+  let pageCount = 0;
+  let lastDeltaLink: string | undefined;
 
-  let response: { data: unknown; status: number };
-  try {
-    response = await nango.get({
-      endpoint,
-      providerConfigKey: MS_PROVIDER_KEY,
-      connectionId: mailbox.nangoConnectionId,
-    });
-  } catch (err) {
-    const status = (err as { response?: { status?: number } }).response?.status;
-    if (status === 404 || status === 410) {
-      return pollMicrosoft(mailbox, {}, since);
+  while (pageCount < MS_DELTA_PAGE_CAP) {
+    let response: { data: unknown; status: number };
+    try {
+      response = await nango.get({
+        endpoint,
+        providerConfigKey: MS_PROVIDER_KEY,
+        connectionId: mailbox.nangoConnectionId,
+      });
+    } catch (err) {
+      const status = (err as { response?: { status?: number } }).response?.status;
+      if (pageCount === 0 && (status === 404 || status === 410)) {
+        return pollMicrosoft(mailbox, {}, since);
+      }
+      throw err;
     }
-    throw err;
+
+    const data = response.data as GraphDeltaPage;
+    rawItems.push(...(data.value ?? []));
+    pageCount += 1;
+
+    if (data["@odata.deltaLink"]) {
+      lastDeltaLink = data["@odata.deltaLink"];
+    }
+
+    const nextLink = data["@odata.nextLink"];
+    if (!nextLink) break;
+    endpoint = graphEndpointFromDeltaLink(nextLink);
   }
 
-  const data = response.data as {
-    value?: {
-      id: string;
-      conversationId?: string;
-      receivedDateTime?: string;
-      internetMessageId?: string;
-    }[];
-    "@odata.deltaLink"?: string;
-    "@odata.nextLink"?: string;
-  };
+  logger.info(
+    { mailboxId: mailbox.id, pageCount, messageCount: rawItems.length },
+    "microsoft delta poll pages fetched",
+  );
 
   const messages: ParsedInbound[] = [];
-  for (const item of data.value ?? []) {
-    if (!item.receivedDateTime || new Date(item.receivedDateTime) < since) continue;
+  for (const item of filterMessagesSince(dedupeGraphMessages(rawItems), since)) {
     const mimeResponse = await nango.get({
       endpoint: `/v1.0/me/messages/${item.id}/$value`,
       providerConfigKey: MS_PROVIDER_KEY,
@@ -455,7 +502,7 @@ async function pollMicrosoft(
     messages,
     cursor: {
       ...cursor,
-      microsoftDeltaLink: data["@odata.deltaLink"] ?? cursor.microsoftDeltaLink,
+      microsoftDeltaLink: lastDeltaLink ?? deltaLink,
     },
   };
 }

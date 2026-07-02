@@ -71,7 +71,7 @@ export const sendReservation = pgTable(
     windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
     status: sendReservationStatusEnum("status").default("held").notNull(),
   },
-  (table) => [index("send_reservation_mailbox_window_idx").on(table.mailboxId, table.windowStart)],
+  (table) => [index("send_reservation_mailbox_reserved_idx").on(table.mailboxId, table.reservedAt)],
 );
 
 export const jobLog = pgTable(

@@ -43,25 +43,35 @@ export interface MailboxPollPayload {
 }
 
 // ── crm.sync — pull changed records from a connected CRM (Phase 3) ──────────
+export const crmSyncFilterSchema = z.enum(["all", "modified_since", "tagged"]);
+
 export const crmSyncSchema = z.object({
   connectionId: z.string().uuid(),
   model: z.enum(["Contact", "Account", "Company"]),
+  targetListId: z.string().uuid().optional(),
+  filter: crmSyncFilterSchema.optional(),
+  modifiedSinceDays: z.number().int().positive().optional(),
+  tag: z.string().max(200).optional(),
 });
 export interface CrmSyncPayload {
   connectionId: string;
   model: "Contact" | "Account" | "Company";
+  targetListId?: string;
+  filter?: "all" | "modified_since" | "tagged";
+  modifiedSinceDays?: number;
+  tag?: string;
 }
 
 // ── crm.writeback — log activity / update contact on CRM (Phase 9) ──────────
 export const crmWritebackSchema = z.object({
   connectionId: z.string().uuid(),
-  eventType: z.enum(["send", "reply", "status"]),
+  eventType: z.enum(["send", "reply", "status", "contact_upsert"]),
   entityId: z.string().uuid(),
   idempotencyKey: z.string(),
 });
 export interface CrmWritebackPayload {
   connectionId: string;
-  eventType: "send" | "reply" | "status";
+  eventType: "send" | "reply" | "status" | "contact_upsert";
   entityId: string;
   idempotencyKey: string;
 }
@@ -82,6 +92,41 @@ export interface AiResearchPayload {
   forceRefresh: boolean;
 }
 
+// ── import.process — async CSV prospect import (Wave 5) ─────────────────────
+const importProcessRowSchema = z.object({
+  rowNumber: z.number().int().positive(),
+  prospect: z.object({
+    email: z.string(),
+    firstName: z.string().nullable().optional(),
+    lastName: z.string().nullable().optional(),
+    title: z.string().nullable().optional(),
+    phone: z.string().nullable().optional(),
+    linkedinUrl: z.string().nullable().optional(),
+    timezone: z.string().nullable().optional(),
+  }),
+  company: z
+    .object({
+      name: z.string().nullable().optional(),
+      domain: z.string().nullable().optional(),
+      industry: z.string().nullable().optional(),
+      website: z.string().nullable().optional(),
+    })
+    .optional(),
+});
+
+export const importProcessSchema = z.object({
+  batchId: z.string().uuid(),
+  organizationId: z.string(),
+  dedupePolicy: z.enum(["skip_existing", "update_existing"]),
+  rows: z.array(importProcessRowSchema).max(5000),
+});
+export interface ImportProcessPayload {
+  batchId: string;
+  organizationId: string;
+  dedupePolicy: "skip_existing" | "update_existing";
+  rows: z.infer<typeof importProcessRowSchema>[];
+}
+
 /**
  * Mapping from job name → concrete payload type. Consumers use this to look up
  * a payload interface by job name at the type level; runtime code uses
@@ -96,6 +141,7 @@ export interface JobPayloadMap {
   "crm.writeback": CrmWritebackPayload;
   "webhook.deliver": WebhookDeliverPayload;
   "ai.research": AiResearchPayload;
+  "import.process": ImportProcessPayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -109,6 +155,7 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "crm.writeback": crmWritebackSchema,
   "webhook.deliver": webhookDeliverSchema,
   "ai.research": aiResearchSchema,
+  "import.process": importProcessSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];

@@ -50,6 +50,7 @@ export const company = pgTable(
   },
   (table) => [
     index("company_organization_id_idx").on(table.organizationId),
+    index("company_name_trgm_idx").using("gin", table.name.op("gin_trgm_ops")),
     uniqueIndex("company_org_domain_uidx")
       .on(table.organizationId, table.domain)
       .where(sql`${table.domain} is not null`),
@@ -92,6 +93,12 @@ export const prospect = pgTable(
     uniqueIndex("prospect_org_email_uidx").on(table.organizationId, table.email),
     index("prospect_org_status_idx").on(table.organizationId, table.status),
     index("prospect_org_company_idx").on(table.organizationId, table.companyId),
+    index("prospect_org_created_idx")
+      .on(table.organizationId, table.createdAt.desc(), table.id.desc())
+      .where(sql`${table.deletedAt} IS NULL`),
+    index("prospect_email_trgm_idx").using("gin", table.email.op("gin_trgm_ops")),
+    index("prospect_first_name_trgm_idx").using("gin", table.firstName.op("gin_trgm_ops")),
+    index("prospect_last_name_trgm_idx").using("gin", table.lastName.op("gin_trgm_ops")),
     uniqueIndex("prospect_org_crm_uidx")
       .on(table.organizationId, table.crmProvider, table.crmExternalId)
       .where(sql`${table.crmExternalId} is not null`),

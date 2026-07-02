@@ -13,13 +13,16 @@ import {
 } from "@quiksend/integrations";
 import type { FieldMapping } from "@quiksend/integrations/providers";
 import { registerHandler } from "@quiksend/queue";
+import type { CrmSyncPayload } from "@quiksend/queue";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
+import { addContactsToTargetList, resolveSyncModifiedAfter } from "./crm-sync-to-list.ts";
 
 const syncDb = drizzle(client, { casing: "snake_case" });
 
 export async function registerCrmSyncHandler(): Promise<void> {
-  await registerHandler("crm.sync", async ({ connectionId, model }) => {
+  await registerHandler("crm.sync", async (payload: CrmSyncPayload) => {
+    const { connectionId, model, targetListId } = payload;
     const connection = await db.query.crmConnection.findFirst({
       where: eq(tables.crmConnection.id, connectionId),
     });
@@ -65,10 +68,10 @@ export async function registerCrmSyncHandler(): Promise<void> {
 
     const cursor = parseSyncCursor(syncRow.cursor);
     let page = 0;
+    let modifiedAfter = resolveSyncModifiedAfter(cursor.modifiedAfter ?? null, payload);
 
     try {
       let nextNangoCursor: string | null = cursor.nangoCursor ?? null;
-      let modifiedAfter = cursor.modifiedAfter ?? null;
       do {
         page += 1;
 
@@ -89,6 +92,9 @@ export async function registerCrmSyncHandler(): Promise<void> {
                 );
           await upsertContacts(syncDb, ctx, result.records);
           await linkContactsToCompanies(syncDb, ctx, result.records);
+          if (targetListId) {
+            await addContactsToTargetList(syncDb, organizationId, targetListId, result.records);
+          }
           if (result.records.length > 0) {
             modifiedAfter =
               result.records[result.records.length - 1]?.lastModifiedISO ?? modifiedAfter;

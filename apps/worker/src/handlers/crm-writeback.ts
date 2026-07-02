@@ -157,13 +157,17 @@ async function ensureContactExternalId(
 
 async function performWriteback(
   ctx: WritebackContext,
-  eventType: "send" | "reply" | "status",
+  eventType: "send" | "reply" | "status" | "contact_upsert",
   logRow: typeof tables.crmWritebackLog.$inferSelect,
 ): Promise<{ externalId: string; response: unknown }> {
   const prospect = await resolveProspectForEntity(ctx.organizationId, logRow.entityId, logRow);
   if (!prospect) throw new Error("Prospect not found for write-back entity");
 
   const contactId = await ensureContactExternalId(ctx, prospect);
+  if (eventType === "contact_upsert") {
+    return { externalId: contactId ?? prospect.id, response: { upserted: true } };
+  }
+
   const nango = getNango();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -243,8 +247,13 @@ export async function registerCrmWritebackHandler(): Promise<void> {
           .values({
             organizationId: ctx.organizationId,
             crmConnectionId: connectionId,
-            eventType: eventType === "status" ? "status_update" : "activity_log",
-            entityType: "message",
+            eventType:
+              eventType === "status"
+                ? "status_update"
+                : eventType === "contact_upsert"
+                  ? "contact_upsert"
+                  : "activity_log",
+            entityType: eventType === "contact_upsert" ? "prospect" : "message",
             entityId,
             idempotencyKey,
             status: "pending",
