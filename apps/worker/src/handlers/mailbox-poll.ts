@@ -50,6 +50,17 @@ export async function registerMailboxPollHandler(): Promise<void> {
   });
 }
 
+const MAILBOX_POLL_STAGGER_BUCKETS = 4;
+const MAILBOX_POLL_STAGGER_SECONDS = 30;
+
+function mailboxPollBucket(mailboxId: string): number {
+  let hash = 0;
+  for (let i = 0; i < mailboxId.length; i++) {
+    hash = (hash * 31 + mailboxId.charCodeAt(i)) >>> 0;
+  }
+  return hash % MAILBOX_POLL_STAGGER_BUCKETS;
+}
+
 export async function registerMailboxPollTick(): Promise<void> {
   const { getBoss } = await import("@quiksend/queue");
   const boss = await getBoss();
@@ -61,7 +72,9 @@ export async function registerMailboxPollTick(): Promise<void> {
     });
     const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     for (const mailbox of mailboxes) {
-      await enqueue("mailbox.poll", { mailboxId: mailbox.id, since });
+      const bucket = mailboxPollBucket(mailbox.id);
+      const startAfter = bucket * MAILBOX_POLL_STAGGER_SECONDS;
+      await enqueue("mailbox.poll", { mailboxId: mailbox.id, since }, { startAfter });
     }
     logger.debug({ count: mailboxes.length }, "mailbox.poll.tick enqueued mailboxes");
   });

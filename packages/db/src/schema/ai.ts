@@ -49,6 +49,8 @@ export const valueProp = pgTable(
   },
   (table) => [
     index("value_prop_organization_id_idx").on(table.organizationId),
+    // HNSW is global; at very large multi-tenant scale consider partial indexes
+    // per organization_id (PERF-021) or table partitioning by org.
     index("value_prop_embedding_hnsw_idx").using("hnsw", table.embedding.op("vector_cosine_ops")),
   ],
 );

@@ -21,6 +21,9 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
 
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
+
     "noEmit": true
   },
   "exclude": ["node_modules", "dist", "build", ".output", ".turbo"]

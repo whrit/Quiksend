@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { logger } from "@quiksend/config";
+import { env, logger } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
 import { enqueue, registerHandler } from "@quiksend/queue";
 import { and, eq, lte } from "drizzle-orm";
@@ -43,7 +43,16 @@ export function computeNextAttemptAt(attempts: number): Date | null {
   return new Date(Date.now() + delay);
 }
 
-export async function sweepPendingWebhookDeliveries(limit = 50): Promise<number> {
+export function getWebhookSweepConfig(): { intervalMs: number; batchSize: number } {
+  return {
+    intervalMs: env.WEBHOOK_SWEEP_INTERVAL_MS,
+    batchSize: env.WEBHOOK_SWEEP_BATCH_SIZE,
+  };
+}
+
+export async function sweepPendingWebhookDeliveries(
+  limit = env.WEBHOOK_SWEEP_BATCH_SIZE,
+): Promise<number> {
   const now = new Date();
   const pending = await db.query.webhookDelivery.findMany({
     where: and(
@@ -57,6 +66,16 @@ export async function sweepPendingWebhookDeliveries(limit = 50): Promise<number>
     await enqueue("webhook.deliver", { deliveryId: row.id });
   }
   return pending.length;
+}
+
+export async function registerWebhookSweep(): Promise<void> {
+  const { intervalMs, batchSize } = getWebhookSweepConfig();
+  const interval = setInterval(() => {
+    void sweepPendingWebhookDeliveries(batchSize).catch((err) => {
+      logger.error({ err }, "webhook delivery sweep failed");
+    });
+  }, intervalMs);
+  interval.unref();
 }
 
 export async function registerWebhookDeliverHandler(): Promise<void> {

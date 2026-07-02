@@ -19,12 +19,24 @@ The layering described in `CLAUDE.md` and the phase plan is mostly respected: `p
 - What: Before calling `transition(snapshot, { kind: "tick", … })`, the worker synthesizes terminate effects directly when `isSuppressed(ctx)` or `hasReplyOnThread(ctx)`:
 
 ```typescript
-await applyTransitionEffects(tx, ctx, [{ kind: "terminate", reason: "stopped" }], attempt, "stopped");
+await applyTransitionEffects(
+  tx,
+  ctx,
+  [{ kind: "terminate", reason: "stopped" }],
+  attempt,
+  "stopped",
+);
 // …
-await applyTransitionEffects(tx, ctx, [
-  { kind: "terminate", reason: "replied" },
-  { kind: "emit_event", type: "enrollment.replied" },
-], attempt, "replied");
+await applyTransitionEffects(
+  tx,
+  ctx,
+  [
+    { kind: "terminate", reason: "replied" },
+    { kind: "emit_event", type: "enrollment.replied" },
+  ],
+  attempt,
+  "replied",
+);
 ```
 
 - Impact: Transition rules for `reply_received` / stop-on-suppression live in two places. If `packages/core/src/state-machine/transition.ts` changes (e.g., soft-stop vs hard-stop, event ordering), the worker pre-checks can drift silently.
@@ -184,7 +196,7 @@ function modelId(): string {
 
 - Location: `apps/worker/src/sequence/effects.ts:170-178`
 - Severity: **low** (informational — not a violation)
-- What: Effect handlers mutate enrollment columns (state, step index, anchors, schedule) while `transition()` decides *what* to do. This matches the documented interpreter model in `packages/core/src/state-machine/types.ts:2-4`.
+- What: Effect handlers mutate enrollment columns (state, step index, anchors, schedule) while `transition()` decides _what_ to do. This matches the documented interpreter model in `packages/core/src/state-machine/types.ts:2-4`.
 - Impact: None if all callers route through `transition()` first (see ARCH-001/002/003 for exceptions).
 - Fix: N/A — keep pattern, fix bypasses.
 - Confidence: high
@@ -217,33 +229,37 @@ function modelId(): string {
 
 ## Section Pass/Fail Matrix
 
-| # | Check | Verdict | Notes |
-|---|-------|---------|-------|
-| 1 | `packages/core` I/O purity | **PASS** | No `@quiksend/{db,queue,mail,integrations}` or Node I/O imports in `packages/core/src/` |
-| 2 | State machine / executor separation | **FAIL** | Worker pre-checks (ARCH-001), web compose interpreter (ARCH-002), web pause/resume (ARCH-003) bypass single transition+executor path |
-| 3 | Adapter contracts | **PASS** (minor drift) | All three adapters implement `MailboxAdapter`; `createAdapterForMailbox` is engine entry point; fake adapter used in worker/load tests, not adapter unit tests (ARCH-008/009) |
-| 4 | Tenancy chokepoint | **PASS** (gap) | `org-fn.ts` is sole auth middleware; all data server-fns compose it; guard table list incomplete (ARCH-007) |
-| 5 | Package boundaries | **PASS** (one violation) | No `apps/*` in packages; core clean; mail→integrations (ARCH-004) |
-| 6 | Cross-package type ownership | **PASS** (drift) | `EnrollmentSnapshot` owned by core; `MailProvider` by mail; Zod schemas duplicated (ARCH-011) |
-| 7 | Naming + conventions | **PASS** | `*.functions.ts`, extensions, `import type`, pg enums follow `<table>_<field>` |
-| 8 | Migration hygiene | **PASS** | 12 SQL files match `_journal.json` order; `prevId` chain intact 0000→0011; one commit per migration |
-| 9 | Effect leak (worker) | **PASS** | All 9 kinds handled in `apps/worker/src/sequence/effects.ts:35-62` |
-| 10 | AI provider abstraction | **FAIL** | `generate-email.ts` bypasses provider map (ARCH-005) |
+| #   | Check                               | Verdict                  | Notes                                                                                                                                                                         |
+| --- | ----------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `packages/core` I/O purity          | **PASS**                 | No `@quiksend/{db,queue,mail,integrations}` or Node I/O imports in `packages/core/src/`                                                                                       |
+| 2   | State machine / executor separation | **FAIL**                 | Worker pre-checks (ARCH-001), web compose interpreter (ARCH-002), web pause/resume (ARCH-003) bypass single transition+executor path                                          |
+| 3   | Adapter contracts                   | **PASS** (minor drift)   | All three adapters implement `MailboxAdapter`; `createAdapterForMailbox` is engine entry point; fake adapter used in worker/load tests, not adapter unit tests (ARCH-008/009) |
+| 4   | Tenancy chokepoint                  | **PASS** (gap)           | `org-fn.ts` is sole auth middleware; all data server-fns compose it; guard table list incomplete (ARCH-007)                                                                   |
+| 5   | Package boundaries                  | **PASS** (one violation) | No `apps/*` in packages; core clean; mail→integrations (ARCH-004)                                                                                                             |
+| 6   | Cross-package type ownership        | **PASS** (drift)         | `EnrollmentSnapshot` owned by core; `MailProvider` by mail; Zod schemas duplicated (ARCH-011)                                                                                 |
+| 7   | Naming + conventions                | **PASS**                 | `*.functions.ts`, extensions, `import type`, pg enums follow `<table>_<field>`                                                                                                |
+| 8   | Migration hygiene                   | **PASS**                 | 12 SQL files match `_journal.json` order; `prevId` chain intact 0000→0011; one commit per migration                                                                           |
+| 9   | Effect leak (worker)                | **PASS**                 | All 9 kinds handled in `apps/worker/src/sequence/effects.ts:35-62`                                                                                                            |
+| 10  | AI provider abstraction             | **FAIL**                 | `generate-email.ts` bypasses provider map (ARCH-005)                                                                                                                          |
 
 ---
 
 ## P2 Observations
 
 ### Schedule math duplication (ARCH-006)
+
 Only enroll-with-existing-anchor paths hand-roll delay math. All other preview/executor/API paths use `computeSchedule`.
 
 ### MIME building — single source ✓
+
 `buildMime` in `packages/mail/src/mime.ts` is the only MIME builder. Adapters wrap it via local `buildMimeFromOutbound` helpers; web compose/inbox/mailboxes call `buildMime` directly. No hand-rolled MIME strings elsewhere.
 
 ### Router pattern consistency (ARCH-010)
+
 Three trust models coexist by design (session cookie UI, org middleware server-fns, API key REST). Overlap is acceptable; gap is UI layout vs org middleware strictness.
 
 ### Foreign key hierarchy ✓
+
 Sensible cascade graph: `message.mailbox_id` → `mailbox.id` with `onDelete: "cascade"` (`packages/db/src/schema/mail.ts:77-80`). Deleting a mailbox removes its messages, which is appropriate for tenant-scoped mail storage. Enrollment→mailbox also cascades (`packages/db/src/schema/sequences.ts:102`).
 
 ---

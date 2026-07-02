@@ -11,17 +11,29 @@ export type MatchedValueProp = {
   similarity: number;
 };
 
+async function fallbackValueProps(
+  organizationId: string,
+  limit: number,
+): Promise<MatchedValueProp[]> {
+  const rows = await db.query.valueProp.findMany({
+    where: eq(tables.valueProp.organizationId, organizationId),
+    orderBy: desc(tables.valueProp.createdAt),
+    limit,
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    tags: row.tags,
+    similarity: 0,
+  }));
+}
+
 export async function retrieveValueProps(
   organizationId: string,
   researchSummary: string | null,
   limit = 3,
 ): Promise<MatchedValueProp[]> {
-  const rows = await db.query.valueProp.findMany({
-    where: eq(tables.valueProp.organizationId, organizationId),
-    limit: 50,
-  });
-  if (rows.length === 0) return [];
-
   let queryEmbedding: number[] | null = null;
   if (researchSummary) {
     try {
@@ -32,13 +44,7 @@ export async function retrieveValueProps(
   }
 
   if (!queryEmbedding) {
-    return rows.slice(0, limit).map((row) => ({
-      id: row.id,
-      title: row.title,
-      body: row.body,
-      tags: row.tags,
-      similarity: 0,
-    }));
+    return fallbackValueProps(organizationId, limit);
   }
 
   const similarity = sql<number>`1 - (${cosineDistance(tables.valueProp.embedding, queryEmbedding)})`;
@@ -58,13 +64,7 @@ export async function retrieveValueProps(
 
   if (matched.length > 0) return matched;
 
-  return rows.slice(0, limit).map((row) => ({
-    id: row.id,
-    title: row.title,
-    body: row.body,
-    tags: row.tags,
-    similarity: 0,
-  }));
+  return fallbackValueProps(organizationId, limit);
 }
 
 export type StepContext = {

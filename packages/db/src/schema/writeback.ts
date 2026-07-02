@@ -78,6 +78,12 @@ export const event = pgTable(
       table.type,
       table.createdAt.desc(),
     ),
+    // Prospect timeline: filter entity_type = 'prospect' and entity_id = prospectId.
+    index("event_org_entity_created_idx").on(
+      table.organizationId,
+      table.entityId,
+      table.createdAt.desc(),
+    ),
   ],
 );
 

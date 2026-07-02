@@ -1,5 +1,6 @@
 import { env, logger } from "@quiksend/config";
 import { PgBoss } from "pg-boss";
+import type { SendOptions, UpdateQueueOptions, WorkOptions } from "pg-boss";
 import { JobSchemas, type JobName, type JobPayloadMap } from "./jobs.ts";
 
 /**
@@ -15,6 +16,21 @@ import { JobSchemas, type JobName, type JobPayloadMap } from "./jobs.ts";
  */
 let cached: PgBoss | null = null;
 let starting: Promise<PgBoss> | null = null;
+
+const QUEUE_DEFAULTS: Partial<Record<JobName, UpdateQueueOptions>> = {
+  "crm.writeback": {
+    retryLimit: 5,
+    retryDelay: 60,
+    retryBackoff: true,
+    retryDelayMax: 3600,
+  },
+};
+
+const WORK_DEFAULTS: Partial<Record<JobName, WorkOptions>> = {
+  "webhook.deliver": {
+    localConcurrency: env.WEBHOOK_DELIVER_CONCURRENCY,
+  },
+};
 
 export async function getBoss(): Promise<PgBoss> {
   if (cached) return cached;
@@ -38,6 +54,8 @@ export async function stopBoss(): Promise<void> {
   logger.info("pg-boss stopped");
 }
 
+export type EnqueueOptions = SendOptions;
+
 /**
  * Typed producer. Validates the payload against the registered schema before
  * enqueueing — a mis-typed payload fails locally, not on the consumer at 3am.
@@ -45,11 +63,12 @@ export async function stopBoss(): Promise<void> {
 export async function enqueue<N extends JobName>(
   job: N,
   payload: JobPayloadMap[N],
+  options?: EnqueueOptions,
 ): Promise<string | null> {
   const schema = JobSchemas[job];
   const validated = schema.parse(payload);
   const boss = await getBoss();
-  const id = await boss.send(job, validated as object);
+  const id = await boss.send(job, validated as object, options);
   logger.debug({ job, id }, "job enqueued");
   return id;
 }
@@ -64,11 +83,18 @@ export type JobHandler<N extends JobName> = (payload: JobPayloadMap[N]) => Promi
 export async function registerHandler<N extends JobName>(
   job: N,
   handler: JobHandler<N>,
+  workOptions?: WorkOptions,
 ): Promise<void> {
   const schema = JobSchemas[job];
   const boss = await getBoss();
-  await boss.createQueue(job);
-  await boss.work<unknown>(job, async (jobs) => {
+  const queueDefaults = QUEUE_DEFAULTS[job];
+  if (queueDefaults) {
+    await boss.createQueue(job, queueDefaults);
+  } else {
+    await boss.createQueue(job);
+  }
+  const workDefaults = WORK_DEFAULTS[job];
+  await boss.work<unknown>(job, { ...workDefaults, ...workOptions }, async (jobs) => {
     for (const item of jobs) {
       const payload = schema.parse(item.data) as JobPayloadMap[N];
       await handler(payload);
