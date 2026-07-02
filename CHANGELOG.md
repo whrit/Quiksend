@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/whrit/Quiksend/compare/v1.11.0...v1.12.0) (2026-07-02)
+
+
+### Features
+
+* **phase-9-writeback-analytics:** Phase 9 complete ([#29](https://github.com/whrit/Quiksend/issues/29)) ([75f8cd0](https://github.com/whrit/Quiksend/commit/75f8cd0a4818ee2c9bece78df2279f02a3a6964a))
+
 ## [1.11.0](https://github.com/whrit/Quiksend/compare/v1.10.0...v1.11.0) (2026-07-02)
 
 
