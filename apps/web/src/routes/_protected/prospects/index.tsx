@@ -7,14 +7,23 @@ import {
   type ColumnDef,
   type RowSelectionState,
 } from "@tanstack/react-table";
-import { MoreHorizontal, Plus, Upload } from "lucide-react";
+import { MoreHorizontal, Plus, Upload, Check, ChevronsUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { GatewayBadge, GATEWAY_FILTER_OPTIONS } from "@/components/gateway-badge.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +46,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -52,11 +62,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   addToList,
   bulkDeleteProspects,
   createList,
   createProspect,
+  getGatewayMixForList,
   listCompanies,
   listLists,
   listProspects,
@@ -67,6 +80,7 @@ const searchSchema = z.object({
   status: z.string().optional(),
   listId: z.string().optional(),
   companyId: z.string().optional(),
+  gateways: z.string().optional(),
   cursor: z.string().optional(),
 });
 
@@ -96,12 +110,14 @@ export const Route = createFileRoute("/_protected/prospects/")({
     const status = search.status
       ? (search.status.split(",").filter(Boolean) as (typeof statusOptions)[number][])
       : undefined;
+    const gateways = search.gateways ? search.gateways.split(",").filter(Boolean) : undefined;
 
-    const [prospects, lists, companies] = await Promise.all([
+    const [prospects, lists, companies, gatewayMix] = await Promise.all([
       listProspects({
         data: {
           search: search.search,
           status,
+          gateways,
           listId: search.listId,
           companyId: search.companyId,
           cursor: search.cursor
@@ -112,9 +128,10 @@ export const Route = createFileRoute("/_protected/prospects/")({
       }),
       listLists({ data: {} }),
       listCompanies({ data: { limit: 100 } }),
+      search.listId ? getGatewayMixForList({ data: { listId: search.listId } }) : null,
     ]);
 
-    return { prospects, lists, companies: companies.items };
+    return { prospects, lists, companies: companies.items, gatewayMix };
   },
   component: ProspectsPage,
 });
@@ -174,6 +191,13 @@ function prospectColumns(): ColumnDef<ProspectRow>[] {
     },
     { accessorKey: "email", header: "Email" },
     {
+      id: "gateway",
+      header: "Gateway",
+      cell: ({ row }) => (
+        <GatewayBadge gateway={row.original.emailGateway} evidence={row.original.gatewayEvidence} />
+      ),
+    },
+    {
       id: "company",
       header: "Company",
       accessorFn: (row) => row.companyName ?? "—",
@@ -226,8 +250,13 @@ function prospectColumns(): ColumnDef<ProspectRow>[] {
 function ProspectsPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
-  const { prospects, lists, companies } = Route.useLoaderData();
+  const { prospects, lists, companies, gatewayMix } = Route.useLoaderData();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [gatewayFilterOpen, setGatewayFilterOpen] = useState(false);
+  const selectedGateways = useMemo(
+    () => (search.gateways ? search.gateways.split(",").filter(Boolean) : []),
+    [search.gateways],
+  );
   const [addOpen, setAddOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [addListOpen, setAddListOpen] = useState(false);
@@ -392,6 +421,46 @@ function ProspectsPage() {
           </SelectContent>
         </Select>
 
+        <Popover open={gatewayFilterOpen} onOpenChange={setGatewayFilterOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="w-44 justify-between">
+              {selectedGateways.length > 0 ? `${selectedGateways.length} gateway(s)` : "Gateway"}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Filter gateways…" />
+              <CommandList>
+                <CommandEmpty>No gateway found.</CommandEmpty>
+                <CommandGroup>
+                  {GATEWAY_FILTER_OPTIONS.map((opt) => {
+                    const checked = selectedGateways.includes(opt.value);
+                    return (
+                      <CommandItem
+                        key={opt.value}
+                        onSelect={() => {
+                          const next = checked
+                            ? selectedGateways.filter((g) => g !== opt.value)
+                            : [...selectedGateways, opt.value];
+                          applyFilters({
+                            gateways: next.length > 0 ? next.join(",") : undefined,
+                          });
+                        }}
+                      >
+                        <Check
+                          className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")}
+                        />
+                        {opt.label}
+                      </CommandItem>
+                    );
+                  })}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
         <Select
           value={search.companyId ?? "all"}
           onValueChange={(v) => applyFilters({ companyId: v === "all" ? undefined : v })}
@@ -409,6 +478,37 @@ function ProspectsPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {search.listId && gatewayMix && gatewayMix.mix.length > 0 && (
+        <div className="rounded-lg border p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-medium">SEG mix for this list</h2>
+            <span className="text-xs text-muted-foreground">
+              {(gatewayMix.classifiedPct * 100).toFixed(0)}% classified
+            </span>
+          </div>
+          <div className="h-16">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={gatewayMix.mix}
+                layout="vertical"
+                margin={{ left: 80, right: 8, top: 0, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis
+                  type="number"
+                  hide
+                  domain={[0, 1]}
+                  tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
+                />
+                <YAxis type="category" dataKey="gateway" width={76} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(value: number) => `${(value * 100).toFixed(1)}%`} />
+                <Bar dataKey="pct" fill="hsl(var(--primary))" radius={2} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {selectedIds.length > 0 && (
         <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">

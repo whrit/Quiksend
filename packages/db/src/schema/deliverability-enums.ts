@@ -31,3 +31,9 @@ export const seedInboxPoolTagEnum = pgEnum("seed_inbox_pool_tag", [
   "canary_only",
   "warmup",
 ]);
+
+export const gatewayClassificationConfidenceEnum = pgEnum("gateway_classification_confidence", [
+  "high",
+  "medium",
+  "low",
+]);
