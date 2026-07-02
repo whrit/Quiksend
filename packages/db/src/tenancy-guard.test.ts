@@ -24,7 +24,8 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "crmConnection",
   "syncState",
   // Phase 4:
-  // "mailbox", "message",
+  "mailbox",
+  "message",
   // etc. — flip on as tables land.
 ];
 

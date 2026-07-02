@@ -7,3 +7,4 @@
  * ./fake.ts already ships; tests import it directly.
  */
 export { createFakeAdapter } from "./fake.ts";
+export { createSmtpAdapter, createSmtpTransport, sendMime } from "./smtp.ts";

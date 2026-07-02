@@ -13,12 +13,15 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
+import { Route as ProtectedComposeRouteImport } from './routes/_protected/compose'
 import { Route as ProtectedProspectsIndexRouteImport } from './routes/_protected/prospects/index'
 import { Route as ApiNangoWebhookRouteImport } from './routes/api/nango/webhook'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ProtectedProspectsImportRouteImport } from './routes/_protected/prospects/import'
 import { Route as ProtectedProspectsIdRouteImport } from './routes/_protected/prospects/$id'
+import { Route as ProtectedSettingsMailboxesIndexRouteImport } from './routes/_protected/settings/mailboxes/index'
 import { Route as ProtectedSettingsCrmIndexRouteImport } from './routes/_protected/settings/crm/index'
+import { Route as ProtectedSettingsMailboxesNewRouteImport } from './routes/_protected/settings/mailboxes/new'
 import { Route as ProtectedSettingsCrmConnectionIdMappingRouteImport } from './routes/_protected/settings/crm/$connectionId/mapping'
 
 const LoginRoute = LoginRouteImport.update({
@@ -38,6 +41,11 @@ const IndexRoute = IndexRouteImport.update({
 const ProtectedDashboardRoute = ProtectedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedComposeRoute = ProtectedComposeRouteImport.update({
+  id: '/compose',
+  path: '/compose',
   getParentRoute: () => ProtectedRoute,
 } as any)
 const ProtectedProspectsIndexRoute = ProtectedProspectsIndexRouteImport.update({
@@ -66,10 +74,22 @@ const ProtectedProspectsIdRoute = ProtectedProspectsIdRouteImport.update({
   path: '/prospects/$id',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedSettingsMailboxesIndexRoute =
+  ProtectedSettingsMailboxesIndexRouteImport.update({
+    id: '/settings/mailboxes/',
+    path: '/settings/mailboxes/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ProtectedSettingsCrmIndexRoute =
   ProtectedSettingsCrmIndexRouteImport.update({
     id: '/settings/crm/',
     path: '/settings/crm/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSettingsMailboxesNewRoute =
+  ProtectedSettingsMailboxesNewRouteImport.update({
+    id: '/settings/mailboxes/new',
+    path: '/settings/mailboxes/new',
     getParentRoute: () => ProtectedRoute,
   } as any)
 const ProtectedSettingsCrmConnectionIdMappingRoute =
@@ -82,25 +102,31 @@ const ProtectedSettingsCrmConnectionIdMappingRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/compose': typeof ProtectedComposeRoute
   '/dashboard': typeof ProtectedDashboardRoute
   '/prospects/$id': typeof ProtectedProspectsIdRoute
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/prospects/': typeof ProtectedProspectsIndexRoute
+  '/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/settings/crm/': typeof ProtectedSettingsCrmIndexRoute
+  '/settings/mailboxes/': typeof ProtectedSettingsMailboxesIndexRoute
   '/settings/crm/$connectionId/mapping': typeof ProtectedSettingsCrmConnectionIdMappingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/compose': typeof ProtectedComposeRoute
   '/dashboard': typeof ProtectedDashboardRoute
   '/prospects/$id': typeof ProtectedProspectsIdRoute
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/prospects': typeof ProtectedProspectsIndexRoute
+  '/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/settings/crm': typeof ProtectedSettingsCrmIndexRoute
+  '/settings/mailboxes': typeof ProtectedSettingsMailboxesIndexRoute
   '/settings/crm/$connectionId/mapping': typeof ProtectedSettingsCrmConnectionIdMappingRoute
 }
 export interface FileRoutesById {
@@ -108,13 +134,16 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_protected': typeof ProtectedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_protected/compose': typeof ProtectedComposeRoute
   '/_protected/dashboard': typeof ProtectedDashboardRoute
   '/_protected/prospects/$id': typeof ProtectedProspectsIdRoute
   '/_protected/prospects/import': typeof ProtectedProspectsImportRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/_protected/prospects/': typeof ProtectedProspectsIndexRoute
+  '/_protected/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/_protected/settings/crm/': typeof ProtectedSettingsCrmIndexRoute
+  '/_protected/settings/mailboxes/': typeof ProtectedSettingsMailboxesIndexRoute
   '/_protected/settings/crm/$connectionId/mapping': typeof ProtectedSettingsCrmConnectionIdMappingRoute
 }
 export interface FileRouteTypes {
@@ -122,38 +151,47 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/compose'
     | '/dashboard'
     | '/prospects/$id'
     | '/prospects/import'
     | '/api/auth/$'
     | '/api/nango/webhook'
     | '/prospects/'
+    | '/settings/mailboxes/new'
     | '/settings/crm/'
+    | '/settings/mailboxes/'
     | '/settings/crm/$connectionId/mapping'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
+    | '/compose'
     | '/dashboard'
     | '/prospects/$id'
     | '/prospects/import'
     | '/api/auth/$'
     | '/api/nango/webhook'
     | '/prospects'
+    | '/settings/mailboxes/new'
     | '/settings/crm'
+    | '/settings/mailboxes'
     | '/settings/crm/$connectionId/mapping'
   id:
     | '__root__'
     | '/'
     | '/_protected'
     | '/login'
+    | '/_protected/compose'
     | '/_protected/dashboard'
     | '/_protected/prospects/$id'
     | '/_protected/prospects/import'
     | '/api/auth/$'
     | '/api/nango/webhook'
     | '/_protected/prospects/'
+    | '/_protected/settings/mailboxes/new'
     | '/_protected/settings/crm/'
+    | '/_protected/settings/mailboxes/'
     | '/_protected/settings/crm/$connectionId/mapping'
   fileRoutesById: FileRoutesById
 }
@@ -195,6 +233,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedDashboardRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/compose': {
+      id: '/_protected/compose'
+      path: '/compose'
+      fullPath: '/compose'
+      preLoaderRoute: typeof ProtectedComposeRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/prospects/': {
       id: '/_protected/prospects/'
       path: '/prospects'
@@ -230,11 +275,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedProspectsIdRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/settings/mailboxes/': {
+      id: '/_protected/settings/mailboxes/'
+      path: '/settings/mailboxes'
+      fullPath: '/settings/mailboxes/'
+      preLoaderRoute: typeof ProtectedSettingsMailboxesIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/settings/crm/': {
       id: '/_protected/settings/crm/'
       path: '/settings/crm'
       fullPath: '/settings/crm/'
       preLoaderRoute: typeof ProtectedSettingsCrmIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings/mailboxes/new': {
+      id: '/_protected/settings/mailboxes/new'
+      path: '/settings/mailboxes/new'
+      fullPath: '/settings/mailboxes/new'
+      preLoaderRoute: typeof ProtectedSettingsMailboxesNewRouteImport
       parentRoute: typeof ProtectedRoute
     }
     '/_protected/settings/crm/$connectionId/mapping': {
@@ -248,20 +307,26 @@ declare module '@tanstack/react-router' {
 }
 
 interface ProtectedRouteChildren {
+  ProtectedComposeRoute: typeof ProtectedComposeRoute
   ProtectedDashboardRoute: typeof ProtectedDashboardRoute
   ProtectedProspectsIdRoute: typeof ProtectedProspectsIdRoute
   ProtectedProspectsImportRoute: typeof ProtectedProspectsImportRoute
   ProtectedProspectsIndexRoute: typeof ProtectedProspectsIndexRoute
+  ProtectedSettingsMailboxesNewRoute: typeof ProtectedSettingsMailboxesNewRoute
   ProtectedSettingsCrmIndexRoute: typeof ProtectedSettingsCrmIndexRoute
+  ProtectedSettingsMailboxesIndexRoute: typeof ProtectedSettingsMailboxesIndexRoute
   ProtectedSettingsCrmConnectionIdMappingRoute: typeof ProtectedSettingsCrmConnectionIdMappingRoute
 }
 
 const ProtectedRouteChildren: ProtectedRouteChildren = {
+  ProtectedComposeRoute: ProtectedComposeRoute,
   ProtectedDashboardRoute: ProtectedDashboardRoute,
   ProtectedProspectsIdRoute: ProtectedProspectsIdRoute,
   ProtectedProspectsImportRoute: ProtectedProspectsImportRoute,
   ProtectedProspectsIndexRoute: ProtectedProspectsIndexRoute,
+  ProtectedSettingsMailboxesNewRoute: ProtectedSettingsMailboxesNewRoute,
   ProtectedSettingsCrmIndexRoute: ProtectedSettingsCrmIndexRoute,
+  ProtectedSettingsMailboxesIndexRoute: ProtectedSettingsMailboxesIndexRoute,
   ProtectedSettingsCrmConnectionIdMappingRoute:
     ProtectedSettingsCrmConnectionIdMappingRoute,
 }
