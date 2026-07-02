@@ -89,8 +89,22 @@
     {
       "idx": 12,
       "version": "7",
-      "when": 1782975153262,
-      "tag": "0012_wave5_epsilon_perf_indexes",
+      "when": 1782975140888,
+      "tag": "0012_wave5_gamma_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782978470087,
+      "tag": "0013_wave5_beta_sentiment",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1782978676813,
+      "tag": "0014_wave5_epsilon_perf_indexes",
       "breakpoints": true
     }
   ]

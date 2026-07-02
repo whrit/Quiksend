@@ -1,4 +1,5 @@
 import { env, logger } from "@quiksend/config";
+import { classifyInboundSentiment } from "@quiksend/ai";
 import { db, tables } from "@quiksend/db";
 import { getNango } from "@quiksend/integrations";
 import { detectAutoReply, matchInbound, parseBounce, type OutboundAnchor } from "@quiksend/mail";
@@ -247,6 +248,14 @@ async function processInboundMessage(
 
   if (!inserted) return;
 
+  if (!isBounce) {
+    await storeInboundSentiment(inserted.id, {
+      subject: inbound.subject,
+      bodyText: inbound.bodyText,
+      bodyHtml: inbound.bodyHtml,
+    });
+  }
+
   const inboundEmail: InboundEmail = {
     id: inserted.id,
     organizationId: mailbox.organizationId,
@@ -288,6 +297,15 @@ async function processInboundMessage(
   if (matchedOutbound?.enrollmentId) {
     await handleInboundReply(inboundEmail, matchedOutbound.enrollmentId);
   }
+}
+
+async function storeInboundSentiment(
+  messageId: string,
+  inbound: { subject: string | null; bodyText: string | null; bodyHtml: string | null },
+): Promise<void> {
+  const sentiment = await classifyInboundSentiment(inbound);
+  if (!sentiment) return;
+  await db.update(tables.message).set({ sentiment }).where(eq(tables.message.id, messageId));
 }
 
 async function pollGmail(

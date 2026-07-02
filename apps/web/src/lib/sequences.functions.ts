@@ -107,6 +107,40 @@ function parseSettings(raw: unknown): SequenceSettings {
   return sequenceSettingsSchema.parse(raw ?? {});
 }
 
+function emailDomain(email: string): string {
+  const at = email.lastIndexOf("@");
+  return at >= 0 ? email.slice(at + 1).toLowerCase() : email.toLowerCase();
+}
+
+async function loadSuppressedEmails(
+  organizationId: string,
+  emails: string[],
+): Promise<Set<string>> {
+  if (emails.length === 0) return new Set();
+
+  const normalized = emails.map((e) => e.toLowerCase());
+  const domains = [...new Set(normalized.map(emailDomain))];
+
+  const rows = await db.query.suppression.findMany({
+    where: and(
+      eq(tables.suppression.organizationId, organizationId),
+      inArray(tables.suppression.value, [...normalized, ...domains]),
+    ),
+  });
+
+  const suppressed = new Set<string>();
+  for (const row of rows) {
+    if (row.valueType === "email") {
+      suppressed.add(row.value);
+    } else if (row.valueType === "domain") {
+      for (const email of normalized) {
+        if (emailDomain(email) === row.value) suppressed.add(email);
+      }
+    }
+  }
+  return suppressed;
+}
+
 function serializeSequence(row: SequenceRow, extras?: { stepCount?: number }) {
   return {
     id: row.id,
@@ -730,6 +764,12 @@ export const enrollProspects = orgFn({ method: "POST" })
       ),
     });
     const prospectSet = new Set(prospects.map((p) => p.id));
+    const prospectById = new Map(prospects.map((p) => [p.id, p]));
+
+    const suppressedEmails = await loadSuppressedEmails(
+      organizationId,
+      prospects.map((p) => p.email),
+    );
 
     const existing = await db.query.enrollment.findMany({
       where: and(
@@ -753,6 +793,20 @@ export const enrollProspects = orgFn({ method: "POST" })
       if (alreadyEnrolled.has(prospectId)) {
         skipped.push(prospectId);
         continue;
+      }
+
+      const prospect = prospectById.get(prospectId);
+      if (prospect) {
+        const email = prospect.email.toLowerCase();
+        if (
+          suppressedEmails.has(email) ||
+          prospect.status === "unsubscribed" ||
+          prospect.status === "do_not_contact" ||
+          prospect.status === "bounced"
+        ) {
+          skipped.push(prospectId);
+          continue;
+        }
       }
 
       const mailbox = mailboxes[mailboxIndex % mailboxes.length];

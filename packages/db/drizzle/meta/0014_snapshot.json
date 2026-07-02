@@ -1,6 +1,6 @@
 {
-  "id": "66db118c-5391-4f96-93b2-fc5b82934621",
-  "prevId": "fccc5426-d55c-402e-8849-e44f03326ea3",
+  "id": "a98ebd38-8fec-459a-9379-947300a692a8",
+  "prevId": "dfc2c2e5-9ca1-432e-8eef-da1aaaa1bc7c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1018,7 +1018,29 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "mailbox_status_id_idx": {
+          "name": "mailbox_status_id_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "mailbox_organization_id_organization_id_fk": {
           "name": "mailbox_organization_id_organization_id_fk",
@@ -1149,6 +1171,13 @@
           "notNull": true,
           "default": "'sent'"
         },
+        "sentiment": {
+          "name": "sentiment",
+          "type": "message_sentiment",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "bounce_type": {
           "name": "bounce_type",
           "type": "text",
@@ -1172,6 +1201,16 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "thread_at": {
+          "name": "thread_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "coalesce(\"message\".\"received_at\", \"message\".\"sent_at\")",
+            "type": "stored"
+          }
         },
         "error": {
           "name": "error",
@@ -1332,6 +1371,64 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "message_enrollment_id_idx": {
+          "name": "message_enrollment_id_idx",
+          "columns": [
+            {
+              "expression": "enrollment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "message_mailbox_throttle_idx": {
+          "name": "message_mailbox_throttle_idx",
+          "columns": [
+            {
+              "expression": "mailbox_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sent_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"message\".\"direction\" = 'outbound' AND \"message\".\"status\" = 'sent'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "message_org_thread_at_idx": {
+          "name": "message_org_thread_at_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "thread_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1484,6 +1581,22 @@
           "isUnique": false,
           "concurrently": false,
           "method": "btree",
+          "with": {}
+        },
+        "company_name_trgm_idx": {
+          "name": "company_name_trgm_idx",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
           "with": {}
         },
         "company_org_domain_uidx": {
@@ -2128,6 +2241,82 @@
           "method": "btree",
           "with": {}
         },
+        "prospect_org_created_idx": {
+          "name": "prospect_org_created_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"prospect\".\"deleted_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "prospect_email_trgm_idx": {
+          "name": "prospect_email_trgm_idx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "prospect_first_name_trgm_idx": {
+          "name": "prospect_first_name_trgm_idx",
+          "columns": [
+            {
+              "expression": "first_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "prospect_last_name_trgm_idx": {
+          "name": "prospect_last_name_trgm_idx",
+          "columns": [
+            {
+              "expression": "last_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
         "prospect_org_crm_uidx": {
           "name": "prospect_org_crm_uidx",
           "columns": [
@@ -2594,6 +2783,70 @@
             },
             {
               "expression": "next_run_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "enrollment_active_next_run_idx": {
+          "name": "enrollment_active_next_run_idx",
+          "columns": [
+            {
+              "expression": "state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "next_run_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"enrollment\".\"state\" = 'active' AND \"enrollment\".\"next_run_at\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "enrollment_org_sequence_idx": {
+          "name": "enrollment_org_sequence_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sequence_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "enrollment_org_state_idx": {
+          "name": "enrollment_org_state_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "state",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3544,8 +3797,8 @@
         }
       },
       "indexes": {
-        "send_reservation_mailbox_window_idx": {
-          "name": "send_reservation_mailbox_window_idx",
+        "send_reservation_mailbox_reserved_idx": {
+          "name": "send_reservation_mailbox_reserved_idx",
           "columns": [
             {
               "expression": "mailbox_id",
@@ -3554,7 +3807,7 @@
               "nulls": "last"
             },
             {
-              "expression": "window_start",
+              "expression": "reserved_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4389,6 +4642,33 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "event_org_entity_created_idx": {
+          "name": "event_org_entity_created_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -4639,6 +4919,11 @@
       "name": "message_direction",
       "schema": "public",
       "values": ["outbound", "inbound"]
+    },
+    "public.message_sentiment": {
+      "name": "message_sentiment",
+      "schema": "public",
+      "values": ["interested", "not_now", "objection", "out_of_office", "unsubscribe_request"]
     },
     "public.prospect_source": {
       "name": "prospect_source",

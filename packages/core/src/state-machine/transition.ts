@@ -1,4 +1,4 @@
-import type { EnrollmentSnapshot, Event, TransitionResult } from "./types.ts";
+import type { EnrollmentSnapshot, Event, TransitionResult, Effect } from "./types.ts";
 import { isTerminal } from "./types.ts";
 
 /**
@@ -55,6 +55,15 @@ export function transition(snapshot: EnrollmentSnapshot, event: Event): Transiti
         ],
       };
 
+    case "suppressed":
+      return {
+        nextState: "stopped",
+        effects: [
+          { kind: "terminate", reason: "stopped" },
+          { kind: "emit_event", type: "enrollment.stopped" },
+        ],
+      };
+
     case "step_failed": {
       const nextAttempt = snapshot.attemptCount + 1;
       if (nextAttempt >= event.maxAttempts) {
@@ -66,7 +75,11 @@ export function transition(snapshot: EnrollmentSnapshot, event: Event): Transiti
           ],
         };
       }
-      return { nextState: snapshot.state, effects: [{ kind: "increment_attempt" }] };
+      const effects: Effect[] = [{ kind: "increment_attempt" }];
+      if (event.retryAt) {
+        effects.push({ kind: "schedule_at", at: event.retryAt });
+      }
+      return { nextState: snapshot.state, effects };
     }
 
     case "manual_sent":

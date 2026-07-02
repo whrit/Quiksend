@@ -53,11 +53,13 @@ export type Event =
   | { readonly kind: "auto_sent"; readonly providerMessageId: string; readonly at: Date }
   | { readonly kind: "reply_received"; readonly at: Date; readonly stopOnReply: boolean }
   | { readonly kind: "bounce_received"; readonly bounceType: "hard" | "soft"; readonly at: Date }
+  | { readonly kind: "suppressed"; readonly at: Date }
   | {
       readonly kind: "step_failed";
       readonly error: string;
       readonly at: Date;
       readonly maxAttempts: number;
+      readonly retryAt?: Date;
     }
   | { readonly kind: "pause" }
   | { readonly kind: "resume" }

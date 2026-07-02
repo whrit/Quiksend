@@ -1,7 +1,6 @@
 import { logger } from "@quiksend/config";
 import { getBoss } from "@quiksend/queue";
 import { sequenceStepSchema } from "@quiksend/queue";
-import { Sentry } from "@quiksend/observability";
 import { executeStep } from "./execute-step.ts";
 import { tick } from "./tick.ts";
 
@@ -9,7 +8,8 @@ export async function registerSequenceHandlers(): Promise<void> {
   const boss = await getBoss();
 
   await boss.createQueue("sequence.tick");
-  await boss.schedule("sequence.tick", "*/30 * * * * *", {}, { tz: "UTC" });
+  // Every 10s (was 30s) — higher scheduler throughput under backlog (PERF-002).
+  await boss.schedule("sequence.tick", "*/10 * * * * *", {}, { tz: "UTC" });
   await boss.work("sequence.tick", async (jobs) => {
     for (const job of jobs) {
       void job;
@@ -22,17 +22,11 @@ export async function registerSequenceHandlers(): Promise<void> {
   await boss.work("sequence.step", { includeMetadata: true }, async (jobs) => {
     for (const item of jobs) {
       const payload = sequenceStepSchema.parse(item.data);
-      try {
-        await executeStep(payload);
-      } catch (err) {
-        const isDead = item.retryCount >= item.retryLimit;
-        if (isDead) {
-          Sentry.captureException(err, {
-            extra: { jobId: item.id, enrollmentId: payload.enrollmentId },
-          });
-        }
-        throw err;
-      }
+      await executeStep({
+        enrollmentId: payload.enrollmentId,
+        retryCount: item.retryCount,
+        retryLimit: item.retryLimit,
+      });
     }
   });
   logger.info({ job: "sequence.step" }, "job handler registered");

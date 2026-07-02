@@ -1,7 +1,7 @@
 import { auth } from "@quiksend/auth";
 import { env } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { countRecentApiKeyUsage, recordApiKeyUsage } from "./helpers.ts";
 
 export const DEFAULT_API_RATE_LIMIT = 100;
@@ -173,18 +173,43 @@ export function encodeCursor(cursor: { id: string; createdAt: string } | null): 
 }
 
 /** Per-IP rate limit for unauthenticated routes (auth endpoints). */
-const authIpBuckets = new Map<string, { count: number; resetAt: number }>();
+export const AUTH_IP_RATE_LIMIT = 100;
+export const AUTH_IP_RATE_WINDOW_MS = 60_000;
 
-export function checkAuthIpRateLimit(request: Request, limit = 100, windowMs = 60_000): boolean {
+export type AuthRateLimitOutcome = { ok: true } | { ok: false; retryAfter: number };
+
+export async function checkAuthIpRateLimit(
+  request: Request,
+  limit = AUTH_IP_RATE_LIMIT,
+  windowMs = AUTH_IP_RATE_WINDOW_MS,
+): Promise<AuthRateLimitOutcome> {
   const ip = clientIp(request) ?? "unknown";
-  const now = Date.now();
-  const bucket = authIpBuckets.get(ip);
-  if (!bucket || now >= bucket.resetAt) {
-    authIpBuckets.set(ip, { count: 1, resetAt: now + windowMs });
-    return true;
+  const windowSec = windowMs / 1000;
+
+  await db.execute(sql`
+    INSERT INTO auth_rate_bucket (key, tokens, updated_at)
+    VALUES (${ip}, ${limit}, now())
+    ON CONFLICT (key) DO UPDATE SET
+      tokens = LEAST(
+        auth_rate_bucket.tokens + GREATEST(0, FLOOR(
+          EXTRACT(EPOCH FROM (now() - auth_rate_bucket.updated_at)) / ${windowSec} * ${limit}
+        )::int),
+        ${limit}
+      ),
+      updated_at = now()
+  `);
+
+  const consumed = await db.execute<{ tokens: number }>(sql`
+    UPDATE auth_rate_bucket
+    SET tokens = tokens - 1, updated_at = now()
+    WHERE key = ${ip} AND tokens >= 1
+    RETURNING tokens
+  `);
+
+  if (consumed.length === 0) {
+    return { ok: false, retryAfter: Math.ceil(windowSec) };
   }
-  bucket.count += 1;
-  return bucket.count <= limit;
+  return { ok: true };
 }
 
 export function publicBaseUrl(request: Request): string {
