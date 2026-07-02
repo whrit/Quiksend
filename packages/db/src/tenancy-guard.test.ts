@@ -38,6 +38,8 @@ const APP_SCOPED_TABLES: readonly string[] = [
   // Phase 9:
   "crmWritebackLog",
   "event",
+  // Phase 7:
+  "suppression",
 ];
 
 const SCAN_ROOTS = ["apps/web/src", "apps/worker/src", "packages"];
