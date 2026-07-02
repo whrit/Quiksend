@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/whrit/Quiksend/compare/v1.6.0...v1.7.0) (2026-07-02)
+
+
+### Features
+
+* **phase-6-engine:** Phase 6 engine complete ([#23](https://github.com/whrit/Quiksend/issues/23)) ([a5bb4bb](https://github.com/whrit/Quiksend/commit/a5bb4bb491dfcf46699c36ce272c511609ebd7cb))
+
 ## [1.6.0](https://github.com/whrit/Quiksend/compare/v1.5.0...v1.6.0) (2026-07-02)
 
 
