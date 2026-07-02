@@ -1,0 +1,13 @@
+[
+  {
+    "email": "example.name@example-seed-domain.net",
+    "gateway": "proofpoint",
+    "provider": "microsoft_365",
+    "imap_host": "outlook.office365.com",
+    "imap_port": 993,
+    "imap_username": "example.name@example-seed-domain.net",
+    "imap_password": "REDACTED-EXAMPLE",
+    "pool_tag": "production",
+    "notes": "Example config; do not use for real pool."
+  }
+]
