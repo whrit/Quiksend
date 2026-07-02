@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { getProspect, updateProspect } from "@/lib/prospects.functions.ts";
+import { getProspectWritebackLogs } from "@/lib/analytics.functions.ts";
 
 const statusOptions = [
   "new",
@@ -45,13 +46,19 @@ const editSchema = z.object({
 });
 
 export const Route = createFileRoute("/_protected/prospects/$id")({
-  loader: async ({ params }) => getProspect({ data: { id: params.id } }),
+  loader: async ({ params }) => {
+    const [data, writebackLogs] = await Promise.all([
+      getProspect({ data: { id: params.id } }),
+      getProspectWritebackLogs({ data: { prospectId: params.id } }),
+    ]);
+    return { ...data, writebackLogs };
+  },
   component: ProspectDetailPage,
 });
 
 function ProspectDetailPage() {
   const data = Route.useLoaderData();
-  const { prospect, company, lists } = data;
+  const { prospect, company, lists, writebackLogs } = data;
 
   const form = useForm<z.infer<typeof editSchema>>({
     resolver: zodResolver(editSchema),
@@ -297,6 +304,36 @@ function ProspectDetailPage() {
                 </li>
               ))}
             </ul>
+          </div>
+          <Separator />
+          <div>
+            <h3 className="mb-1 text-sm font-medium">CRM write-back</h3>
+            {writebackLogs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No CRM activity logged yet.</p>
+            ) : (
+              <ul className="space-y-2 border-l pl-4">
+                {writebackLogs.map((log) => (
+                  <li key={log.id} className="relative text-sm">
+                    <span
+                      className={`absolute -left-[21px] top-1.5 h-2 w-2 rounded-full ${
+                        log.status === "succeeded"
+                          ? "bg-emerald-500"
+                          : log.status === "failed"
+                            ? "bg-red-500"
+                            : "bg-amber-500"
+                      }`}
+                    />
+                    <p className="font-medium">
+                      {log.eventType} — {log.status}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(log.createdAt).toLocaleString()}
+                      {log.lastError ? ` — ${log.lastError}` : ""}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <Separator />
           <div>

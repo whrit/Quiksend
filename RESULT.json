@@ -1,0 +1,30 @@
+{
+  "status": "ok",
+  "files": [
+    "packages/db/src/schema/writeback.ts",
+    "packages/db/src/schema/index.ts",
+    "packages/db/src/tenancy-guard.test.ts",
+    "packages/db/src/testing.ts",
+    "packages/db/drizzle/0008_phase9_writeback_analytics.sql",
+    "packages/integrations/src/writeback/salesforce.ts",
+    "packages/integrations/src/writeback/hubspot.ts",
+    "packages/integrations/src/writeback/types.ts",
+    "packages/integrations/src/writeback/index.ts",
+    "packages/integrations/src/index.ts",
+    "packages/integrations/package.json",
+    "apps/worker/src/sequence/execute-effects.ts",
+    "apps/worker/src/sequence/effects.ts",
+    "apps/worker/src/handlers/crm-writeback.ts",
+    "apps/worker/src/handlers/inbound-writeback.ts",
+    "apps/worker/src/index.ts",
+    "apps/web/src/lib/analytics.functions.ts",
+    "apps/web/src/routes/_protected/analytics/index.tsx",
+    "apps/web/src/routes/_protected/sequences/$id/analytics.tsx",
+    "apps/web/src/routes/_protected/settings/mailboxes/$id/health.tsx",
+    "apps/web/src/routes/_protected/prospects/$id.tsx",
+    "apps/web/package.json",
+    "apps/web/src/routeTree.gen.ts",
+    "pnpm-lock.yaml"
+  ],
+  "notes": "Phase 9 complete. pnpm check green. Idempotent writeback via crm_writeback_log.idempotency_key. Dashboards from SQL views over enrollment/message/event; A/B compare with honest n-too-small notes. Rollup tables deferred until views measurably slow."
+}

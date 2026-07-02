@@ -24,4 +24,5 @@ export * from "./crm.ts";
 export * from "./sequences.ts";
 export * from "./ai.ts";
 export * from "./tasks.ts";
+export * from "./writeback.ts";
 export * from "./suppression.ts";
