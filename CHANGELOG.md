@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/whrit/Quiksend/compare/v1.8.0...v1.9.0) (2026-07-02)
+
+
+### Features
+
+* **phase-8-prep-ai:** Phase 8-prep complete ([#22](https://github.com/whrit/Quiksend/issues/22)) ([3d0ff2f](https://github.com/whrit/Quiksend/commit/3d0ff2f3edc34baa1be409dedea1527543a48afe))
+
 ## [1.8.0](https://github.com/whrit/Quiksend/compare/v1.7.0...v1.8.0) (2026-07-02)
 
 
