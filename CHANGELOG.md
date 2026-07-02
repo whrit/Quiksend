@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/whrit/Quiksend/compare/v1.3.0...v1.4.0) (2026-07-02)
+
+
+### Features
+
+* **phase-4:** mailbox + message schemas + SMTP adapter + compose + single send ([#13](https://github.com/whrit/Quiksend/issues/13)) ([a9ba04a](https://github.com/whrit/Quiksend/commit/a9ba04a68bc7a9399f84ba334fd47b37a331afd1))
+
+
+### Bug Fixes
+
+* **drizzle:** correct 0003 snapshot prevId ([34f8ca0](https://github.com/whrit/Quiksend/commit/34f8ca00545791702034ce2b3923d149059b3be0))
+* **drizzle:** merge missing tables into 0003_snapshot ([d8f88dd](https://github.com/whrit/Quiksend/commit/d8f88dd96692dc80e63445c6f71ef143e027bca6))
+
 ## [1.3.0](https://github.com/whrit/Quiksend/compare/v1.2.0...v1.3.0) (2026-07-02)
 
 
