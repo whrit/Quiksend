@@ -8,3 +8,4 @@
 export * from "./nango.ts";
 export * from "./webhook.ts";
 export * from "./providers/index.ts";
+export * from "./sync/index.ts";

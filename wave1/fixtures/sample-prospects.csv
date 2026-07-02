@@ -1,0 +1,11 @@
+Email,First Name,Last Name,Title,Company,Company Domain
+alice@acme.io,Alice,Anderson,CEO,Acme Corp,acme.io
+bob@acme.io,Bob,Brown,CTO,Acme Corp,acme.io
+carol@beta.io,Carol,Clark,VP Sales,Beta Inc,beta.io
+dave@gamma.co,Dave,Davis,Founder,Gamma Co,gamma.co
+eve@delta.net,Eve,Evans,Director,Delta LLC,delta.net
+frank@epsilon.org,Frank,Foster,Manager,Epsilon,epsilon.org
+grace@acme.io,Grace,Garcia,Engineer,Acme Corp,acme.io
+not-an-email,Bad,Row,Invalid,,
+henry@acme.io,Henry,Hill,Analyst,Acme Corp,acme.io
+alice@acme.io,Alice,Updated,CEO,Acme Corp,acme.io
