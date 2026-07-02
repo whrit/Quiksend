@@ -33,6 +33,7 @@ const APP_SCOPED_TABLES: readonly string[] = [
   // Phase 8 prep:
   "valueProp",
   "researchProfile",
+  "generation",
   // Phase 6:
   "task",
   // Phase 7:

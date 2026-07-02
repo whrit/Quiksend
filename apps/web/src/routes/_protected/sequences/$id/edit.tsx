@@ -31,6 +31,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -47,6 +55,7 @@ import {
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { generateEmailForProspect } from "@/lib/ai.functions.ts";
 import { listMailboxes } from "@/lib/mailboxes.functions.ts";
 import { renderPreview, validateTemplate } from "@/lib/sequence-templates.ts";
 import {
@@ -295,6 +304,14 @@ function SequenceBuilderPage() {
   const [stepForm, setStepForm] = useState<StepFormState>(emptyStepForm(steps.length));
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [aiPreviewOpen, setAiPreviewOpen] = useState(false);
+  const [aiPreviewProspectId, setAiPreviewProspectId] = useState("");
+  const [aiPreviewLoading, setAiPreviewLoading] = useState(false);
+  const [aiPreviewResult, setAiPreviewResult] = useState<{
+    subject: string;
+    body: string;
+    rationale: string;
+  } | null>(null);
 
   const isDraft = sequence.status === "draft";
 
@@ -642,6 +659,21 @@ function SequenceBuilderPage() {
                   <Label htmlFor="ai-gen">AI generate content</Label>
                 </div>
 
+                {stepForm.aiGenerate ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setAiPreviewResult(null);
+                      setAiPreviewProspectId("");
+                      setAiPreviewOpen(true);
+                    }}
+                  >
+                    Preview generation for a sample prospect
+                  </Button>
+                ) : null}
+
                 <div className="space-y-2">
                   <Label>Subject</Label>
                   <Input
@@ -765,6 +797,64 @@ function SequenceBuilderPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={aiPreviewOpen} onOpenChange={setAiPreviewOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>AI generation preview</DialogTitle>
+            <DialogDescription>
+              Enter a prospect ID to preview AI-generated content for this step.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="preview-prospect">Prospect ID</Label>
+              <Input
+                id="preview-prospect"
+                value={aiPreviewProspectId}
+                onChange={(e) => setAiPreviewProspectId(e.target.value)}
+                placeholder="UUID of a sample prospect"
+              />
+            </div>
+            {aiPreviewResult ? (
+              <div className="rounded border bg-muted/40 p-3 text-sm">
+                <p className="font-medium">{aiPreviewResult.subject}</p>
+                <p className="mt-2 whitespace-pre-wrap">{aiPreviewResult.body}</p>
+                <p className="mt-2 text-muted-foreground">{aiPreviewResult.rationale}</p>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAiPreviewOpen(false)}>
+              Close
+            </Button>
+            <Button
+              disabled={!aiPreviewProspectId || aiPreviewLoading}
+              onClick={() => {
+                setAiPreviewLoading(true);
+                void generateEmailForProspect({
+                  data: {
+                    prospectId: aiPreviewProspectId,
+                    stepId: stepForm.id,
+                  },
+                })
+                  .then((row) => {
+                    setAiPreviewResult({
+                      subject: row.outputSubject,
+                      body: row.outputBodyMarkdown,
+                      rationale: row.outputRationale,
+                    });
+                    toast.success("Preview generated");
+                  })
+                  .catch((err: Error) => toast.error(err.message))
+                  .finally(() => setAiPreviewLoading(false));
+              }}
+            >
+              {aiPreviewLoading ? "Generating…" : "Generate preview"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
