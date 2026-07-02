@@ -43,6 +43,13 @@
       "when": 1782961902406,
       "tag": "0005_phase5_sequences_enrollment",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782963296494,
+      "tag": "0006_phase8prep_ai_interfaces",
+      "breakpoints": true
     }
   ]
 }

@@ -30,6 +30,9 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "sequence",
   "sequenceStep",
   "enrollment",
+  // Phase 8 prep:
+  "valueProp",
+  "researchProfile",
 ];
 
 const SCAN_ROOTS = ["apps/web/src", "apps/worker/src", "packages"];

@@ -1,0 +1,24 @@
+{
+  "name": "@quiksend/ai",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./model": "./src/model/provider.ts",
+    "./search": "./src/search/provider.ts",
+    "./fetch": "./src/fetch/extract.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "4.0.5",
+    "@ai-sdk/openai": "4.0.5",
+    "@quiksend/config": "workspace:*",
+    "@quiksend/db": "workspace:*",
+    "ai": "7.0.11",
+    "zod": "4.4.3"
+  }
+}

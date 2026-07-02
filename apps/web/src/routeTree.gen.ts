@@ -21,6 +21,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ProtectedSequencesNewRouteImport } from './routes/_protected/sequences/new'
 import { Route as ProtectedProspectsImportRouteImport } from './routes/_protected/prospects/import'
 import { Route as ProtectedProspectsIdRouteImport } from './routes/_protected/prospects/$id'
+import { Route as ProtectedSettingsValuePropsIndexRouteImport } from './routes/_protected/settings/value-props/index'
 import { Route as ProtectedSettingsMailboxesIndexRouteImport } from './routes/_protected/settings/mailboxes/index'
 import { Route as ProtectedSettingsCrmIndexRouteImport } from './routes/_protected/settings/crm/index'
 import { Route as ProtectedSettingsMailboxesNewRouteImport } from './routes/_protected/settings/mailboxes/new'
@@ -89,6 +90,12 @@ const ProtectedProspectsIdRoute = ProtectedProspectsIdRouteImport.update({
   path: '/prospects/$id',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedSettingsValuePropsIndexRoute =
+  ProtectedSettingsValuePropsIndexRouteImport.update({
+    id: '/settings/value-props/',
+    path: '/settings/value-props/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ProtectedSettingsMailboxesIndexRoute =
   ProtectedSettingsMailboxesIndexRouteImport.update({
     id: '/settings/mailboxes/',
@@ -150,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/settings/crm/': typeof ProtectedSettingsCrmIndexRoute
   '/settings/mailboxes/': typeof ProtectedSettingsMailboxesIndexRoute
+  '/settings/value-props/': typeof ProtectedSettingsValuePropsIndexRoute
   '/settings/crm/$connectionId/mapping': typeof ProtectedSettingsCrmConnectionIdMappingRoute
 }
 export interface FileRoutesByTo {
@@ -170,6 +178,7 @@ export interface FileRoutesByTo {
   '/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/settings/crm': typeof ProtectedSettingsCrmIndexRoute
   '/settings/mailboxes': typeof ProtectedSettingsMailboxesIndexRoute
+  '/settings/value-props': typeof ProtectedSettingsValuePropsIndexRoute
   '/settings/crm/$connectionId/mapping': typeof ProtectedSettingsCrmConnectionIdMappingRoute
 }
 export interface FileRoutesById {
@@ -192,6 +201,7 @@ export interface FileRoutesById {
   '/_protected/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/_protected/settings/crm/': typeof ProtectedSettingsCrmIndexRoute
   '/_protected/settings/mailboxes/': typeof ProtectedSettingsMailboxesIndexRoute
+  '/_protected/settings/value-props/': typeof ProtectedSettingsValuePropsIndexRoute
   '/_protected/settings/crm/$connectionId/mapping': typeof ProtectedSettingsCrmConnectionIdMappingRoute
 }
 export interface FileRouteTypes {
@@ -214,6 +224,7 @@ export interface FileRouteTypes {
     | '/settings/mailboxes/new'
     | '/settings/crm/'
     | '/settings/mailboxes/'
+    | '/settings/value-props/'
     | '/settings/crm/$connectionId/mapping'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -234,6 +245,7 @@ export interface FileRouteTypes {
     | '/settings/mailboxes/new'
     | '/settings/crm'
     | '/settings/mailboxes'
+    | '/settings/value-props'
     | '/settings/crm/$connectionId/mapping'
   id:
     | '__root__'
@@ -255,6 +267,7 @@ export interface FileRouteTypes {
     | '/_protected/settings/mailboxes/new'
     | '/_protected/settings/crm/'
     | '/_protected/settings/mailboxes/'
+    | '/_protected/settings/value-props/'
     | '/_protected/settings/crm/$connectionId/mapping'
   fileRoutesById: FileRoutesById
 }
@@ -352,6 +365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedProspectsIdRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/settings/value-props/': {
+      id: '/_protected/settings/value-props/'
+      path: '/settings/value-props'
+      fullPath: '/settings/value-props/'
+      preLoaderRoute: typeof ProtectedSettingsValuePropsIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/settings/mailboxes/': {
       id: '/_protected/settings/mailboxes/'
       path: '/settings/mailboxes'
@@ -418,6 +438,7 @@ interface ProtectedRouteChildren {
   ProtectedSettingsMailboxesNewRoute: typeof ProtectedSettingsMailboxesNewRoute
   ProtectedSettingsCrmIndexRoute: typeof ProtectedSettingsCrmIndexRoute
   ProtectedSettingsMailboxesIndexRoute: typeof ProtectedSettingsMailboxesIndexRoute
+  ProtectedSettingsValuePropsIndexRoute: typeof ProtectedSettingsValuePropsIndexRoute
   ProtectedSettingsCrmConnectionIdMappingRoute: typeof ProtectedSettingsCrmConnectionIdMappingRoute
 }
 
@@ -435,6 +456,7 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedSettingsMailboxesNewRoute: ProtectedSettingsMailboxesNewRoute,
   ProtectedSettingsCrmIndexRoute: ProtectedSettingsCrmIndexRoute,
   ProtectedSettingsMailboxesIndexRoute: ProtectedSettingsMailboxesIndexRoute,
+  ProtectedSettingsValuePropsIndexRoute: ProtectedSettingsValuePropsIndexRoute,
   ProtectedSettingsCrmConnectionIdMappingRoute:
     ProtectedSettingsCrmConnectionIdMappingRoute,
 }
