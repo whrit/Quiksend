@@ -1,3 +1,9 @@
+/**
+ * SMTP adapter unit tests mock nodemailer rather than `createFakeAdapter`.
+ * They verify MIME construction, threading headers in raw output, and SMTP
+ * error classification — behaviors that depend on nodemailer's sendMail contract.
+ * Use `createFakeAdapter` for worker/sequence tests that only need send recording.
+ */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ComplianceInput } from "../compliance.ts";
 import type { OutboundEmail } from "../adapter.ts";

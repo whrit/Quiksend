@@ -56,3 +56,6 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Engine load test
+        run: pnpm tsx scripts/load-test-engine.ts --workspaces=2 --enrollments=20 --workers=2 --duration=30

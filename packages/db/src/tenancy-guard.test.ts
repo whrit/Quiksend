@@ -19,7 +19,9 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "company",
   "prospect",
   "list",
+  "listMember",
   "importBatch",
+  "importError",
   // Phase 3:
   "crmConnection",
   "syncState",
@@ -36,6 +38,8 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "generation",
   // Phase 6:
   "task",
+  "sendReservation",
+  "jobLog",
   // Phase 10:
   "apiKeyUsage",
   "webhookEndpoint",
