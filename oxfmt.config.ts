@@ -11,7 +11,19 @@ export default defineConfig({
   arrowParens: "always",
   endOfLine: "lf",
 
-  ignorePatterns: ["**/routeTree.gen.ts", "**/*.gen.ts", "**/.output/**", "**/dist/**", "CHANGELOG.md", "oxfmt.config.ts", "oxlint.config.ts"],
+  ignorePatterns: [
+    "**/routeTree.gen.ts",
+    "**/*.gen.ts",
+    "**/.output/**",
+    "**/dist/**",
+    "CHANGELOG.md",
+    "oxfmt.config.ts",
+    "oxlint.config.ts",
+    // Orchestration briefs — human-written specs for Cursor agents, not shippable code.
+    // Their formatting drifts between waves and CI shouldn't fail on prose whitespace.
+    "WAVE_CONTEXT.md",
+    "wave*/**/*.md",
+  ],
 
   // We use Tailwind + shadcn heavily — oxfmt can sort classes (replaces
   // prettier-plugin-tailwindcss). The sorting options are experimental and the exact
