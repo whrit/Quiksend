@@ -14,14 +14,19 @@ import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
 import { Route as ProtectedComposeRouteImport } from './routes/_protected/compose'
+import { Route as ProtectedSequencesIndexRouteImport } from './routes/_protected/sequences/index'
 import { Route as ProtectedProspectsIndexRouteImport } from './routes/_protected/prospects/index'
 import { Route as ApiNangoWebhookRouteImport } from './routes/api/nango/webhook'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ProtectedSequencesNewRouteImport } from './routes/_protected/sequences/new'
 import { Route as ProtectedProspectsImportRouteImport } from './routes/_protected/prospects/import'
 import { Route as ProtectedProspectsIdRouteImport } from './routes/_protected/prospects/$id'
 import { Route as ProtectedSettingsMailboxesIndexRouteImport } from './routes/_protected/settings/mailboxes/index'
 import { Route as ProtectedSettingsCrmIndexRouteImport } from './routes/_protected/settings/crm/index'
 import { Route as ProtectedSettingsMailboxesNewRouteImport } from './routes/_protected/settings/mailboxes/new'
+import { Route as ProtectedSequencesIdEnrollmentsRouteImport } from './routes/_protected/sequences/$id/enrollments'
+import { Route as ProtectedSequencesIdEnrollRouteImport } from './routes/_protected/sequences/$id/enroll'
+import { Route as ProtectedSequencesIdEditRouteImport } from './routes/_protected/sequences/$id/edit'
 import { Route as ProtectedSettingsCrmConnectionIdMappingRouteImport } from './routes/_protected/settings/crm/$connectionId/mapping'
 
 const LoginRoute = LoginRouteImport.update({
@@ -48,6 +53,11 @@ const ProtectedComposeRoute = ProtectedComposeRouteImport.update({
   path: '/compose',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedSequencesIndexRoute = ProtectedSequencesIndexRouteImport.update({
+  id: '/sequences/',
+  path: '/sequences/',
+  getParentRoute: () => ProtectedRoute,
+} as any)
 const ProtectedProspectsIndexRoute = ProtectedProspectsIndexRouteImport.update({
   id: '/prospects/',
   path: '/prospects/',
@@ -62,6 +72,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ProtectedSequencesNewRoute = ProtectedSequencesNewRouteImport.update({
+  id: '/sequences/new',
+  path: '/sequences/new',
+  getParentRoute: () => ProtectedRoute,
 } as any)
 const ProtectedProspectsImportRoute =
   ProtectedProspectsImportRouteImport.update({
@@ -92,6 +107,24 @@ const ProtectedSettingsMailboxesNewRoute =
     path: '/settings/mailboxes/new',
     getParentRoute: () => ProtectedRoute,
   } as any)
+const ProtectedSequencesIdEnrollmentsRoute =
+  ProtectedSequencesIdEnrollmentsRouteImport.update({
+    id: '/sequences/$id/enrollments',
+    path: '/sequences/$id/enrollments',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSequencesIdEnrollRoute =
+  ProtectedSequencesIdEnrollRouteImport.update({
+    id: '/sequences/$id/enroll',
+    path: '/sequences/$id/enroll',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSequencesIdEditRoute =
+  ProtectedSequencesIdEditRouteImport.update({
+    id: '/sequences/$id/edit',
+    path: '/sequences/$id/edit',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ProtectedSettingsCrmConnectionIdMappingRoute =
   ProtectedSettingsCrmConnectionIdMappingRouteImport.update({
     id: '/settings/crm/$connectionId/mapping',
@@ -106,9 +139,14 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof ProtectedDashboardRoute
   '/prospects/$id': typeof ProtectedProspectsIdRoute
   '/prospects/import': typeof ProtectedProspectsImportRoute
+  '/sequences/new': typeof ProtectedSequencesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/prospects/': typeof ProtectedProspectsIndexRoute
+  '/sequences/': typeof ProtectedSequencesIndexRoute
+  '/sequences/$id/edit': typeof ProtectedSequencesIdEditRoute
+  '/sequences/$id/enroll': typeof ProtectedSequencesIdEnrollRoute
+  '/sequences/$id/enrollments': typeof ProtectedSequencesIdEnrollmentsRoute
   '/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/settings/crm/': typeof ProtectedSettingsCrmIndexRoute
   '/settings/mailboxes/': typeof ProtectedSettingsMailboxesIndexRoute
@@ -121,9 +159,14 @@ export interface FileRoutesByTo {
   '/dashboard': typeof ProtectedDashboardRoute
   '/prospects/$id': typeof ProtectedProspectsIdRoute
   '/prospects/import': typeof ProtectedProspectsImportRoute
+  '/sequences/new': typeof ProtectedSequencesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/prospects': typeof ProtectedProspectsIndexRoute
+  '/sequences': typeof ProtectedSequencesIndexRoute
+  '/sequences/$id/edit': typeof ProtectedSequencesIdEditRoute
+  '/sequences/$id/enroll': typeof ProtectedSequencesIdEnrollRoute
+  '/sequences/$id/enrollments': typeof ProtectedSequencesIdEnrollmentsRoute
   '/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/settings/crm': typeof ProtectedSettingsCrmIndexRoute
   '/settings/mailboxes': typeof ProtectedSettingsMailboxesIndexRoute
@@ -138,9 +181,14 @@ export interface FileRoutesById {
   '/_protected/dashboard': typeof ProtectedDashboardRoute
   '/_protected/prospects/$id': typeof ProtectedProspectsIdRoute
   '/_protected/prospects/import': typeof ProtectedProspectsImportRoute
+  '/_protected/sequences/new': typeof ProtectedSequencesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/_protected/prospects/': typeof ProtectedProspectsIndexRoute
+  '/_protected/sequences/': typeof ProtectedSequencesIndexRoute
+  '/_protected/sequences/$id/edit': typeof ProtectedSequencesIdEditRoute
+  '/_protected/sequences/$id/enroll': typeof ProtectedSequencesIdEnrollRoute
+  '/_protected/sequences/$id/enrollments': typeof ProtectedSequencesIdEnrollmentsRoute
   '/_protected/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/_protected/settings/crm/': typeof ProtectedSettingsCrmIndexRoute
   '/_protected/settings/mailboxes/': typeof ProtectedSettingsMailboxesIndexRoute
@@ -155,9 +203,14 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/prospects/$id'
     | '/prospects/import'
+    | '/sequences/new'
     | '/api/auth/$'
     | '/api/nango/webhook'
     | '/prospects/'
+    | '/sequences/'
+    | '/sequences/$id/edit'
+    | '/sequences/$id/enroll'
+    | '/sequences/$id/enrollments'
     | '/settings/mailboxes/new'
     | '/settings/crm/'
     | '/settings/mailboxes/'
@@ -170,9 +223,14 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/prospects/$id'
     | '/prospects/import'
+    | '/sequences/new'
     | '/api/auth/$'
     | '/api/nango/webhook'
     | '/prospects'
+    | '/sequences'
+    | '/sequences/$id/edit'
+    | '/sequences/$id/enroll'
+    | '/sequences/$id/enrollments'
     | '/settings/mailboxes/new'
     | '/settings/crm'
     | '/settings/mailboxes'
@@ -186,9 +244,14 @@ export interface FileRouteTypes {
     | '/_protected/dashboard'
     | '/_protected/prospects/$id'
     | '/_protected/prospects/import'
+    | '/_protected/sequences/new'
     | '/api/auth/$'
     | '/api/nango/webhook'
     | '/_protected/prospects/'
+    | '/_protected/sequences/'
+    | '/_protected/sequences/$id/edit'
+    | '/_protected/sequences/$id/enroll'
+    | '/_protected/sequences/$id/enrollments'
     | '/_protected/settings/mailboxes/new'
     | '/_protected/settings/crm/'
     | '/_protected/settings/mailboxes/'
@@ -240,6 +303,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedComposeRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/sequences/': {
+      id: '/_protected/sequences/'
+      path: '/sequences'
+      fullPath: '/sequences/'
+      preLoaderRoute: typeof ProtectedSequencesIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/prospects/': {
       id: '/_protected/prospects/'
       path: '/prospects'
@@ -260,6 +330,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_protected/sequences/new': {
+      id: '/_protected/sequences/new'
+      path: '/sequences/new'
+      fullPath: '/sequences/new'
+      preLoaderRoute: typeof ProtectedSequencesNewRouteImport
+      parentRoute: typeof ProtectedRoute
     }
     '/_protected/prospects/import': {
       id: '/_protected/prospects/import'
@@ -296,6 +373,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedSettingsMailboxesNewRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/sequences/$id/enrollments': {
+      id: '/_protected/sequences/$id/enrollments'
+      path: '/sequences/$id/enrollments'
+      fullPath: '/sequences/$id/enrollments'
+      preLoaderRoute: typeof ProtectedSequencesIdEnrollmentsRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/sequences/$id/enroll': {
+      id: '/_protected/sequences/$id/enroll'
+      path: '/sequences/$id/enroll'
+      fullPath: '/sequences/$id/enroll'
+      preLoaderRoute: typeof ProtectedSequencesIdEnrollRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/sequences/$id/edit': {
+      id: '/_protected/sequences/$id/edit'
+      path: '/sequences/$id/edit'
+      fullPath: '/sequences/$id/edit'
+      preLoaderRoute: typeof ProtectedSequencesIdEditRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/settings/crm/$connectionId/mapping': {
       id: '/_protected/settings/crm/$connectionId/mapping'
       path: '/settings/crm/$connectionId/mapping'
@@ -311,7 +409,12 @@ interface ProtectedRouteChildren {
   ProtectedDashboardRoute: typeof ProtectedDashboardRoute
   ProtectedProspectsIdRoute: typeof ProtectedProspectsIdRoute
   ProtectedProspectsImportRoute: typeof ProtectedProspectsImportRoute
+  ProtectedSequencesNewRoute: typeof ProtectedSequencesNewRoute
   ProtectedProspectsIndexRoute: typeof ProtectedProspectsIndexRoute
+  ProtectedSequencesIndexRoute: typeof ProtectedSequencesIndexRoute
+  ProtectedSequencesIdEditRoute: typeof ProtectedSequencesIdEditRoute
+  ProtectedSequencesIdEnrollRoute: typeof ProtectedSequencesIdEnrollRoute
+  ProtectedSequencesIdEnrollmentsRoute: typeof ProtectedSequencesIdEnrollmentsRoute
   ProtectedSettingsMailboxesNewRoute: typeof ProtectedSettingsMailboxesNewRoute
   ProtectedSettingsCrmIndexRoute: typeof ProtectedSettingsCrmIndexRoute
   ProtectedSettingsMailboxesIndexRoute: typeof ProtectedSettingsMailboxesIndexRoute
@@ -323,7 +426,12 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedDashboardRoute: ProtectedDashboardRoute,
   ProtectedProspectsIdRoute: ProtectedProspectsIdRoute,
   ProtectedProspectsImportRoute: ProtectedProspectsImportRoute,
+  ProtectedSequencesNewRoute: ProtectedSequencesNewRoute,
   ProtectedProspectsIndexRoute: ProtectedProspectsIndexRoute,
+  ProtectedSequencesIndexRoute: ProtectedSequencesIndexRoute,
+  ProtectedSequencesIdEditRoute: ProtectedSequencesIdEditRoute,
+  ProtectedSequencesIdEnrollRoute: ProtectedSequencesIdEnrollRoute,
+  ProtectedSequencesIdEnrollmentsRoute: ProtectedSequencesIdEnrollmentsRoute,
   ProtectedSettingsMailboxesNewRoute: ProtectedSettingsMailboxesNewRoute,
   ProtectedSettingsCrmIndexRoute: ProtectedSettingsCrmIndexRoute,
   ProtectedSettingsMailboxesIndexRoute: ProtectedSettingsMailboxesIndexRoute,
