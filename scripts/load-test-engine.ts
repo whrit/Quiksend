@@ -230,8 +230,15 @@ async function seedWorkspace(label: string, enrollmentCount: number): Promise<vo
 
 async function resetQueue(): Promise<void> {
   const boss = await getBoss();
-  await boss.deleteAllJobs("sequence.step");
-  await boss.deleteAllJobs("sequence.tick");
+  // On a fresh CI database queues don't exist yet; ignore that specific error.
+  for (const queue of ["sequence.step", "sequence.tick"]) {
+    try {
+      await boss.deleteAllJobs(queue);
+    } catch (err) {
+      if (err instanceof Error && /does not exist/i.test(err.message)) continue;
+      throw err;
+    }
+  }
 }
 
 async function seedAll(workspaces: number, enrollments: number): Promise<void> {
