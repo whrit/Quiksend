@@ -4,6 +4,10 @@ import { initSentry, Sentry, shutdownPostHog } from "@quiksend/observability";
 import { enqueue, getBoss, registerHandler, stopBoss } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
 import { registerAiResearchHandler } from "./handlers/ai-research.ts";
+import { registerCanaryCheckHandler } from "./handlers/canary-check.ts";
+import { registerCanarySendHandler } from "./handlers/canary-send-handler.ts";
+import { registerDeliverabilitySnapshotHandler } from "./handlers/deliverability-snapshot.ts";
+import { registerSeedInboxVerifyHandler } from "./handlers/seed-inbox-verify.ts";
 import { registerImportProspectsHandler } from "./handlers/import-prospects.ts";
 import { registerCrmSyncHandler } from "./handlers/crm-sync.ts";
 import { registerWebhookFanoutHandler } from "./handlers/webhook-fanout.ts";
@@ -56,6 +60,10 @@ async function main(): Promise<void> {
   await registerSequenceHandlers();
   await registerMailboxPollHandler();
   await registerMailboxPollTick();
+  await registerSeedInboxVerifyHandler();
+  await registerCanarySendHandler();
+  await registerCanaryCheckHandler();
+  await registerDeliverabilitySnapshotHandler();
   await registerNangoWebhookSweep();
 
   if (env.NODE_ENV !== "production") {

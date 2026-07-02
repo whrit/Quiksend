@@ -14,3 +14,4 @@
 export * from "./tenancy.ts";
 export * as schedule from "./schedule/index.ts";
 export * as stateMachine from "./state-machine/index.ts";
+export * as deliverability from "./deliverability/index.ts";

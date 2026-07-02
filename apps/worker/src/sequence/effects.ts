@@ -47,6 +47,11 @@ export async function applyTransitionEffects(
       case "send_auto":
         working = await handleSendAuto(tx, working, effect.stepIndex, attempt);
         break;
+      case "send_canary":
+        await handleSendCanary(tx, effect.canarySendId);
+        break;
+      case "emit_canary_bundle":
+        break;
       case "create_compose_task":
         await createComposeTask(tx, working, effect.stepIndex);
         break;
@@ -402,6 +407,11 @@ async function handleSendAuto(
       );
     throw err;
   }
+}
+
+async function handleSendCanary(_tx: DbTx, canarySendId: string): Promise<void> {
+  const { materializeCanarySend } = await import("../deliverability/canary-send.ts");
+  await materializeCanarySend(canarySendId);
 }
 
 export async function logJobStart(

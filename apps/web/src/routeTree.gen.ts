@@ -18,6 +18,7 @@ import { Route as ProtectedComposeRouteImport } from './routes/_protected/compos
 import { Route as ProtectedSequencesIndexRouteImport } from './routes/_protected/sequences/index'
 import { Route as ProtectedProspectsIndexRouteImport } from './routes/_protected/prospects/index'
 import { Route as ProtectedInboxIndexRouteImport } from './routes/_protected/inbox/index'
+import { Route as ProtectedDeliverabilityIndexRouteImport } from './routes/_protected/deliverability/index'
 import { Route as ProtectedAnalyticsIndexRouteImport } from './routes/_protected/analytics/index'
 import { Route as ApiV1WebhooksRouteImport } from './routes/api/v1/webhooks'
 import { Route as ApiV1UnsubscribeRouteImport } from './routes/api/v1/unsubscribe'
@@ -27,6 +28,7 @@ import { Route as ApiV1EnrollmentsRouteImport } from './routes/api/v1/enrollment
 import { Route as ApiNangoWebhookRouteImport } from './routes/api/nango/webhook'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ProtectedSettingsSuppressionRouteImport } from './routes/_protected/settings/suppression'
+import { Route as ProtectedSettingsDeliverabilityRouteImport } from './routes/_protected/settings/deliverability'
 import { Route as ProtectedSequencesNewRouteImport } from './routes/_protected/sequences/new'
 import { Route as ProtectedProspectsImportRouteImport } from './routes/_protected/prospects/import'
 import { Route as ProtectedProspectsIdRouteImport } from './routes/_protected/prospects/$id'
@@ -35,6 +37,7 @@ import { Route as ProtectedSettingsValuePropsIndexRouteImport } from './routes/_
 import { Route as ProtectedSettingsMailboxesIndexRouteImport } from './routes/_protected/settings/mailboxes/index'
 import { Route as ProtectedSettingsCrmIndexRouteImport } from './routes/_protected/settings/crm/index'
 import { Route as ProtectedSettingsApiKeysIndexRouteImport } from './routes/_protected/settings/api-keys/index'
+import { Route as ProtectedSequencesIdIndexRouteImport } from './routes/_protected/sequences/$id/index'
 import { Route as ApiV1ProspectsIdRouteImport } from './routes/api/v1/prospects.$id'
 import { Route as ApiV1OpenapiJsonRouteImport } from './routes/api/v1/openapi.json'
 import { Route as ProtectedSettingsMailboxesNewRouteImport } from './routes/_protected/settings/mailboxes/new'
@@ -92,6 +95,12 @@ const ProtectedInboxIndexRoute = ProtectedInboxIndexRouteImport.update({
   path: '/inbox/',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedDeliverabilityIndexRoute =
+  ProtectedDeliverabilityIndexRouteImport.update({
+    id: '/deliverability/',
+    path: '/deliverability/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ProtectedAnalyticsIndexRoute = ProtectedAnalyticsIndexRouteImport.update({
   id: '/analytics/',
   path: '/analytics/',
@@ -138,6 +147,12 @@ const ProtectedSettingsSuppressionRoute =
     path: '/settings/suppression',
     getParentRoute: () => ProtectedRoute,
   } as any)
+const ProtectedSettingsDeliverabilityRoute =
+  ProtectedSettingsDeliverabilityRouteImport.update({
+    id: '/settings/deliverability',
+    path: '/settings/deliverability',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ProtectedSequencesNewRoute = ProtectedSequencesNewRouteImport.update({
   id: '/sequences/new',
   path: '/sequences/new',
@@ -182,6 +197,12 @@ const ProtectedSettingsApiKeysIndexRoute =
   ProtectedSettingsApiKeysIndexRouteImport.update({
     id: '/settings/api-keys/',
     path: '/settings/api-keys/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSequencesIdIndexRoute =
+  ProtectedSequencesIdIndexRouteImport.update({
+    id: '/sequences/$id/',
+    path: '/sequences/$id/',
     getParentRoute: () => ProtectedRoute,
   } as any)
 const ApiV1ProspectsIdRoute = ApiV1ProspectsIdRouteImport.update({
@@ -264,6 +285,7 @@ export interface FileRoutesByFullPath {
   '/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/sequences/new': typeof ProtectedSequencesNewRoute
+  '/settings/deliverability': typeof ProtectedSettingsDeliverabilityRoute
   '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
@@ -273,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRouteWithChildren
   '/analytics/': typeof ProtectedAnalyticsIndexRoute
+  '/deliverability/': typeof ProtectedDeliverabilityIndexRoute
   '/inbox/': typeof ProtectedInboxIndexRoute
   '/prospects/': typeof ProtectedProspectsIndexRoute
   '/sequences/': typeof ProtectedSequencesIndexRoute
@@ -284,6 +307,7 @@ export interface FileRoutesByFullPath {
   '/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/api/v1/openapi/json': typeof ApiV1OpenapiJsonRoute
   '/api/v1/prospects/$id': typeof ApiV1ProspectsIdRoute
+  '/sequences/$id/': typeof ProtectedSequencesIdIndexRoute
   '/settings/api-keys/': typeof ProtectedSettingsApiKeysIndexRoute
   '/settings/crm/': typeof ProtectedSettingsCrmIndexRoute
   '/settings/mailboxes/': typeof ProtectedSettingsMailboxesIndexRoute
@@ -303,6 +327,7 @@ export interface FileRoutesByTo {
   '/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/sequences/new': typeof ProtectedSequencesNewRoute
+  '/settings/deliverability': typeof ProtectedSettingsDeliverabilityRoute
   '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
@@ -312,6 +337,7 @@ export interface FileRoutesByTo {
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRouteWithChildren
   '/analytics': typeof ProtectedAnalyticsIndexRoute
+  '/deliverability': typeof ProtectedDeliverabilityIndexRoute
   '/inbox': typeof ProtectedInboxIndexRoute
   '/prospects': typeof ProtectedProspectsIndexRoute
   '/sequences': typeof ProtectedSequencesIndexRoute
@@ -323,6 +349,7 @@ export interface FileRoutesByTo {
   '/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/api/v1/openapi/json': typeof ApiV1OpenapiJsonRoute
   '/api/v1/prospects/$id': typeof ApiV1ProspectsIdRoute
+  '/sequences/$id': typeof ProtectedSequencesIdIndexRoute
   '/settings/api-keys': typeof ProtectedSettingsApiKeysIndexRoute
   '/settings/crm': typeof ProtectedSettingsCrmIndexRoute
   '/settings/mailboxes': typeof ProtectedSettingsMailboxesIndexRoute
@@ -344,6 +371,7 @@ export interface FileRoutesById {
   '/_protected/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/_protected/prospects/import': typeof ProtectedProspectsImportRoute
   '/_protected/sequences/new': typeof ProtectedSequencesNewRoute
+  '/_protected/settings/deliverability': typeof ProtectedSettingsDeliverabilityRoute
   '/_protected/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
@@ -353,6 +381,7 @@ export interface FileRoutesById {
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRouteWithChildren
   '/_protected/analytics/': typeof ProtectedAnalyticsIndexRoute
+  '/_protected/deliverability/': typeof ProtectedDeliverabilityIndexRoute
   '/_protected/inbox/': typeof ProtectedInboxIndexRoute
   '/_protected/prospects/': typeof ProtectedProspectsIndexRoute
   '/_protected/sequences/': typeof ProtectedSequencesIndexRoute
@@ -364,6 +393,7 @@ export interface FileRoutesById {
   '/_protected/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/api/v1/openapi/json': typeof ApiV1OpenapiJsonRoute
   '/api/v1/prospects/$id': typeof ApiV1ProspectsIdRoute
+  '/_protected/sequences/$id/': typeof ProtectedSequencesIdIndexRoute
   '/_protected/settings/api-keys/': typeof ProtectedSettingsApiKeysIndexRoute
   '/_protected/settings/crm/': typeof ProtectedSettingsCrmIndexRoute
   '/_protected/settings/mailboxes/': typeof ProtectedSettingsMailboxesIndexRoute
@@ -385,6 +415,7 @@ export interface FileRouteTypes {
     | '/prospects/$id'
     | '/prospects/import'
     | '/sequences/new'
+    | '/settings/deliverability'
     | '/settings/suppression'
     | '/api/auth/$'
     | '/api/nango/webhook'
@@ -394,6 +425,7 @@ export interface FileRouteTypes {
     | '/api/v1/unsubscribe'
     | '/api/v1/webhooks'
     | '/analytics/'
+    | '/deliverability/'
     | '/inbox/'
     | '/prospects/'
     | '/sequences/'
@@ -405,6 +437,7 @@ export interface FileRouteTypes {
     | '/settings/mailboxes/new'
     | '/api/v1/openapi/json'
     | '/api/v1/prospects/$id'
+    | '/sequences/$id/'
     | '/settings/api-keys/'
     | '/settings/crm/'
     | '/settings/mailboxes/'
@@ -424,6 +457,7 @@ export interface FileRouteTypes {
     | '/prospects/$id'
     | '/prospects/import'
     | '/sequences/new'
+    | '/settings/deliverability'
     | '/settings/suppression'
     | '/api/auth/$'
     | '/api/nango/webhook'
@@ -433,6 +467,7 @@ export interface FileRouteTypes {
     | '/api/v1/unsubscribe'
     | '/api/v1/webhooks'
     | '/analytics'
+    | '/deliverability'
     | '/inbox'
     | '/prospects'
     | '/sequences'
@@ -444,6 +479,7 @@ export interface FileRouteTypes {
     | '/settings/mailboxes/new'
     | '/api/v1/openapi/json'
     | '/api/v1/prospects/$id'
+    | '/sequences/$id'
     | '/settings/api-keys'
     | '/settings/crm'
     | '/settings/mailboxes'
@@ -464,6 +500,7 @@ export interface FileRouteTypes {
     | '/_protected/prospects/$id'
     | '/_protected/prospects/import'
     | '/_protected/sequences/new'
+    | '/_protected/settings/deliverability'
     | '/_protected/settings/suppression'
     | '/api/auth/$'
     | '/api/nango/webhook'
@@ -473,6 +510,7 @@ export interface FileRouteTypes {
     | '/api/v1/unsubscribe'
     | '/api/v1/webhooks'
     | '/_protected/analytics/'
+    | '/_protected/deliverability/'
     | '/_protected/inbox/'
     | '/_protected/prospects/'
     | '/_protected/sequences/'
@@ -484,6 +522,7 @@ export interface FileRouteTypes {
     | '/_protected/settings/mailboxes/new'
     | '/api/v1/openapi/json'
     | '/api/v1/prospects/$id'
+    | '/_protected/sequences/$id/'
     | '/_protected/settings/api-keys/'
     | '/_protected/settings/crm/'
     | '/_protected/settings/mailboxes/'
@@ -576,6 +615,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedInboxIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/deliverability/': {
+      id: '/_protected/deliverability/'
+      path: '/deliverability'
+      fullPath: '/deliverability/'
+      preLoaderRoute: typeof ProtectedDeliverabilityIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/analytics/': {
       id: '/_protected/analytics/'
       path: '/analytics'
@@ -639,6 +685,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedSettingsSuppressionRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/settings/deliverability': {
+      id: '/_protected/settings/deliverability'
+      path: '/settings/deliverability'
+      fullPath: '/settings/deliverability'
+      preLoaderRoute: typeof ProtectedSettingsDeliverabilityRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/sequences/new': {
       id: '/_protected/sequences/new'
       path: '/sequences/new'
@@ -693,6 +746,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/api-keys'
       fullPath: '/settings/api-keys/'
       preLoaderRoute: typeof ProtectedSettingsApiKeysIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/sequences/$id/': {
+      id: '/_protected/sequences/$id/'
+      path: '/sequences/$id'
+      fullPath: '/sequences/$id/'
+      preLoaderRoute: typeof ProtectedSequencesIdIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
     '/api/v1/prospects/$id': {
@@ -799,8 +859,10 @@ interface ProtectedRouteChildren {
   ProtectedProspectsIdRoute: typeof ProtectedProspectsIdRouteWithChildren
   ProtectedProspectsImportRoute: typeof ProtectedProspectsImportRoute
   ProtectedSequencesNewRoute: typeof ProtectedSequencesNewRoute
+  ProtectedSettingsDeliverabilityRoute: typeof ProtectedSettingsDeliverabilityRoute
   ProtectedSettingsSuppressionRoute: typeof ProtectedSettingsSuppressionRoute
   ProtectedAnalyticsIndexRoute: typeof ProtectedAnalyticsIndexRoute
+  ProtectedDeliverabilityIndexRoute: typeof ProtectedDeliverabilityIndexRoute
   ProtectedInboxIndexRoute: typeof ProtectedInboxIndexRoute
   ProtectedProspectsIndexRoute: typeof ProtectedProspectsIndexRoute
   ProtectedSequencesIndexRoute: typeof ProtectedSequencesIndexRoute
@@ -809,6 +871,7 @@ interface ProtectedRouteChildren {
   ProtectedSequencesIdEnrollRoute: typeof ProtectedSequencesIdEnrollRoute
   ProtectedSequencesIdEnrollmentsRoute: typeof ProtectedSequencesIdEnrollmentsRoute
   ProtectedSettingsMailboxesNewRoute: typeof ProtectedSettingsMailboxesNewRoute
+  ProtectedSequencesIdIndexRoute: typeof ProtectedSequencesIdIndexRoute
   ProtectedSettingsApiKeysIndexRoute: typeof ProtectedSettingsApiKeysIndexRoute
   ProtectedSettingsCrmIndexRoute: typeof ProtectedSettingsCrmIndexRoute
   ProtectedSettingsMailboxesIndexRoute: typeof ProtectedSettingsMailboxesIndexRoute
@@ -824,8 +887,10 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedProspectsIdRoute: ProtectedProspectsIdRouteWithChildren,
   ProtectedProspectsImportRoute: ProtectedProspectsImportRoute,
   ProtectedSequencesNewRoute: ProtectedSequencesNewRoute,
+  ProtectedSettingsDeliverabilityRoute: ProtectedSettingsDeliverabilityRoute,
   ProtectedSettingsSuppressionRoute: ProtectedSettingsSuppressionRoute,
   ProtectedAnalyticsIndexRoute: ProtectedAnalyticsIndexRoute,
+  ProtectedDeliverabilityIndexRoute: ProtectedDeliverabilityIndexRoute,
   ProtectedInboxIndexRoute: ProtectedInboxIndexRoute,
   ProtectedProspectsIndexRoute: ProtectedProspectsIndexRoute,
   ProtectedSequencesIndexRoute: ProtectedSequencesIndexRoute,
@@ -834,6 +899,7 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedSequencesIdEnrollRoute: ProtectedSequencesIdEnrollRoute,
   ProtectedSequencesIdEnrollmentsRoute: ProtectedSequencesIdEnrollmentsRoute,
   ProtectedSettingsMailboxesNewRoute: ProtectedSettingsMailboxesNewRoute,
+  ProtectedSequencesIdIndexRoute: ProtectedSequencesIdIndexRoute,
   ProtectedSettingsApiKeysIndexRoute: ProtectedSettingsApiKeysIndexRoute,
   ProtectedSettingsCrmIndexRoute: ProtectedSettingsCrmIndexRoute,
   ProtectedSettingsMailboxesIndexRoute: ProtectedSettingsMailboxesIndexRoute,

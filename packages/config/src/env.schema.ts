@@ -51,6 +51,8 @@ export const EnvSchema = z
     SMTP_PORT: z.coerce.number().int().positive().optional(),
     // Encrypts SMTP mailbox credentials at rest (32-byte base64). Required once any SMTP mailbox is connected.
     MAILBOX_ENCRYPTION_KEY: z.string().optional(),
+    // Encrypts provider-managed seed inbox IMAP credentials (Quiksend Systems infra only).
+    SYSTEM_SEED_ENCRYPTION_KEY: z.string().optional(),
 
     // Signs unsubscribe tokens embedded in outbound messages.
     UNSUBSCRIBE_TOKEN_SECRET: z.string().optional(),

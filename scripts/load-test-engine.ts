@@ -42,7 +42,13 @@ process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
 import { db, tables, client } from "../packages/db/src/index.ts";
 import { getBoss, stopBoss } from "../packages/queue/src/boss.ts";
 
-type TestMode = "happy-path" | "permanent-failure" | "outer-rollback" | "suppression-during-run";
+type TestMode =
+  | "happy-path"
+  | "permanent-failure"
+  | "outer-rollback"
+  | "suppression-during-run"
+  | "canary-happy-path"
+  | "canary-auto-pause";
 
 interface Args {
   workspaces: number;
@@ -76,11 +82,18 @@ function parseArgs(): Args {
     if (key === "duration") out.duration = value;
   }
 
-  if (out.testMode !== "happy-path") {
+  if (out.testMode !== "happy-path" && !out.testMode.startsWith("canary-")) {
     out.workspaces = 1;
     out.enrollments = Math.min(out.enrollments, 5);
     out.workers = 1;
     out.duration = Math.min(out.duration, 30);
+  }
+
+  if (out.testMode.startsWith("canary-")) {
+    out.workspaces = 1;
+    out.enrollments = 10;
+    out.workers = 1;
+    out.duration = Math.min(out.duration, 60);
   }
 
   return out;
@@ -287,10 +300,52 @@ async function resetQueue(): Promise<void> {
   }
 }
 
+async function seedCanaryFixture(seed: SeedResult): Promise<void> {
+  const orgId = seed.orgId;
+  const [seedInbox] = await db
+    .insert(tables.seedInbox)
+    .values({
+      organizationId: orgId,
+      email: `canary-seed@${randomUUID().slice(0, 8)}.loadtest.local`,
+      gateway: "proofpoint",
+      provider: "m365",
+      imapConfig: "dGVzdA==",
+      active: true,
+      verifiedAt: new Date(),
+    })
+    .returning();
+  if (!seedInbox) return;
+
+  const mailboxes = await client<{ id: string }[]>`
+    select id from mailbox where organization_id = ${orgId} limit 1
+  `;
+  const sequences = await client<{ id: string }[]>`
+    select id from sequence where organization_id = ${orgId} limit 1
+  `;
+  const mailbox = mailboxes[0];
+  const sequence = sequences[0];
+  if (!mailbox || !sequence) return;
+
+  const tokens = Array.from({ length: 5 }, () => randomUUID());
+  for (const token of tokens) {
+    await db.insert(tables.canarySend).values({
+      organizationId: orgId,
+      sequenceId: sequence.id,
+      mailboxId: mailbox.id,
+      seedInboxId: seedInbox.id,
+      canaryToken: token,
+      subject: "Canary load test",
+      sentAt: new Date(Date.now() - 5 * 60 * 1000),
+      expectedArrivalAt: new Date(Date.now() - 60 * 1000),
+      arrivalStatus: "pending",
+    });
+  }
+}
+
 async function seedAll(workspaces: number, enrollments: number): Promise<{ seeds: SeedResult[] }> {
   await resetQueue();
   await client`
-    truncate table job_log, send_reservation, task, enrollment, sequence_step, sequence, message, mailbox, prospect, suppression restart identity cascade
+    truncate table canary_send, seed_inbox, deliverability_snapshot, job_log, send_reservation, task, enrollment, sequence_step, sequence, message, mailbox, prospect, suppression restart identity cascade
   `;
   const perWorkspace = Math.ceil(enrollments / workspaces);
   const seeds: SeedResult[] = [];
@@ -504,6 +559,85 @@ async function assertSuppressionMidRunInvariants(targetEnrollmentId: string): Pr
   return violations;
 }
 
+async function assertCanaryHappyPathInvariants(): Promise<string[]> {
+  const violations: string[] = [];
+  process.env.QUIKSEND_CANARY_IMAP_MOCK = "inbox";
+
+  const { runCanaryCheck } = await import("../apps/worker/src/handlers/canary-check.ts");
+  const { refreshDeliverabilitySnapshots } =
+    await import("../apps/worker/src/handlers/deliverability-snapshot.ts");
+
+  await runCanaryCheck();
+  await refreshDeliverabilitySnapshots();
+
+  const pending = await client<{ count: string }[]>`
+    select count(*)::text as count from canary_send where arrival_status = 'pending' and sent_at is not null
+  `;
+  const arrived = await client<{ count: string }[]>`
+    select count(*)::text as count from canary_send where arrival_status = 'arrived_inbox'
+  `;
+  if (Number(arrived[0]?.count ?? 0) === 0 && Number(pending[0]?.count ?? 0) > 0) {
+    violations.push("expected canary arrivals when IMAP mock is inbox");
+  }
+
+  const snapshots = await client<{ count: string }[]>`
+    select count(*)::text as count from deliverability_snapshot
+  `;
+  if (Number(snapshots[0]?.count ?? 0) === 0) {
+    violations.push("expected deliverability_snapshot rows after refresh");
+  }
+
+  return violations;
+}
+
+async function assertCanaryAutoPauseInvariants(): Promise<string[]> {
+  const violations: string[] = [];
+
+  const existing = await client<{ count: string }[]>`
+    select count(*)::text as count from canary_send
+  `;
+  if (Number(existing[0]?.count ?? 0) < 3) {
+    const org = await client<{ organization_id: string; id: string }[]>`
+      select organization_id, id from mailbox limit 1
+    `;
+    const seq = await client<{ id: string }[]>`
+      select id from sequence limit 1
+    `;
+    if (org[0] && seq[0]) {
+      await seedCanaryFixture({
+        orgId: org[0].organization_id,
+        enrollmentIds: [],
+        prospectEmails: [],
+      });
+    }
+  }
+
+  await client`
+    update canary_send
+    set arrival_status = 'silent_drop', arrived_at = now()
+    where arrival_status = 'pending'
+  `;
+
+  const { maybePauseCampaigns } = await import("../apps/worker/src/handlers/canary-check.ts");
+  await maybePauseCampaigns();
+
+  const silent = await client<{ count: string }[]>`
+    select count(*)::text as count from canary_send where arrival_status = 'silent_drop'
+  `;
+  if (Number(silent[0]?.count ?? 0) < 3) {
+    violations.push("expected at least 3 silent_drop canaries");
+  }
+
+  const events = await client<{ count: string }[]>`
+    select count(*)::text as count from event where type = 'canary.silent_drop_detected'
+  `;
+  if (Number(events[0]?.count ?? 0) === 0) {
+    violations.push("expected canary.silent_drop_detected event after auto-pause");
+  }
+
+  return violations;
+}
+
 async function main(): Promise<void> {
   const args = parseArgs();
   console.log("Load test starting", args);
@@ -536,6 +670,10 @@ async function main(): Promise<void> {
           );
         });
     }, 5000);
+  }
+
+  if (args.testMode.startsWith("canary-")) {
+    await seedCanaryFixture(seeds[0]!);
   }
 
   const tickTimer = setInterval(() => {
@@ -574,6 +712,13 @@ async function main(): Promise<void> {
       } else {
         violations.push("no enrollment to test suppression");
       }
+      break;
+    case "canary-happy-path":
+      violations = await assertCanaryHappyPathInvariants();
+      break;
+    case "canary-auto-pause":
+      process.env.QUIKSEND_CANARY_IMAP_MOCK = "not_found";
+      violations = await assertCanaryAutoPauseInvariants();
       break;
     default:
       violations = await assertHappyPathInvariants();

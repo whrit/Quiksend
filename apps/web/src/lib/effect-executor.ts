@@ -10,6 +10,7 @@ export type DrizzleTransaction = PostgresJsDatabase<typeof schema>;
 
 const WORKER_ONLY_EFFECTS = new Set([
   "send_auto",
+  "send_canary",
   "create_compose_task",
   "create_task",
   "increment_attempt",
@@ -200,6 +201,9 @@ export async function applyWebEffects(
             nextRunAt: null,
           })
           .where(enrollmentWhere(enrollmentId, organizationId));
+        break;
+
+      case "emit_canary_bundle":
         break;
     }
   }

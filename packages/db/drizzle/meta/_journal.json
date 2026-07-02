@@ -113,6 +113,13 @@
       "when": 1783032857860,
       "tag": "0015_phase11_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1783033857860,
+      "tag": "0018_phase11c_canary",
+      "breakpoints": true
     }
   ]
 }

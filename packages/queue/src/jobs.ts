@@ -127,6 +127,30 @@ export interface ImportProcessPayload {
   rows: z.infer<typeof importProcessRowSchema>[];
 }
 
+// ── seed_inbox.verify — IMAP credential verification (Phase 11C) ───────────────
+export const seedInboxVerifySchema = z.object({
+  seedInboxId: z.string().uuid(),
+});
+export interface SeedInboxVerifyPayload {
+  seedInboxId: string;
+}
+
+// ── canary.send — materialize a pending canary send (Phase 11C) ───────────────
+export const canarySendJobSchema = z.object({
+  canarySendId: z.string().uuid(),
+});
+export interface CanarySendJobPayload {
+  canarySendId: string;
+}
+
+// ── canary.check — poll seed inboxes for canary arrival (Phase 11C) ───────────
+export const canaryCheckSchema = z.object({});
+export type CanaryCheckPayload = Record<string, never>;
+
+// ── deliverability.snapshot — rollup grid aggregates (Phase 11C) ──────────────
+export const deliverabilitySnapshotSchema = z.object({});
+export type DeliverabilitySnapshotPayload = Record<string, never>;
+
 /**
  * Mapping from job name → concrete payload type. Consumers use this to look up
  * a payload interface by job name at the type level; runtime code uses
@@ -142,6 +166,10 @@ export interface JobPayloadMap {
   "webhook.deliver": WebhookDeliverPayload;
   "ai.research": AiResearchPayload;
   "import.process": ImportProcessPayload;
+  "seed_inbox.verify": SeedInboxVerifyPayload;
+  "canary.send": CanarySendJobPayload;
+  "canary.check": CanaryCheckPayload;
+  "deliverability.snapshot": DeliverabilitySnapshotPayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -156,6 +184,10 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "webhook.deliver": webhookDeliverSchema,
   "ai.research": aiResearchSchema,
   "import.process": importProcessSchema,
+  "seed_inbox.verify": seedInboxVerifySchema,
+  "canary.send": canarySendJobSchema,
+  "canary.check": canaryCheckSchema,
+  "deliverability.snapshot": deliverabilitySnapshotSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];
