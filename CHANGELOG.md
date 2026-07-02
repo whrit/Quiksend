@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/whrit/Quiksend/compare/v1.4.0...v1.5.0) (2026-07-02)
+
+
+### Features
+
+* **phase-5-sequences:** Phase 5 complete ([#18](https://github.com/whrit/Quiksend/issues/18)) ([ff93e0b](https://github.com/whrit/Quiksend/commit/ff93e0b5942e3f05847168116a2e5388c0025ef4))
+
 ## [1.4.0](https://github.com/whrit/Quiksend/compare/v1.3.0...v1.4.0) (2026-07-02)
 
 
