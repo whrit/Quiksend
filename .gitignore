@@ -26,3 +26,4 @@ build/
 
 # drizzle (keep committed migrations; ignore local meta scratch if any)
 # packages/db/drizzle/  <- migrations ARE committed; do not ignore
+wave*/logs/
