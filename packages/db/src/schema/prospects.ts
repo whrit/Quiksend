@@ -10,7 +10,9 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { GatewayEvidence } from "@quiksend/mail/gateway-detect";
 import { organization, user } from "./auth.ts";
+import { gatewayTypeEnum } from "./deliverability-enums.ts";
 
 export const prospectStatusEnum = pgEnum("prospect_status", [
   "new",
@@ -82,6 +84,9 @@ export const prospect = pgTable(
     crmExternalId: text("crm_external_id"),
     crmConnectionId: uuid("crm_connection_id"),
     lastCrmSyncAt: timestamp("last_crm_sync_at", { withTimezone: true }),
+    emailGateway: gatewayTypeEnum("email_gateway"),
+    gatewayClassifiedAt: timestamp("gateway_classified_at", { withTimezone: true }),
+    gatewayEvidence: jsonb("gateway_evidence").$type<GatewayEvidence[]>(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -102,6 +107,9 @@ export const prospect = pgTable(
     uniqueIndex("prospect_org_crm_uidx")
       .on(table.organizationId, table.crmProvider, table.crmExternalId)
       .where(sql`${table.crmExternalId} is not null`),
+    index("prospect_org_gateway_idx")
+      .on(table.organizationId, table.emailGateway)
+      .where(sql`${table.emailGateway} IS NOT NULL AND ${table.deletedAt} IS NULL`),
   ],
 );
 

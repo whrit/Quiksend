@@ -30,3 +30,5 @@ export {
   type UnsubscribeTokenPayload,
 } from "./unsubscribe.ts";
 export { createAdapterForMailbox, createFakeAdapter } from "./adapters/index.ts";
+export type { EmailGateway, GatewayEvidence } from "./gateway-detect.ts";
+export { detectEmailGateway } from "./gateway-detect.ts";

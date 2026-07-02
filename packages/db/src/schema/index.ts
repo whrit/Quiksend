@@ -11,6 +11,7 @@ export * from "./mail.ts";
  * in later phases. `app_meta` is a simple key/value store for app-level flags,
  * schema markers, seed guards, etc.
  */
+export * from "./deliverability-enums.ts";
 export * from "./prospects.ts";
 
 export const appMeta = pgTable("app_meta", {
