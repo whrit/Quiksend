@@ -1,3 +1,10 @@
+import { computeSchedule } from "@quiksend/core/schedule";
+import type { MailboxSchedule, SendingWindow, StepKind, Weekday } from "@quiksend/core/schedule";
+import {
+  transition,
+  type EnrollmentSnapshot,
+  type StepKind as SmStepKind,
+} from "@quiksend/core/state-machine";
 import { env } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
 import {
@@ -8,7 +15,7 @@ import {
 } from "@quiksend/mail";
 import { buildMime } from "@quiksend/mail/mime";
 import { normalizeMessageId } from "@quiksend/mail/threading";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { orgFn } from "./org-fn.ts";
 
@@ -22,6 +29,7 @@ const anchorSchema = z.object({
 const sendComposedMessageSchema = z.object({
   mailboxId: z.string().uuid(),
   prospectId: z.string().uuid(),
+  enrollmentId: z.string().uuid().optional(),
   subject: z.string().min(1).max(500),
   bodyHtml: z.string().min(1),
   bodyText: z.string().optional(),
@@ -174,6 +182,7 @@ export const sendComposedMessage = orgFn({ method: "POST" })
       organizationId,
       mailboxId: mailbox.id,
       prospectId: prospect.id,
+      enrollmentId: data.enrollmentId ?? null,
       direction: "outbound",
       subject: mime.subject,
       bodyHtml: data.bodyHtml,
@@ -186,6 +195,17 @@ export const sendComposedMessage = orgFn({ method: "POST" })
       status: "sent",
       sentAt: sendResult.sentAt,
     });
+
+    if (data.enrollmentId) {
+      await captureManualAnchorForEnrollment({
+        enrollmentId: data.enrollmentId,
+        organizationId,
+        messageId: messageIdHeader,
+        threadId: sendResult.providerThreadId ?? messageIdHeader,
+        providerMessageId: sendResult.providerMessageId,
+        sentAt: sendResult.sentAt,
+      });
+    }
 
     return {
       messageId: messageIdHeader,
@@ -207,4 +227,171 @@ function stripHtml(html: string): string {
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+type SequenceSettings = {
+  timezone: string;
+  throttle_seconds: number;
+  mailbox_ids: string[];
+  stop_on_reply: boolean;
+  business_days_only: boolean;
+};
+
+function toMailboxSchedule(
+  sendWindow: unknown,
+  mailbox: { dailyCap: number; throttleSeconds: number },
+  settings: SequenceSettings,
+): MailboxSchedule {
+  const sw = (sendWindow ?? { window: {} }) as {
+    timezone?: string;
+    window: Record<string, [number, number][]>;
+  };
+  const window: SendingWindow = {};
+  for (const [day, ranges] of Object.entries(sw.window ?? {})) {
+    window[day as Weekday] = ranges.map(([start, end]) => ({
+      startHour: start,
+      endHour: end,
+    }));
+  }
+  return {
+    timezone: settings.timezone || sw.timezone || "UTC",
+    window,
+    dailyCap: mailbox.dailyCap,
+    minGapSeconds: settings.throttle_seconds ?? mailbox.throttleSeconds,
+  };
+}
+
+function computeNextRunAtForEnrollment(
+  steps: { stepIndex: number; stepType: string; delayMinutes: number; businessDaysOnly: boolean }[],
+  settings: SequenceSettings,
+  mailbox: typeof tables.mailbox.$inferSelect,
+  stepIndex: number,
+  anchor: Date,
+): Date | null {
+  const specs = steps.map((s) => ({
+    index: s.stepIndex,
+    kind: s.stepType as StepKind,
+    delayMinutes: s.delayMinutes,
+    businessDaysOnly: s.businessDaysOnly && settings.business_days_only,
+  }));
+  const schedule = computeSchedule(
+    specs,
+    toMailboxSchedule(mailbox.sendWindow, mailbox, settings),
+    anchor,
+  );
+  return schedule.find((s) => s.index === stepIndex)?.scheduledAt ?? null;
+}
+
+async function captureManualAnchorForEnrollment(input: {
+  enrollmentId: string;
+  organizationId: string;
+  messageId: string;
+  threadId: string;
+  providerMessageId: string;
+  sentAt: Date;
+}): Promise<void> {
+  const enrollment = await db.query.enrollment.findFirst({
+    where: and(
+      eq(tables.enrollment.id, input.enrollmentId),
+      eq(tables.enrollment.organizationId, input.organizationId),
+    ),
+  });
+  if (!enrollment) throw new Error("Enrollment not found");
+
+  const steps = await db.query.sequenceStep.findMany({
+    where: and(
+      eq(tables.sequenceStep.sequenceId, enrollment.sequenceId),
+      eq(tables.sequenceStep.organizationId, input.organizationId),
+    ),
+    orderBy: asc(tables.sequenceStep.stepIndex),
+  });
+
+  const sequence = await db.query.sequence.findFirst({
+    where: eq(tables.sequence.id, enrollment.sequenceId),
+  });
+  if (!sequence) throw new Error("Sequence not found");
+
+  const mailbox = await db.query.mailbox.findFirst({
+    where: and(
+      eq(tables.mailbox.id, enrollment.mailboxId),
+      eq(tables.mailbox.organizationId, input.organizationId),
+    ),
+  });
+  if (!mailbox) throw new Error("Mailbox not found");
+
+  const settings = (sequence.settings ?? {}) as SequenceSettings;
+  const nextStep = steps.find((s) => s.stepIndex === enrollment.currentStepIndex);
+  const hasNext = steps.some((s) => s.stepIndex > enrollment.currentStepIndex);
+  const snapshot: EnrollmentSnapshot = {
+    state: enrollment.state as EnrollmentSnapshot["state"],
+    currentStepIndex: enrollment.currentStepIndex,
+    hasNextStep: hasNext,
+    nextStepKind: (nextStep?.stepType as SmStepKind) ?? null,
+    anchorMessageId: enrollment.anchorMessageId,
+    attemptCount: enrollment.attemptCount,
+  };
+
+  const { nextState, effects } = transition(snapshot, {
+    kind: "manual_sent",
+    anchorMessageId: input.messageId,
+    anchorThreadId: input.threadId,
+    at: input.sentAt,
+  });
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(tables.message)
+      .set({
+        enrollmentId: input.enrollmentId,
+        providerMessageId: input.providerMessageId,
+      })
+      .where(
+        and(
+          eq(tables.message.messageIdHeader, input.messageId),
+          eq(tables.message.organizationId, input.organizationId),
+        ),
+      );
+
+    let currentStepIndex = enrollment.currentStepIndex;
+    let anchorMessageId = enrollment.anchorMessageId;
+    let anchorThreadId = enrollment.anchorThreadId;
+    let attemptCount = enrollment.attemptCount;
+
+    for (const effect of effects) {
+      if (effect.kind === "capture_anchor") {
+        anchorMessageId = effect.messageId;
+        anchorThreadId = effect.threadId;
+      }
+      if (effect.kind === "advance_step") {
+        currentStepIndex += 1;
+        attemptCount = 0;
+      }
+    }
+
+    const nextRunAt = computeNextRunAtForEnrollment(
+      steps,
+      settings,
+      mailbox,
+      currentStepIndex,
+      input.sentAt,
+    );
+
+    await tx
+      .update(tables.enrollment)
+      .set({
+        state: nextState,
+        currentStepIndex,
+        anchorMessageId,
+        anchorThreadId,
+        attemptCount,
+        nextRunAt,
+        lastError: null,
+      })
+      .where(
+        and(
+          eq(tables.enrollment.id, input.enrollmentId),
+          eq(tables.enrollment.organizationId, input.organizationId),
+        ),
+      );
+  });
 }
