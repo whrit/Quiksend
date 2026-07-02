@@ -23,6 +23,8 @@ export interface TestOrgs {
  * `prospect`/`company`/`list`; Phase 4 adds `mailbox`/`message`; etc.
  */
 export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
+  "research_profile",
+  "value_prop",
   "job_log",
   "send_reservation",
   "task",

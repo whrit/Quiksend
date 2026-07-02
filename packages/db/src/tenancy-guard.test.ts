@@ -30,6 +30,9 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "sequence",
   "sequenceStep",
   "enrollment",
+  // Phase 8 prep:
+  "valueProp",
+  "researchProfile",
   // Phase 6:
   "task",
 ];
