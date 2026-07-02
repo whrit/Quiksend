@@ -2,6 +2,7 @@ import { logger } from "@quiksend/config";
 import { transition } from "@quiksend/core/state-machine";
 import { db, tables } from "@quiksend/db";
 import { getPostHog } from "@quiksend/observability";
+import { and, eq } from "drizzle-orm";
 import { applyTransitionEffects } from "./effects.ts";
 import { loadContext } from "./load-context.ts";
 import { type EnrollmentContext, toSnapshot } from "./context.ts";
@@ -69,16 +70,27 @@ export async function handleInboundBounce(
     await applyTransitionEffects(tx, ctx, effects, 0, nextState);
 
     if (bounceType === "hard" && inbound.fromEmail) {
+      const email = inbound.fromEmail.toLowerCase();
       await tx
         .insert(tables.suppression)
         .values({
           organizationId: inbound.organizationId,
-          value: inbound.fromEmail.toLowerCase(),
+          value: email,
           valueType: "email",
           reason: "bounce",
           sourceMessageId: inbound.id,
         })
         .onConflictDoNothing();
+
+      await tx
+        .update(tables.prospect)
+        .set({ status: "bounced" })
+        .where(
+          and(
+            eq(tables.prospect.organizationId, inbound.organizationId),
+            eq(tables.prospect.email, email),
+          ),
+        );
     }
   });
 

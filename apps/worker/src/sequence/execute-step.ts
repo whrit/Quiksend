@@ -1,7 +1,7 @@
 import { transition } from "@quiksend/core/state-machine";
 import { db } from "@quiksend/db";
+import { SendError } from "@quiksend/mail";
 import { Sentry } from "@quiksend/observability";
-import type { SequenceStepPayload } from "@quiksend/queue";
 import { toSnapshot, currentStep } from "./context.ts";
 import {
   applyTransitionEffects,
@@ -9,49 +9,56 @@ import {
   logJobFailure,
   logJobStart,
   logJobSuccess,
-  MAX_STEP_ATTEMPTS,
 } from "./effects.ts";
 import { hasReplyOnThread, isSuppressed } from "./guards.ts";
 import { makePayloadRef } from "./idempotency.ts";
 import { loadContext } from "./load-context.ts";
 
-export async function executeStep({ enrollmentId, attempt }: SequenceStepPayload): Promise<void> {
+export interface ExecuteStepInput {
+  readonly enrollmentId: string;
+  /** pg-boss retryCount — NOT used for idempotency keys (those stay at step attempt 0). */
+  readonly retryCount: number;
+  readonly retryLimit: number;
+}
+
+export async function executeStep({
+  enrollmentId,
+  retryCount,
+  retryLimit,
+}: ExecuteStepInput): Promise<void> {
   const ctx = await loadContext(enrollmentId);
   const step = currentStep(ctx);
-  const payloadRef = makePayloadRef(ctx.enrollmentId, step?.id ?? null, attempt);
+  const stepAttempt = 0;
+  const payloadRef = makePayloadRef(ctx.enrollmentId, step?.id ?? null, retryCount);
   const started = Date.now();
 
-  await logJobStart("sequence.step", payloadRef, attempt);
+  await logJobStart("sequence.step", payloadRef, retryCount);
 
   try {
-    if (isSuppressed(ctx)) {
-      await db.transaction(async (tx) => {
-        await applyTransitionEffects(
-          tx,
-          ctx,
-          [{ kind: "terminate", reason: "stopped" }],
-          attempt,
-          "stopped",
-        );
+    if (await isSuppressed(ctx)) {
+      const snapshot = toSnapshot(ctx);
+      const { nextState, effects } = transition(snapshot, {
+        kind: "suppressed",
+        at: new Date(),
       });
-      await logJobSuccess("sequence.step", payloadRef, attempt, Date.now() - started);
+      await db.transaction(async (tx) => {
+        await applyTransitionEffects(tx, ctx, effects, stepAttempt, nextState);
+      });
+      await logJobSuccess("sequence.step", payloadRef, retryCount, Date.now() - started);
       return;
     }
 
     if (ctx.stopOnReply && (await hasReplyOnThread(ctx))) {
-      await db.transaction(async (tx) => {
-        await applyTransitionEffects(
-          tx,
-          ctx,
-          [
-            { kind: "terminate", reason: "replied" },
-            { kind: "emit_event", type: "enrollment.replied" },
-          ],
-          attempt,
-          "replied",
-        );
+      const snapshot = toSnapshot(ctx);
+      const { nextState, effects } = transition(snapshot, {
+        kind: "reply_received",
+        at: new Date(),
+        stopOnReply: true,
       });
-      await logJobSuccess("sequence.step", payloadRef, attempt, Date.now() - started);
+      await db.transaction(async (tx) => {
+        await applyTransitionEffects(tx, ctx, effects, stepAttempt, nextState);
+      });
+      await logJobSuccess("sequence.step", payloadRef, retryCount, Date.now() - started);
       return;
     }
 
@@ -59,22 +66,30 @@ export async function executeStep({ enrollmentId, attempt }: SequenceStepPayload
     const { nextState, effects } = transition(snapshot, { kind: "tick", at: new Date() });
 
     await db.transaction(async (tx) => {
-      await applyTransitionEffects(tx, ctx, effects, attempt, nextState);
+      await applyTransitionEffects(tx, ctx, effects, stepAttempt, nextState);
     });
 
-    await logJobSuccess("sequence.step", payloadRef, attempt, Date.now() - started);
+    await logJobSuccess("sequence.step", payloadRef, retryCount, Date.now() - started);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const isDead = attempt + 1 >= MAX_STEP_ATTEMPTS;
-    await logJobFailure("sequence.step", payloadRef, attempt, message, isDead);
+    const isPermanent =
+      err instanceof SendError && (err.kind === "permanent" || err.kind === "auth");
+    const isDead = isPermanent || retryCount >= retryLimit;
+
+    await logJobFailure("sequence.step", payloadRef, retryCount, message, isDead);
 
     if (isDead) {
       Sentry.captureException(err, {
-        extra: { enrollmentId, attempt, organizationId: ctx.organizationId },
+        extra: { enrollmentId, retryCount, organizationId: ctx.organizationId },
       });
-      await handleStepFailure(ctx, attempt, err);
+      await handleStepFailure(ctx, retryCount, err, {
+        forceTerminal: isPermanent,
+        retryLimit,
+      });
+      return;
     }
 
+    await handleStepFailure(ctx, retryCount, err, { forceTerminal: false, retryLimit });
     throw err;
   }
 }

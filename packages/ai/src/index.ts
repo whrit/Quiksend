@@ -25,3 +25,5 @@ export { EmailSchema } from "./generation/email-schema.ts";
 export type { EmailOutput } from "./generation/email-schema.ts";
 export { humanizeEmail, parseSpintax } from "./humanize/humanize-email.ts";
 export type { HumanizeResult, HumanizeWarning } from "./humanize/humanize-email.ts";
+export { classifyInboundSentiment } from "./classify/sentiment.ts";
+export type { InboundForSentiment, Sentiment } from "./classify/sentiment.ts";

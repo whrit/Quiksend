@@ -1,4 +1,5 @@
 import { env, logger } from "@quiksend/config";
+import { classifyInboundSentiment } from "@quiksend/ai";
 import { db, tables } from "@quiksend/db";
 import { getNango } from "@quiksend/integrations";
 import { detectAutoReply, matchInbound, parseBounce, type OutboundAnchor } from "@quiksend/mail";
@@ -57,6 +58,17 @@ export async function registerMailboxPollHandler(): Promise<void> {
   });
 }
 
+const MAILBOX_POLL_STAGGER_BUCKETS = 4;
+const MAILBOX_POLL_STAGGER_SECONDS = 30;
+
+function mailboxPollBucket(mailboxId: string): number {
+  let hash = 0;
+  for (let i = 0; i < mailboxId.length; i++) {
+    hash = (hash * 31 + mailboxId.charCodeAt(i)) >>> 0;
+  }
+  return hash % MAILBOX_POLL_STAGGER_BUCKETS;
+}
+
 export async function registerMailboxPollTick(): Promise<void> {
   const { getBoss } = await import("@quiksend/queue");
   const boss = await getBoss();
@@ -68,7 +80,9 @@ export async function registerMailboxPollTick(): Promise<void> {
     });
     const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     for (const mailbox of mailboxes) {
-      await enqueue("mailbox.poll", { mailboxId: mailbox.id, since });
+      const bucket = mailboxPollBucket(mailbox.id);
+      const startAfter = bucket * MAILBOX_POLL_STAGGER_SECONDS;
+      await enqueue("mailbox.poll", { mailboxId: mailbox.id, since }, { startAfter });
     }
     logger.debug({ count: mailboxes.length }, "mailbox.poll.tick enqueued mailboxes");
   });
@@ -241,6 +255,14 @@ async function processInboundMessage(
 
   if (!inserted) return;
 
+  if (!isBounce) {
+    await storeInboundSentiment(inserted.id, {
+      subject: inbound.subject,
+      bodyText: inbound.bodyText,
+      bodyHtml: inbound.bodyHtml,
+    });
+  }
+
   const inboundEmail: InboundEmail = {
     id: inserted.id,
     organizationId: mailbox.organizationId,
@@ -282,6 +304,15 @@ async function processInboundMessage(
   if (matchedOutbound?.enrollmentId) {
     await handleInboundReply(inboundEmail, matchedOutbound.enrollmentId);
   }
+}
+
+async function storeInboundSentiment(
+  messageId: string,
+  inbound: { subject: string | null; bodyText: string | null; bodyHtml: string | null },
+): Promise<void> {
+  const sentiment = await classifyInboundSentiment(inbound);
+  if (!sentiment) return;
+  await db.update(tables.message).set({ sentiment }).where(eq(tables.message.id, messageId));
 }
 
 async function pollGmail(

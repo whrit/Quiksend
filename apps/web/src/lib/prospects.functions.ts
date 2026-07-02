@@ -2,6 +2,7 @@ import { db, tables } from "@quiksend/db";
 import { enqueue } from "@quiksend/queue";
 import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import type { DedupePolicy, ValidCsvRow } from "./prospect-import.ts";
 import { normalizeDomain, normalizeEmail } from "./prospect-import.ts";
 import { orgFn } from "./org-fn.ts";
 import { createProspectInputSchema, prospectStatusSchema } from "./schemas/prospect.ts";
@@ -115,6 +116,51 @@ const cursorSchema = z.union([
     })),
 ]);
 
+function cursorValueFromProspect(row: ProspectRow, field: z.infer<typeof sortFieldSchema>): string {
+  switch (field) {
+    case "email":
+      return row.email;
+    case "lastName":
+      return row.lastName ?? "";
+    case "status":
+      return row.status;
+    default:
+      return row.createdAt.toISOString();
+  }
+}
+
+function prospectCursorCondition(
+  sortField: z.infer<typeof sortFieldSchema>,
+  sortDir: "asc" | "desc",
+  cursor: { id: string; field: z.infer<typeof sortFieldSchema>; value: string },
+) {
+  const column = sortColumn(sortField);
+  if (sortField === "createdAt") {
+    const cursorDate = new Date(cursor.value);
+    if (sortDir === "desc") {
+      return or(
+        lt(column, cursorDate),
+        and(eq(column, cursorDate), lt(tables.prospect.id, cursor.id)),
+      )!;
+    }
+    return or(
+      gt(column, cursorDate),
+      and(eq(column, cursorDate), gt(tables.prospect.id, cursor.id)),
+    )!;
+  }
+
+  if (sortDir === "desc") {
+    return or(
+      lt(column, cursor.value),
+      and(eq(column, cursor.value), lt(tables.prospect.id, cursor.id)),
+    )!;
+  }
+  return or(
+    gt(column, cursor.value),
+    and(eq(column, cursor.value), gt(tables.prospect.id, cursor.id)),
+  )!;
+}
+
 const listProspectsInputSchema = z.object({
   status: z.array(prospectStatusSchema).optional(),
   listId: z.string().uuid().optional(),
@@ -204,51 +250,6 @@ function sortColumn(field: z.infer<typeof sortFieldSchema>) {
   }
 }
 
-function cursorValueFromProspect(row: ProspectRow, field: z.infer<typeof sortFieldSchema>): string {
-  switch (field) {
-    case "email":
-      return row.email;
-    case "lastName":
-      return row.lastName ?? "";
-    case "status":
-      return row.status;
-    default:
-      return row.createdAt.toISOString();
-  }
-}
-
-function prospectCursorCondition(
-  sortField: z.infer<typeof sortFieldSchema>,
-  sortDir: "asc" | "desc",
-  cursor: { id: string; field: z.infer<typeof sortFieldSchema>; value: string },
-) {
-  const column = sortColumn(sortField);
-  if (sortField === "createdAt") {
-    const cursorDate = new Date(cursor.value);
-    if (sortDir === "desc") {
-      return or(
-        lt(column, cursorDate),
-        and(eq(column, cursorDate), lt(tables.prospect.id, cursor.id)),
-      )!;
-    }
-    return or(
-      gt(column, cursorDate),
-      and(eq(column, cursorDate), gt(tables.prospect.id, cursor.id)),
-    )!;
-  }
-
-  if (sortDir === "desc") {
-    return or(
-      lt(column, cursor.value),
-      and(eq(column, cursor.value), lt(tables.prospect.id, cursor.id)),
-    )!;
-  }
-  return or(
-    gt(column, cursor.value),
-    and(eq(column, cursor.value), gt(tables.prospect.id, cursor.id)),
-  )!;
-}
-
 function notFound(): never {
   throw new Response("Not found", { status: 404 });
 }
@@ -284,9 +285,6 @@ export const listProspects = orgFn({ method: "GET" })
       );
     }
     if (data.cursor) {
-      if (data.cursor.field !== data.sortField) {
-        throw new Error("Cursor sort field does not match request sort field");
-      }
       conditions.push(prospectCursorCondition(data.sortField, data.sortDir, data.cursor));
     }
 
@@ -409,6 +407,8 @@ export const createProspect = orgFn({ method: "POST" })
       })
       .returning();
 
+    await enqueueCrmContactUpsertForProspect(organizationId, created!.id);
+
     return serializeProspect(created!);
   });
 
@@ -525,7 +525,11 @@ export const listCompanies = orgFn({ method: "GET" })
       items: page.map(serializeCompany),
       nextCursor:
         hasMore && last
-          ? { id: last.id, field: "createdAt" as const, value: last.createdAt.toISOString() }
+          ? {
+              id: last.id,
+              field: "createdAt" as const,
+              value: last.createdAt.toISOString(),
+            }
           : null,
     };
   });
@@ -687,6 +691,108 @@ export const removeFromList = orgFn({ method: "POST" })
     return { removed: data.prospectIds.length };
   });
 
+async function resolveCompanyId(
+  organizationId: string,
+  company: ValidCsvRow["company"],
+): Promise<string | null> {
+  if (!company) return null;
+
+  const domain = company.domain ? normalizeDomain(company.domain) : null;
+  const name = company.name?.trim() || null;
+
+  if (domain) {
+    const existing = await db.query.company.findFirst({
+      where: and(
+        eq(tables.company.organizationId, organizationId),
+        eq(tables.company.domain, domain),
+        isNull(tables.company.deletedAt),
+      ),
+    });
+    if (existing) return existing.id;
+
+    const [created] = await db
+      .insert(tables.company)
+      .values({
+        organizationId,
+        domain,
+        name: name ?? domain,
+        industry: company.industry,
+        website: company.website,
+      })
+      .returning();
+    return created?.id ?? null;
+  }
+
+  if (name) {
+    const existing = await db.query.company.findFirst({
+      where: and(
+        eq(tables.company.organizationId, organizationId),
+        sql`lower(${tables.company.name}) = ${name.toLowerCase()}`,
+        isNull(tables.company.deletedAt),
+      ),
+    });
+    if (existing) return existing.id;
+
+    const [created] = await db.insert(tables.company).values({ organizationId, name }).returning();
+    return created?.id ?? null;
+  }
+
+  return null;
+}
+
+async function importProspectRow(
+  organizationId: string,
+  row: ValidCsvRow,
+  dedupePolicy: DedupePolicy,
+): Promise<"created" | "updated" | "skipped"> {
+  const email = normalizeEmail(row.prospect.email);
+  if (!email) throw new Error("Invalid email");
+
+  const companyId = await resolveCompanyId(organizationId, row.company);
+
+  const existing = await db.query.prospect.findFirst({
+    where: and(
+      eq(tables.prospect.organizationId, organizationId),
+      eq(tables.prospect.email, email),
+    ),
+  });
+
+  const prospectValues = {
+    firstName: row.prospect.firstName ?? null,
+    lastName: row.prospect.lastName ?? null,
+    title: row.prospect.title ?? null,
+    phone: row.prospect.phone ?? null,
+    linkedinUrl: row.prospect.linkedinUrl ?? null,
+    timezone: row.prospect.timezone ?? null,
+    companyId,
+    source: "csv" as const,
+    deletedAt: null,
+  };
+
+  if (existing) {
+    if (existing.deletedAt || dedupePolicy === "update_existing") {
+      await db
+        .update(tables.prospect)
+        .set(prospectValues)
+        .where(
+          and(
+            eq(tables.prospect.id, existing.id),
+            eq(tables.prospect.organizationId, organizationId),
+          ),
+        );
+      return existing.deletedAt ? "created" : "updated";
+    }
+    return "skipped";
+  }
+
+  await db.insert(tables.prospect).values({
+    organizationId,
+    email,
+    ...prospectValues,
+  });
+  return "created";
+}
+
 export const startImport = orgFn({ method: "POST" })
   .validator(startImportInputSchema)
   .handler(async ({ data, context }) => {
@@ -699,11 +805,15 @@ export const startImport = orgFn({ method: "POST" })
         filename: data.filename,
         mapping: data.mapping,
         createdByUserId: userId,
-        status: "queued",
-        erroredCount: data.invalidRows?.length ?? 0,
+        status: "processing",
       })
       .returning();
     if (!batch) throw new Error("Failed to create import batch");
+
+    let createdCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    let erroredCount = data.invalidRows?.length ?? 0;
 
     if (data.invalidRows?.length) {
       await db.insert(tables.importError).values(
@@ -716,21 +826,43 @@ export const startImport = orgFn({ method: "POST" })
       );
     }
 
-    await enqueue("import.process", {
-      batchId: batch.id,
-      organizationId,
-      dedupePolicy: data.dedupePolicy,
-      rows: data.rows,
-    });
+    for (const row of data.rows) {
+      try {
+        const outcome = await importProspectRow(organizationId, row, data.dedupePolicy);
+        if (outcome === "created") createdCount += 1;
+        else if (outcome === "updated") updatedCount += 1;
+        else skippedCount += 1;
+      } catch (err) {
+        erroredCount += 1;
+        await db.insert(tables.importError).values({
+          batchId: batch.id,
+          rowNumber: row.rowNumber,
+          raw: row.prospect as unknown as Record<string, unknown>,
+          reason: err instanceof Error ? err.message : "Import failed",
+        });
+      }
+    }
+
+    const [completed] = await db
+      .update(tables.importBatch)
+      .set({
+        createdCount,
+        updatedCount,
+        skippedCount,
+        erroredCount,
+        status: "completed",
+      })
+      .where(
+        and(
+          eq(tables.importBatch.id, batch.id),
+          eq(tables.importBatch.organizationId, organizationId),
+        ),
+      )
+      .returning();
 
     return {
-      batch: serializeImportBatch(batch),
-      summary: {
-        createdCount: 0,
-        updatedCount: 0,
-        skippedCount: 0,
-        erroredCount: data.invalidRows?.length ?? 0,
-      },
+      batch: serializeImportBatch(completed!),
+      summary: { createdCount, updatedCount, skippedCount, erroredCount },
     };
   });
 
@@ -749,4 +881,161 @@ export const getImportBatch = orgFn({ method: "GET" })
 
     if (!batch) notFound();
     return serializeImportBatch(batch, batch.errors);
+  });
+
+async function hasAnyCrmConnection(organizationId: string): Promise<boolean> {
+  const row = await db.query.crmConnection.findFirst({
+    where: and(
+      eq(tables.crmConnection.organizationId, organizationId),
+      eq(tables.crmConnection.status, "active"),
+    ),
+  });
+  return Boolean(row);
+}
+
+async function enqueueCrmContactUpsertForProspect(
+  organizationId: string,
+  prospectId: string,
+): Promise<void> {
+  if (!(await hasAnyCrmConnection(organizationId))) return;
+
+  const connections = await db.query.crmConnection.findMany({
+    where: and(
+      eq(tables.crmConnection.organizationId, organizationId),
+      eq(tables.crmConnection.status, "active"),
+    ),
+  });
+
+  for (const connection of connections) {
+    await enqueue("crm.writeback", {
+      connectionId: connection.id,
+      eventType: "contact_upsert",
+      entityId: prospectId,
+      idempotencyKey: `contact_upsert:${prospectId}:${connection.id}`,
+    });
+  }
+}
+
+export const getProspectEnrollments = orgFn({ method: "POST" })
+  .validator(z.object({ prospectId: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { organizationId } = context.orgContext;
+
+    const rows = await db.query.enrollment.findMany({
+      where: and(
+        eq(tables.enrollment.prospectId, data.prospectId),
+        eq(tables.enrollment.organizationId, organizationId),
+      ),
+      orderBy: desc(tables.enrollment.updatedAt),
+    });
+
+    const sequenceIds = [...new Set(rows.map((r) => r.sequenceId))];
+    const sequences =
+      sequenceIds.length > 0
+        ? await db.query.sequence.findMany({
+            where: and(
+              eq(tables.sequence.organizationId, organizationId),
+              inArray(tables.sequence.id, sequenceIds),
+            ),
+          })
+        : [];
+    const sequenceMap = new Map(sequences.map((s) => [s.id, s]));
+
+    return rows.map((row) => {
+      const sequence = sequenceMap.get(row.sequenceId);
+      return {
+        id: row.id,
+        sequenceId: row.sequenceId,
+        sequenceName: sequence?.name ?? "Unknown sequence",
+        state: row.state,
+        currentStepIndex: row.currentStepIndex,
+        nextRunAt: row.nextRunAt?.toISOString() ?? null,
+        lastError: row.lastError,
+        updatedAt: row.updatedAt.toISOString(),
+        createdAt: row.createdAt.toISOString(),
+      };
+    });
+  });
+
+export const getProspectMessages = orgFn({ method: "POST" })
+  .validator(
+    z.object({
+      prospectId: z.string().uuid(),
+      cursor: z
+        .object({
+          at: z.string().datetime(),
+          id: z.string().uuid(),
+        })
+        .optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    const { organizationId } = context.orgContext;
+    const limit = data.limit ?? 20;
+
+    const conditions = [
+      eq(tables.message.organizationId, organizationId),
+      eq(tables.message.prospectId, data.prospectId),
+    ];
+
+    if (data.cursor) {
+      conditions.push(
+        or(
+          lt(tables.message.createdAt, new Date(data.cursor.at)),
+          and(
+            eq(tables.message.createdAt, new Date(data.cursor.at)),
+            lt(tables.message.id, data.cursor.id),
+          ),
+        )!,
+      );
+    }
+
+    const rows = await db.query.message.findMany({
+      where: and(...conditions),
+      orderBy: [desc(tables.message.createdAt), desc(tables.message.id)],
+      limit: limit + 1,
+    });
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    const last = items[items.length - 1];
+    const nextCursor =
+      hasMore && last
+        ? {
+            at: last.createdAt.toISOString(),
+            id: last.id,
+          }
+        : null;
+
+    return {
+      items: items.map((m) => ({
+        id: m.id,
+        direction: m.direction,
+        subject: m.subject,
+        status: m.status,
+        sentiment: m.sentiment,
+        sentAt: m.sentAt?.toISOString() ?? null,
+        receivedAt: m.receivedAt?.toISOString() ?? null,
+      })),
+      nextCursor,
+    };
+  });
+
+export const getProspectResearchProfile = orgFn({ method: "POST" })
+  .validator(z.object({ prospectId: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { organizationId } = context.orgContext;
+    const profile = await db.query.researchProfile.findFirst({
+      where: and(
+        eq(tables.researchProfile.organizationId, organizationId),
+        eq(tables.researchProfile.prospectId, data.prospectId),
+      ),
+    });
+    if (!profile) return null;
+    return {
+      id: profile.id,
+      status: profile.status,
+      updatedAt: profile.updatedAt.toISOString(),
+    };
   });

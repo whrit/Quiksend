@@ -3,13 +3,14 @@ import { isAdminOrOwner } from "@quiksend/core";
 import { db, tables } from "@quiksend/db";
 import { getNango } from "@quiksend/integrations";
 import {
+  buildComplianceParts,
   checkDomainAuth,
+  createAdapterForMailbox,
   decryptSmtpConfig,
   encryptSmtpConfig,
+  type MailboxAdapter,
   type SmtpConfigPlain,
 } from "@quiksend/mail";
-import { createSmtpTransport, sendMime } from "@quiksend/mail/adapters/smtp";
-import { buildMime } from "@quiksend/mail/mime";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { orgFn } from "./org-fn.ts";
@@ -88,6 +89,26 @@ function decryptMailboxSmtp(smtpConfig: unknown): SmtpConfigPlain {
     throw new MailboxError("CONFIG", "Mailbox SMTP config is missing or invalid");
   }
   return decryptSmtpConfig(smtpConfig, requireEncryptionKey());
+}
+
+/** Resolves a send adapter for any mailbox provider (SMTP, Gmail, Microsoft). */
+export function resolveMailboxAdapter(mailbox: MailboxRow): MailboxAdapter {
+  if (mailbox.provider === "smtp") {
+    return createAdapterForMailbox({
+      provider: mailbox.provider,
+      nangoConnectionId: mailbox.nangoConnectionId,
+      smtpConfig: decryptMailboxSmtp(mailbox.smtpConfig),
+      address: mailbox.address,
+      fromName: mailbox.fromName,
+    });
+  }
+  return createAdapterForMailbox({
+    provider: mailbox.provider,
+    nangoConnectionId: mailbox.nangoConnectionId,
+    smtpConfig: null,
+    address: mailbox.address,
+    fromName: mailbox.fromName,
+  });
 }
 
 type MailboxRow = typeof tables.mailbox.$inferSelect;
@@ -330,32 +351,22 @@ export const testMailboxSend = orgFn({ method: "POST" })
     });
     if (!mailbox) throw new MailboxError("NOT_FOUND", "Mailbox not found");
 
-    const compliance = {
+    const adapter = resolveMailboxAdapter(mailbox);
+    const complianceParts = buildComplianceParts({
       unsubscribeUrl: "https://app.example.com/u/pending",
       senderPostalAddress: "1 Main St, City",
       senderOrgName: "Quiksend",
-    };
-    const smtp = decryptMailboxSmtp(mailbox.smtpConfig);
-    const mime = buildMime({
+    });
+    const html = "<p>This is a Quiksend test message.</p>";
+    const text = "This is a Quiksend test message.";
+    const result = await adapter.send({
       from: { email: mailbox.address, name: mailbox.fromName ?? undefined },
       to: [{ email: data.toEmail }],
       subject: "Quiksend test",
-      html: "<p>This is a Quiksend test message.</p>",
-      text: "This is a Quiksend test message.",
-      compliance,
+      html: `${html}${complianceParts.footerHtml}`,
+      text: `${text}${complianceParts.footerText}`,
+      extraHeaders: complianceParts.headers,
     });
-    const result = await sendMime(
-      createSmtpTransport({
-        host: smtp.host,
-        port: smtp.port,
-        secure: smtp.secure,
-        auth: smtp.auth,
-        fromAddress: mailbox.address,
-        fromName: mailbox.fromName ?? undefined,
-      }),
-      mime,
-      { from: mailbox.address, to: [data.toEmail] },
-    );
     return {
       messageId: result.messageId,
       providerMessageId: result.providerMessageId,
