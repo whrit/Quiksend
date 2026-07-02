@@ -122,6 +122,21 @@ export const sendComposedMessage = orgFn({ method: "POST" })
     if (!mailbox) throw new Error("Mailbox not found");
     if (mailbox.provider !== "smtp") throw new Error("Only SMTP mailboxes are supported in Wave 1");
 
+    if (data.enrollmentId) {
+      const enrollment = await db.query.enrollment.findFirst({
+        where: and(
+          eq(tables.enrollment.id, data.enrollmentId),
+          eq(tables.enrollment.organizationId, organizationId),
+        ),
+      });
+      if (!enrollment) throw new Error("Enrollment not found");
+      if (enrollment.mailboxId !== data.mailboxId) {
+        throw new Error(
+          "Mailbox must match the enrollment mailbox — follow-ups must continue on the same thread",
+        );
+      }
+    }
+
     const prospect = await loadProspect(data.prospectId, organizationId);
 
     const org = await db.query.organization.findFirst({

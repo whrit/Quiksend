@@ -1,10 +1,12 @@
 import { transition, type Effect, type EnrollmentState } from "@quiksend/core/state-machine";
+import { env } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
-import { buildComplianceParts } from "@quiksend/mail";
+import { buildComplianceParts, buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import { and, eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type * as schema from "@quiksend/db/schema";
+import { backoffUntil } from "./backoff.ts";
 import {
   computeNextRunAt,
   toSnapshot,
@@ -15,12 +17,21 @@ import {
 import { enqueueSequenceStepAt, makeIdempotencyKey } from "./idempotency.ts";
 import { createMailboxAdapter } from "./mailbox-adapter.ts";
 import { renderTemplate, stripHtml } from "./render-template.ts";
-import { markReservationSent, releaseReservation, reserveSendSlot } from "./reserve-slot.ts";
+import {
+  markReservationSentInTx,
+  releaseReservationInTx,
+  reserveSendSlotInTx,
+} from "./reserve-slot.ts";
 import { handleEmitEvent } from "./execute-effects.ts";
+import { getWorkspacePostalAddress } from "./workspace-postal.ts";
 
 type DbTx = PostgresJsDatabase<typeof schema>;
 
 const MAX_STEP_ATTEMPTS = 5;
+
+export function maxStepAttempts(): number {
+  return MAX_STEP_ATTEMPTS;
+}
 
 export async function applyTransitionEffects(
   tx: DbTx,
@@ -231,7 +242,8 @@ async function handleSendAuto(
   if (!step || step.stepType !== "auto_email") return ctx;
 
   const at = new Date();
-  const slot = await reserveSendSlot(
+  const slot = await reserveSendSlotInTx(
+    tx,
     ctx.mailbox.id,
     ctx.enrollmentId,
     ctx.organizationId,
@@ -254,7 +266,7 @@ async function handleSendAuto(
   });
 
   if (existing?.status === "sent") {
-    await markReservationSent(slot.reservationId);
+    await markReservationSentInTx(tx, slot.reservationId);
     const snapshot = toSnapshot(ctx);
     const result = transition(snapshot, {
       kind: "auto_sent",
@@ -265,7 +277,7 @@ async function handleSendAuto(
   }
 
   if (!ctx.anchorMessage?.messageIdHeader) {
-    await releaseReservation(slot.reservationId);
+    await releaseReservationInTx(tx, slot.reservationId);
     throw new Error("Cannot send auto email without anchor");
   }
 
@@ -285,9 +297,13 @@ async function handleSendAuto(
   const bodyHtml = renderTemplate(config.body_template, templateCtx);
   const bodyText = stripHtml(bodyHtml);
   const signature = ctx.mailbox.signatureHtml ? `\n\n${ctx.mailbox.signatureHtml}` : "";
+
+  const token = mintUnsubscribeToken({ prospectId: ctx.prospect.id, orgId: ctx.organizationId });
+  const baseUrl = env.BETTER_AUTH_URL ?? "http://localhost:3000";
+  const senderPostalAddress = await getWorkspacePostalAddress(ctx.organizationId);
   const compliance = buildComplianceParts({
-    unsubscribeUrl: "https://app.example.com/u/pending",
-    senderPostalAddress: "1 Main St, City",
+    unsubscribeUrl: buildUnsubscribeUrl(baseUrl, token),
+    senderPostalAddress,
     senderOrgName: ctx.sequence.name,
   });
 
@@ -305,6 +321,27 @@ async function handleSendAuto(
   const adapter = createMailboxAdapter(ctx.mailbox, ctx.organizationId);
 
   try {
+    await tx.insert(tables.message).values({
+      organizationId: ctx.organizationId,
+      mailboxId: ctx.mailbox.id,
+      prospectId: ctx.prospect.id,
+      enrollmentId: ctx.enrollmentId,
+      direction: "outbound",
+      subject,
+      bodyHtml,
+      bodyText,
+      messageIdHeader: null,
+      providerMessageId: null,
+      providerThreadId: ctx.enrollment.anchorThreadId,
+      inReplyTo: normalizeMessageId(ctx.anchorMessage.messageIdHeader),
+      referencesHeader: [
+        ...priorRefs.map(normalizeMessageId),
+        normalizeMessageId(ctx.anchorMessage.messageIdHeader),
+      ].join(" "),
+      status: "sending",
+      idempotencyKey,
+    });
+
     const sendResult = await adapter.send({
       from: { email: ctx.mailbox.address, name: ctx.mailbox.fromName ?? undefined },
       to: [
@@ -321,31 +358,29 @@ async function handleSendAuto(
       idempotencyKey,
     });
 
+    if (process.env.QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK === "1") {
+      throw new Error("Forced outer rollback after adapter.send (load test)");
+    }
+
     const messageIdHeader = normalizeMessageId(sendResult.messageId);
 
-    await tx.insert(tables.message).values({
-      organizationId: ctx.organizationId,
-      mailboxId: ctx.mailbox.id,
-      prospectId: ctx.prospect.id,
-      enrollmentId: ctx.enrollmentId,
-      direction: "outbound",
-      subject,
-      bodyHtml,
-      bodyText,
-      messageIdHeader,
-      providerMessageId: sendResult.providerMessageId,
-      providerThreadId: sendResult.providerThreadId ?? ctx.enrollment.anchorThreadId,
-      inReplyTo: normalizeMessageId(ctx.anchorMessage.messageIdHeader),
-      referencesHeader: [
-        ...priorRefs.map(normalizeMessageId),
-        normalizeMessageId(ctx.anchorMessage.messageIdHeader),
-      ].join(" "),
-      status: "sent",
-      sentAt: sendResult.sentAt,
-      idempotencyKey,
-    });
+    await tx
+      .update(tables.message)
+      .set({
+        messageIdHeader,
+        providerMessageId: sendResult.providerMessageId,
+        providerThreadId: sendResult.providerThreadId ?? ctx.enrollment.anchorThreadId,
+        status: "sent",
+        sentAt: sendResult.sentAt,
+      })
+      .where(
+        and(
+          eq(tables.message.idempotencyKey, idempotencyKey),
+          eq(tables.message.organizationId, ctx.organizationId),
+        ),
+      );
 
-    await markReservationSent(slot.reservationId);
+    await markReservationSentInTx(tx, slot.reservationId);
 
     const snapshot = toSnapshot(ctx);
     const result = transition(snapshot, {
@@ -355,7 +390,16 @@ async function handleSendAuto(
     });
     return applyTransitionEffects(tx, ctx, result.effects, attempt, result.nextState);
   } catch (err) {
-    await releaseReservation(slot.reservationId);
+    await releaseReservationInTx(tx, slot.reservationId);
+    await tx
+      .update(tables.message)
+      .set({ status: "failed" })
+      .where(
+        and(
+          eq(tables.message.idempotencyKey, idempotencyKey),
+          eq(tables.message.organizationId, ctx.organizationId),
+        ),
+      );
     throw err;
   }
 }
@@ -404,10 +448,16 @@ export async function logJobFailure(
   });
 }
 
+export interface StepFailureOptions {
+  readonly forceTerminal: boolean;
+  readonly retryLimit: number;
+}
+
 export async function handleStepFailure(
   ctx: EnrollmentContext,
-  attempt: number,
+  retryCount: number,
   err: unknown,
+  options: StepFailureOptions,
 ): Promise<void> {
   const message = err instanceof Error ? err.message : String(err);
 
@@ -421,19 +471,24 @@ export async function handleStepFailure(
       ),
     );
 
-  const snapshot = toSnapshot({
-    ...ctx,
-    enrollment: { ...ctx.enrollment, attemptCount: ctx.enrollment.attemptCount },
-  });
+  const maxAttempts = options.forceTerminal ? ctx.enrollment.attemptCount + 1 : MAX_STEP_ATTEMPTS;
+
+  const retryAt =
+    !options.forceTerminal && retryCount < options.retryLimit
+      ? backoffUntil(retryCount)
+      : undefined;
+
+  const snapshot = toSnapshot(ctx);
   const result = transition(snapshot, {
     kind: "step_failed",
     error: message,
     at: new Date(),
-    maxAttempts: MAX_STEP_ATTEMPTS,
+    maxAttempts,
+    retryAt,
   });
 
   await db.transaction(async (tx) => {
-    await applyTransitionEffects(tx, ctx, result.effects, attempt + 1, result.nextState);
+    await applyTransitionEffects(tx, ctx, result.effects, 0, result.nextState);
   });
 }
 
