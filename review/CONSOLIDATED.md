@@ -13,16 +13,16 @@ But **six issues in the load-bearing engine + compliance path would surface on t
 
 ## Aggregate counts (post-dedup)
 
-| Dimension | Critical | High | Medium | Low | Total |
-|---|---|---|---|---|---|
-| Security | 1 | 2 | 6 | 4 | 13 |
-| Correctness | 2 | 3 | 1 | 0 | 6 |
-| Architecture | 0 | 5 | 6 | 5 | 16 |
-| Performance | 1 | 6 | 9 | 4 | 20 |
-| Testing | 0 | 8 | 9 | 4 | 21 |
-| Completeness | 0 | 4 | 7 | 4 | 15 |
-| **Total (raw)** | **4** | **28** | **38** | **21** | **91** |
-| **Total (post-dedup)** | **3** | **26** | **35** | **21** | **85** |
+| Dimension              | Critical | High   | Medium | Low    | Total  |
+| ---------------------- | -------- | ------ | ------ | ------ | ------ |
+| Security               | 1        | 2      | 6      | 4      | 13     |
+| Correctness            | 2        | 3      | 1      | 0      | 6      |
+| Architecture           | 0        | 5      | 6      | 5      | 16     |
+| Performance            | 1        | 6      | 9      | 4      | 20     |
+| Testing                | 0        | 8      | 9      | 4      | 21     |
+| Completeness           | 0        | 4      | 7      | 4      | 15     |
+| **Total (raw)**        | **4**    | **28** | **38** | **21** | **91** |
+| **Total (post-dedup)** | **3**    | **26** | **35** | **21** | **85** |
 
 Dedup merged 6 findings that were reported by multiple reviewers (see § Cross-cutting below).
 
@@ -121,11 +121,12 @@ Dedup merged 6 findings that were reported by multiple reviewers (see § Cross-c
 **Severity**: **HIGH** (Architecture ARCH-001 + ARCH-002 + ARCH-003)
 **Reported by**: 1 reviewer, all three from same file
 **What**: Three places call `transition()` from `@quiksend/core` but don't run the returned `effects[]`:
+
 - Worker `execute-step.ts` synthesizes `terminate` effects directly for suppression/reply pre-checks, bypassing `transition({ kind: "reply_received" })`.
 - Web compose interprets `manual_sent` effects manually — only handles `capture_anchor` + `advance_step`. Drops any new effect kind added later.
 - Web `pauseEnrollment` / `resumeEnrollment` / `stopEnrollment` persist `nextState` but drop `effects[]` — `emit_event` never fires, analytics + webhooks miss pause/resume/stop signals.
-**Impact**: Product events (`enrollment.paused`, `enrollment.resumed`, `enrollment.stopped`) never emit → webhook subscribers miss them → analytics blind. Future effects added to the state machine will be silently dropped in these three paths.
-**Fix**: Extract the executor's effect switch into a shared helper. Compose + sequences functions + worker suppression/reply pre-checks all route through it. Or emit proper events (`reply_received` from worker instead of synthesizing terminate; `pause`/`resume`/`stop` from web that funnel to worker via a job).
+  **Impact**: Product events (`enrollment.paused`, `enrollment.resumed`, `enrollment.stopped`) never emit → webhook subscribers miss them → analytics blind. Future effects added to the state machine will be silently dropped in these three paths.
+  **Fix**: Extract the executor's effect switch into a shared helper. Compose + sequences functions + worker suppression/reply pre-checks all route through it. Or emit proper events (`reply_received` from worker instead of synthesizing terminate; `pause`/`resume`/`stop` from web that funnel to worker via a job).
 
 ### [CR-011] AI provider abstraction bypassed for model metadata
 
@@ -170,6 +171,7 @@ Dedup merged 6 findings that were reported by multiple reviewers (see § Cross-c
 Grouped by dimension for scannability. Full details in each dimension's file.
 
 ### Security (SEC)
+
 - **SEC-002 HIGH** — Auth IP rate limit not wired (merged into CR-007 above)
 - **SEC-003 HIGH** — Prod secrets optional (merged into CR-008 above)
 - **SEC-004 MED** — Nango inbound webhook: no replay protection (no timestamp/nonce dedup). Store processed webhook IDs.
@@ -178,15 +180,18 @@ Grouped by dimension for scannability. Full details in each dimension's file.
 - **SEC-008 MED** — Prompt injection: scraped web content inlined into prompts without structural delimiters. Wrap in `<untrusted-source>` tags in the system prompt.
 
 ### Correctness (BUG)
+
 - **BUG-006 MED** — Compose `mailboxId` not validated to match `enrollment.mailboxId` when anchoring. Same-mailbox threading invariant relies on caller passing the right id.
 
 ### Architecture (ARCH)
+
 - Most HIGH findings covered by CR-009 and CR-010 above.
 - **ARCH-007 MED + Testing gap** (co-located): `APP_SCOPED_TABLES` in tenancy guard missing `jobLog`, `sendReservation`, `listMember`, `importError`. Testing also flagged `apikey` missing from `APP_SCOPED_TABLES_TO_TRUNCATE`. Cross-test leakage risk. Fix: extend guard with FK-chain rules, add `apikey` to truncate list.
 - **ARCH-010 MED** — `_protected` layout guard is weaker than `orgFn` (session check only, no active workspace check). UI can load, data calls fail. Align.
 - **ARCH-011 MED** — Zod schemas duplicated between `*.functions.ts` and `/api/v1/*`. Extract shared schemas.
 
 ### Performance (PERF)
+
 - **PERF-005 HIGH** — Cap COUNT filters `reserved_at` but index is on `window_start`. Query filter/index mismatch on every reservation → hot path degrades under load. Fix index.
 - **PERF-007 HIGH + PERF-026 HIGH** (same root) — `message.enrollment_id` has no index but analytics + inbox filters use it via `EXISTS` and JOINs. Add `message(enrollment_id)` index.
 - **PERF-011 MED** — `enrollment(organization_id, sequence_id)` missing for analytics + inbox subqueries.
@@ -197,6 +202,7 @@ Grouped by dimension for scannability. Full details in each dimension's file.
 - **PERF-022 MED** — Mailbox poll enqueues all mailboxes at cron edge → burst.
 
 ### Testing (TEST)
+
 - **HIGH x 8** — Missing regression tests for (in order of blast radius):
   1. Idempotency skip path (`effects.ts:248-268` retry-with-same-key branch)
   2. `captureManualAnchor` DB round-trip (state machine test asserts effect emission but nothing tests the persistence)
@@ -208,6 +214,7 @@ Grouped by dimension for scannability. Full details in each dimension's file.
   8. Load tests never run in CI — invariants only verified on manual `tsx` runs
 
 ### Completeness (COMP)
+
 - **COMP-004 HIGH** — Prospect detail (PRD C3) shows static placeholders for sequence/message timeline. Load real enrollments + messages, link to research profile.
 - **COMP-005 MED** — Step `entry_condition` (e.g. `if_no_reply`) exists in schema + UI but worker never enforces it.
 - **COMP-006 MED** — PRD G4 sentiment/triage tags on inbound not implemented.
@@ -217,15 +224,15 @@ Grouped by dimension for scannability. Full details in each dimension's file.
 
 ## Cross-cutting patterns (post-dedup summary)
 
-| Root issue | Reviewers reporting | P0 finding |
-|---|---|---|
-| Suppression table not enforced pre-send | Security (CRITICAL) + Correctness (HIGH) + Completeness (HIGH) | **CR-001** |
-| Engine dead-letter path broken | Correctness (CRITICAL) | **CR-002** |
-| `next_run_at` cleared before step succeeds | Correctness (CRITICAL) | **CR-003** |
-| CAN-SPAM placeholder in auto-send | Correctness (HIGH) + Completeness (HIGH) | **CR-004** |
-| OAuth mailboxes rejected on compose/reply | Completeness (HIGH x3) | **CR-006** |
-| Tenancy guard `APP_SCOPED_TABLES` incomplete | Architecture (MED) + Testing (HIGH) | see § Architecture below |
-| Missing tests across the board | Testing (HIGH x8) | see § Testing above |
+| Root issue                                   | Reviewers reporting                                            | P0 finding               |
+| -------------------------------------------- | -------------------------------------------------------------- | ------------------------ |
+| Suppression table not enforced pre-send      | Security (CRITICAL) + Correctness (HIGH) + Completeness (HIGH) | **CR-001**               |
+| Engine dead-letter path broken               | Correctness (CRITICAL)                                         | **CR-002**               |
+| `next_run_at` cleared before step succeeds   | Correctness (CRITICAL)                                         | **CR-003**               |
+| CAN-SPAM placeholder in auto-send            | Correctness (HIGH) + Completeness (HIGH)                       | **CR-004**               |
+| OAuth mailboxes rejected on compose/reply    | Completeness (HIGH x3)                                         | **CR-006**               |
+| Tenancy guard `APP_SCOPED_TABLES` incomplete | Architecture (MED) + Testing (HIGH)                            | see § Architecture below |
+| Missing tests across the board               | Testing (HIGH x8)                                              | see § Testing above      |
 
 ---
 
@@ -290,12 +297,12 @@ Grouped by dimension for scannability. Full details in each dimension's file.
 
 ## Consolidated finding count by severity (final)
 
-| Severity | Count | Merged from |
-|---|---|---|
-| Critical | 3 | Security 1, Correctness 2 (CR-001 merged 3 reviewers) |
-| High | 26 | across all 6 dimensions after dedup |
-| Medium | 35 | after dedup |
-| Low | 21 | style/informational |
-| **Total** | **85** | |
+| Severity  | Count  | Merged from                                           |
+| --------- | ------ | ----------------------------------------------------- |
+| Critical  | 3      | Security 1, Correctness 2 (CR-001 merged 3 reviewers) |
+| High      | 26     | across all 6 dimensions after dedup                   |
+| Medium    | 35     | after dedup                                           |
+| Low       | 21     | style/informational                                   |
+| **Total** | **85** |                                                       |
 
 **Final verdict**: **needs-fixes**. V0 v2.0.0 is a real milestone with substantial working code, but it is not production-honest until the six P0/P1 items above land. Estimated 3 sprints (~2 weeks) to get to a customer-ready v2.1.0.

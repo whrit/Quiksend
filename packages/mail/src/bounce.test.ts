@@ -195,7 +195,8 @@ describe("parseBounce corpus", () => {
     expect(parsed!.statusCode).toBe(expected.statusCode);
     expect(parsed!.recipient).toBe(expected.recipient);
     expect(parsed!.provider).toBe(expected.provider);
-    expect(parsed!.diagnostic).toBeTruthy();
+    expect(typeof parsed!.diagnostic).toBe("string");
+    expect(parsed!.diagnostic!.length).toBeGreaterThan(0);
   });
 });
 

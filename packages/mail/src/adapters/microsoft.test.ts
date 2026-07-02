@@ -1,3 +1,10 @@
+/**
+ * Microsoft Graph adapter unit tests mock the Nango proxy client rather than
+ * `createFakeAdapter`. These cases cover Graph-specific send/reply semantics
+ * (conversationId threading, draft creation, attachment of threading headers).
+ * Engine integration tests should use `createFakeAdapter` when provider I/O is
+ * not the subject under test.
+ */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ComplianceInput } from "../compliance.ts";
 import type { OutboundEmail } from "../adapter.ts";

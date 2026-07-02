@@ -22,11 +22,11 @@ Read-only review of production-path defects. Each P1 invariant verified against 
 
 ### 1. Scheduler safety (no double-send)
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| `FOR UPDATE SKIP LOCKED` | **PASS** | `apps/worker/src/sequence/tick.ts:10-15` |
-| `next_run_at` nulled in same TX as claim | **PASS** | Claim + null in one transaction: `tick.ts:8-21` |
-| pg-boss retry → idempotency check | **PASS** (when message row exists) | Retries re-invoke `executeStep` → `handleSendAuto` idempotency lookup: `effects.ts:248-265`, retry policy `idempotency.ts:6-11`, `register.ts:22-36` |
+| Check                                    | Result                             | Evidence                                                                                                                                             |
+| ---------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FOR UPDATE SKIP LOCKED`                 | **PASS**                           | `apps/worker/src/sequence/tick.ts:10-15`                                                                                                             |
+| `next_run_at` nulled in same TX as claim | **PASS**                           | Claim + null in one transaction: `tick.ts:8-21`                                                                                                      |
+| pg-boss retry → idempotency check        | **PASS** (when message row exists) | Retries re-invoke `executeStep` → `handleSendAuto` idempotency lookup: `effects.ts:248-265`, retry policy `idempotency.ts:6-11`, `register.ts:22-36` |
 
 **Quoted claim SQL (`tick.ts:10-15`):**
 
@@ -57,11 +57,11 @@ Idempotency protects against double-send **only after** a `message` row with `st
 
 ### 2. Slot reservation atomicity
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| `pg_advisory_xact_lock(hashtext(mailboxId))` | **PASS** | `reserve-slot.ts:87` |
-| Window/throttle/cap inside lock | **PASS** | All checks after lock: `reserve-slot.ts:87-111` |
-| Send succeeds, reservation UPDATE fails | **FAIL** | See race analysis below |
+| Check                                        | Result   | Evidence                                        |
+| -------------------------------------------- | -------- | ----------------------------------------------- |
+| `pg_advisory_xact_lock(hashtext(mailboxId))` | **PASS** | `reserve-slot.ts:87`                            |
+| Window/throttle/cap inside lock              | **PASS** | All checks after lock: `reserve-slot.ts:87-111` |
+| Send succeeds, reservation UPDATE fails      | **FAIL** | See race analysis below                         |
 
 **Quoted lock SQL (`reserve-slot.ts:87`):**
 
@@ -80,11 +80,11 @@ SELECT pg_advisory_xact_lock(hashtext(${mailboxId}))
 
 ### 3. Idempotency key
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| Grep coverage | **PASS** | Worker: `idempotency.ts`, `effects.ts`. Mail adapters accept optional key: `adapter.ts:41` |
-| Pre-send SELECT + skip if `sent` | **PASS** | `effects.ts:248-265` |
-| Key derivation | **Variant** | `SHA-256(enrollmentId \| stepId \| attempt)` — pipe separator, not `||`: `idempotency.ts:21-24` |
+| Check                            | Result      | Evidence                                                                                   |
+| -------------------------------- | ----------- | ------------------------------------------------------------------------------------------ | --- | ------------------------- |
+| Grep coverage                    | **PASS**    | Worker: `idempotency.ts`, `effects.ts`. Mail adapters accept optional key: `adapter.ts:41` |
+| Pre-send SELECT + skip if `sent` | **PASS**    | `effects.ts:248-265`                                                                       |
+| Key derivation                   | **Variant** | `SHA-256(enrollmentId \| stepId \| attempt)` — pipe separator, not `                       |     | `: `idempotency.ts:21-24` |
 
 **Collision domain:** Unique per `(enrollmentId, stepId, attempt)`. Same step retried with the same payload `attempt` (always `0` from tick/defer) collides intentionally.
 
@@ -94,12 +94,12 @@ SELECT pg_advisory_xact_lock(hashtext(${mailboxId}))
 
 ### 4. Manual-first anchor capture
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| compose → `sendComposedMessage` → anchor capture | **PASS** | `compose.functions.ts:203-212` |
-| `normalizeMessageId` on anchor | **PASS** | `compose.functions.ts:174` |
-| Next step scheduled from manual `sent_at` | **PASS** | `compose.functions.ts:375-381`; worker `anchor.ts:19`, `anchor.ts:52-58` |
-| `enrollWithExistingAnchor` copies anchor ids | **PASS** | `enrollments.functions.ts:66-67`, `anchor.ts:127-128` |
+| Check                                            | Result   | Evidence                                                                 |
+| ------------------------------------------------ | -------- | ------------------------------------------------------------------------ |
+| compose → `sendComposedMessage` → anchor capture | **PASS** | `compose.functions.ts:203-212`                                           |
+| `normalizeMessageId` on anchor                   | **PASS** | `compose.functions.ts:174`                                               |
+| Next step scheduled from manual `sent_at`        | **PASS** | `compose.functions.ts:375-381`; worker `anchor.ts:19`, `anchor.ts:52-58` |
+| `enrollWithExistingAnchor` copies anchor ids     | **PASS** | `enrollments.functions.ts:66-67`, `anchor.ts:127-128`                    |
 
 **Gap (confidence: medium):** No validation that `data.mailboxId === enrollment.mailboxId` in compose. See BUG-006.
 
@@ -107,22 +107,22 @@ SELECT pg_advisory_xact_lock(hashtext(${mailboxId}))
 
 ### 5. Threading headers on follow-ups
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| `In-Reply-To` = single anchor id | **PASS** | `threading.ts:84`, `mime.ts:61-64`, `effects.ts:338` |
-| `References` = chain oldest→newest ending at anchor | **PASS** | `threading.ts:74-86`, `effects.ts:339-342` |
-| `Re:` without stacking | **PASS** | `threading.ts:64-68` |
-| Same mailbox as anchor | **PASS** (when enrollment mailbox matches anchor) | `load-context.ts:47-53`, `effects.ts:309` |
+| Check                                               | Result                                            | Evidence                                             |
+| --------------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------- |
+| `In-Reply-To` = single anchor id                    | **PASS**                                          | `threading.ts:84`, `mime.ts:61-64`, `effects.ts:338` |
+| `References` = chain oldest→newest ending at anchor | **PASS**                                          | `threading.ts:74-86`, `effects.ts:339-342`           |
+| `Re:` without stacking                              | **PASS**                                          | `threading.ts:64-68`                                 |
+| Same mailbox as anchor                              | **PASS** (when enrollment mailbox matches anchor) | `load-context.ts:47-53`, `effects.ts:309`            |
 
 ---
 
 ### 6. Bounce classification
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| Corpus expectations | **PASS** | 18/18 tests green |
+| Check                         | Result   | Evidence                                                          |
+| ----------------------------- | -------- | ----------------------------------------------------------------- |
+| Corpus expectations           | **PASS** | 18/18 tests green                                                 |
 | False positives return `null` | **PASS** | `bounce-09`, `bounce-10`, `bounce-11` in `bounce.test.ts:117-137` |
-| 4.x.x soft, 5.x.x hard | **PASS** | `bounce.ts:110-112` |
+| 4.x.x soft, 5.x.x hard        | **PASS** | `bounce.ts:110-112`                                               |
 
 **Note:** Expectations live in `bounce.test.ts`, not inline in `.eml` files.
 
@@ -132,60 +132,60 @@ SELECT pg_advisory_xact_lock(hashtext(${mailboxId}))
 
 ### 7. Thread matching
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| Priority order | **PASS** | `inbound-matching.ts:64-117` |
+| Check                    | Result   | Evidence                                                |
+| ------------------------ | -------- | ------------------------------------------------------- |
+| Priority order           | **PASS** | `inbound-matching.ts:64-117`                            |
 | Normalization both sides | **PASS** | `inbound-matching.ts:37`, `inbound-matching.ts:121-127` |
 
 ---
 
 ### 8. Auto-reply detection
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| Header checks | **PASS** | `auto-reply.ts:30-47` |
-| Body heuristics only when headers clean | **PASS** | `auto-reply.ts:49-51` |
-| “vacation” topic in real reply | **PASS** | `auto-reply.test.ts:60-66` |
+| Check                                   | Result   | Evidence                   |
+| --------------------------------------- | -------- | -------------------------- |
+| Header checks                           | **PASS** | `auto-reply.ts:30-47`      |
+| Body heuristics only when headers clean | **PASS** | `auto-reply.ts:49-51`      |
+| “vacation” topic in real reply          | **PASS** | `auto-reply.test.ts:60-66` |
 
 ---
 
 ### 9. CRM writeback idempotency
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| Skip if `status='succeeded'` | **PASS** | `crm-writeback.ts:224-228` |
-| Stable idempotency key | **PASS** | `execute-effects.ts:37-45`; unsubscribe `unsubscribe.ts:21` |
-| Store provider `external_id` | **PASS** | `crm-writeback.ts:262-268` |
+| Check                        | Result   | Evidence                                                    |
+| ---------------------------- | -------- | ----------------------------------------------------------- |
+| Skip if `status='succeeded'` | **PASS** | `crm-writeback.ts:224-228`                                  |
+| Stable idempotency key       | **PASS** | `execute-effects.ts:37-45`; unsubscribe `unsubscribe.ts:21` |
+| Store provider `external_id` | **PASS** | `crm-writeback.ts:262-268`                                  |
 
 ---
 
 ### 10. HMAC webhook signing / replay
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| Canonical string | **PASS** | `webhook-deliver.ts:17-19` |
-| Receiver verification documented | **PASS** | `docs/webhooks.md:22-46` |
-| Timestamp window ≤ 300s | **PASS** | `webhook-deliver.ts:29-31` |
+| Check                            | Result   | Evidence                   |
+| -------------------------------- | -------- | -------------------------- |
+| Canonical string                 | **PASS** | `webhook-deliver.ts:17-19` |
+| Receiver verification documented | **PASS** | `docs/webhooks.md:22-46`   |
+| Timestamp window ≤ 300s          | **PASS** | `webhook-deliver.ts:29-31` |
 
 ---
 
 ### 11. Unsubscribe end-to-end
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| Token minted at send | **PASS** | `unsubscribe.ts:63-68`, `compose.functions.ts:133-136` |
-| Handler verifies + inserts suppression | **PASS** | `unsubscribe.ts:47-129` |
-| Suppression before CRM enqueue | **PASS** | `unsubscribe.ts:90-106` |
+| Check                                  | Result   | Evidence                                               |
+| -------------------------------------- | -------- | ------------------------------------------------------ |
+| Token minted at send                   | **PASS** | `unsubscribe.ts:63-68`, `compose.functions.ts:133-136` |
+| Handler verifies + inserts suppression | **PASS** | `unsubscribe.ts:47-129`                                |
+| Suppression before CRM enqueue         | **PASS** | `unsubscribe.ts:90-106`                                |
 
 ---
 
 ### 12. Suppression pre-check
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| Called before outbound send | **PARTIAL** | `execute-step.ts:27-39` before transaction |
-| Inside executor transaction | **FAIL** | Outside `db.transaction` at `execute-step.ts:61-63` |
-| Checks suppression table | **FAIL** | `guards.ts:7-9` — prospect.status only |
+| Check                       | Result      | Evidence                                            |
+| --------------------------- | ----------- | --------------------------------------------------- |
+| Called before outbound send | **PARTIAL** | `execute-step.ts:27-39` before transaction          |
+| Inside executor transaction | **FAIL**    | Outside `db.transaction` at `execute-step.ts:61-63` |
+| Checks suppression table    | **FAIL**    | `guards.ts:7-9` — prospect.status only              |
 
 See BUG-003.
 
@@ -193,28 +193,28 @@ See BUG-003.
 
 ### 13. State machine terminal absorption
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| Terminals absorb events | **PASS** | `transition.ts:18-19`, `transition.ts:142-147` |
+| Check                       | Result   | Evidence                                                        |
+| --------------------------- | -------- | --------------------------------------------------------------- |
+| Terminals absorb events     | **PASS** | `transition.ts:18-19`, `transition.ts:142-147`                  |
 | `resume` only from `paused` | **PASS** | `transition.ts:25-27`; `paused` not terminal (`types.ts:21-27`) |
 
 ---
 
 ### 14. Schedule math edge cases
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| Window boundary | **PASS** | `sending-window.ts:65-67`, `sending-window.ts:93-94` |
-| Business days + DST | **PASS** (impl) | `formatInTimeZone` — `sending-window.ts:42` |
-| Daily cap at exactly cap | **PASS** | `compute-schedule.ts:87-88`, `reserve-slot.ts:107-108` |
-| Throttle at exactly minGap | **PASS** | `reserve-slot.ts:99`, `compute-schedule.ts:73-74` |
+| Check                      | Result          | Evidence                                               |
+| -------------------------- | --------------- | ------------------------------------------------------ |
+| Window boundary            | **PASS**        | `sending-window.ts:65-67`, `sending-window.ts:93-94`   |
+| Business days + DST        | **PASS** (impl) | `formatInTimeZone` — `sending-window.ts:42`            |
+| Daily cap at exactly cap   | **PASS**        | `compute-schedule.ts:87-88`, `reserve-slot.ts:107-108` |
+| Throttle at exactly minGap | **PASS**        | `reserve-slot.ts:99`, `compute-schedule.ts:73-74`      |
 
 ---
 
 ### 15. AI generation retry on schema failure
 
-| Check | Result | Evidence |
-|-------|--------|----------|
+| Check           | Result   | Evidence                                       |
+| --------------- | -------- | ---------------------------------------------- |
 | Retries 2 times | **PASS** | `generate-email.ts:6,20-36` (3 total attempts) |
 
 ---
@@ -277,14 +277,14 @@ No validation `data.mailboxId === enrollment.mailboxId` when anchoring manual se
 
 ## P2 findings
 
-| Item | Status |
-|------|--------|
-| Migration numbering | OK — journal `0000`–`0011` matches SQL files |
-| pgvector extension | OK — `0007_phase8prep_ai_interfaces.sql:1` |
+| Item                         | Status                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| Migration numbering          | OK — journal `0000`–`0011` matches SQL files                             |
+| pgvector extension           | OK — `0007_phase8prep_ai_interfaces.sql:1`                               |
 | FK cascade on mailbox delete | **BUG** — messages cascade-delete (`0004_phase4_mailbox_message.sql:56`) |
-| Timezone `getHours` | OK — uses `formatInTimeZone` |
-| Concurrent admin writes | **confidence: low** — last-write-wins, no locking |
-| JSON schema drift | Spot-check OK for prospect status enums |
+| Timezone `getHours`          | OK — uses `formatInTimeZone`                                             |
+| Concurrent admin writes      | **confidence: low** — last-write-wins, no locking                        |
+| JSON schema drift            | Spot-check OK for prospect status enums                                  |
 
 ---
 

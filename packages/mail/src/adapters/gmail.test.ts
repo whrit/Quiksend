@@ -1,3 +1,10 @@
+/**
+ * Gmail adapter unit tests mock the Nango proxy client rather than using
+ * `createFakeAdapter` from `./fake.ts`. That is intentional: these tests assert
+ * provider-specific behavior (base64url encoding, Gmail send + metadata fetch,
+ * error mapping from Nango responses). `createFakeAdapter` is reserved for
+ * engine-level tests that only need a record of outbound MIME/threading shape.
+ */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ComplianceInput } from "../compliance.ts";
 import type { OutboundEmail } from "../adapter.ts";
