@@ -241,6 +241,11 @@ function InboxPage() {
                       bounce
                     </Badge>
                   )}
+                  {thread.sentiment && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {thread.sentiment}
+                    </Badge>
+                  )}
                 </div>
               </button>
             ))

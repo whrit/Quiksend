@@ -1,16 +1,11 @@
 import { env } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
-import {
-  createSmtpTransport,
-  decryptSmtpConfig,
-  sendMime,
-  type ComplianceInput,
-} from "@quiksend/mail";
-import { buildMime } from "@quiksend/mail/mime";
-import { normalizeMessageId } from "@quiksend/mail/threading";
+import { buildComplianceParts, buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
+import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { orgFn } from "./org-fn.ts";
+import { resolveMailboxAdapter } from "./mailboxes.functions.ts";
 
 const inboxFilterSchema = z.object({
   unread: z.boolean().optional(),
@@ -37,6 +32,7 @@ export type InboxThreadSummary = {
   unreadCount: number;
   hasBounce: boolean;
   preview: string | null;
+  sentiment: string | null;
 };
 
 function threadKeyForMessage(row: {
@@ -169,6 +165,8 @@ export const listInboxThreads = orgFn({ method: "POST" })
         (m) => m.direction === "inbound" && m.status === "received",
       ).length;
 
+      const latestInbound = sorted.find((m) => m.direction === "inbound");
+
       return {
         threadKey,
         subject: latest.subject,
@@ -184,6 +182,7 @@ export const listInboxThreads = orgFn({ method: "POST" })
         unreadCount,
         hasBounce: messages.some((m) => m.bounceType !== null),
         preview: latest.bodyText?.slice(0, 140) ?? null,
+        sentiment: latestInbound?.sentiment ?? null,
       };
     });
 
@@ -261,6 +260,7 @@ export const getInboxThread = orgFn({ method: "POST" })
         inReplyTo: m.inReplyTo,
         enrollmentId: m.enrollmentId,
         prospectId: m.prospectId,
+        sentiment: m.sentiment,
       })),
     };
   });
@@ -303,8 +303,6 @@ export const sendReply = orgFn({ method: "POST" })
       ),
     });
     if (!mailbox) throw new Error("Mailbox not found");
-    if (mailbox.provider !== "smtp")
-      throw new Error("Only SMTP mailboxes are supported for replies");
 
     const prospect = anchor.prospectId
       ? await db.query.prospect.findFirst({
@@ -327,11 +325,14 @@ export const sendReply = orgFn({ method: "POST" })
     const replyToId = anchor.messageIdHeader ?? anchor.inReplyTo;
     if (!replyToId) throw new Error("Cannot thread reply without anchor Message-ID");
 
-    const compliance: ComplianceInput = {
-      unsubscribeUrl: "https://app.example.com/u/pending",
+    const compliance = buildComplianceParts({
+      unsubscribeUrl: buildUnsubscribeUrl(
+        env.BETTER_AUTH_URL ?? "http://localhost:3000",
+        mintUnsubscribeToken({ prospectId: prospect.id, orgId: organizationId }),
+      ),
       senderPostalAddress: parseOrgPostalAddress(org?.metadata ?? null),
       senderOrgName: org?.name ?? "Quiksend",
-    };
+    });
 
     const bodyText = data.bodyText ?? stripHtml(data.bodyHtml);
     const signature = mailbox.signatureHtml ? `\n\n${mailbox.signatureHtml}` : "";
@@ -339,7 +340,15 @@ export const sendReply = orgFn({ method: "POST" })
       ? anchor.subject
       : `Re: ${anchor.subject ?? "(no subject)"}`;
 
-    const mime = buildMime({
+    const threading = buildThreadingHeaders({
+      messageId: replyToId,
+      subject,
+      providerThreadId: anchor.providerThreadId,
+      priorReferences: priorRefs,
+    });
+
+    const adapter = resolveMailboxAdapter(mailbox);
+    const sendResult = await adapter.send({
       from: { email: mailbox.address, name: mailbox.fromName ?? undefined },
       to: [
         {
@@ -347,35 +356,12 @@ export const sendReply = orgFn({ method: "POST" })
           name: [prospect.firstName, prospect.lastName].filter(Boolean).join(" ") || undefined,
         },
       ],
-      subject,
-      html: `${data.bodyHtml}${signature}`,
-      text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}`,
-      anchor: {
-        messageId: replyToId,
-        subject,
-        providerThreadId: anchor.providerThreadId,
-        priorReferences: priorRefs,
-      },
-      compliance,
+      subject: threading.subject,
+      html: `${data.bodyHtml}${signature}${compliance.footerHtml}`,
+      text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}${compliance.footerText}`,
+      threading,
+      extraHeaders: compliance.headers,
     });
-
-    const smtpKey = env.MAILBOX_ENCRYPTION_KEY;
-    if (!smtpKey || typeof mailbox.smtpConfig !== "string") {
-      throw new Error("Mailbox SMTP configuration is unavailable");
-    }
-    const smtp = decryptSmtpConfig(mailbox.smtpConfig, smtpKey);
-    const sendResult = await sendMime(
-      createSmtpTransport({
-        host: smtp.host,
-        port: smtp.port,
-        secure: smtp.secure,
-        auth: smtp.auth,
-        fromAddress: mailbox.address,
-        fromName: mailbox.fromName ?? undefined,
-      }),
-      mime,
-      { from: mailbox.address, to: [prospect.email] },
-    );
 
     const messageIdHeader = normalizeMessageId(sendResult.messageId);
 
@@ -385,7 +371,7 @@ export const sendReply = orgFn({ method: "POST" })
       prospectId: prospect.id,
       enrollmentId: anchor.enrollmentId,
       direction: "outbound",
-      subject: mime.subject,
+      subject: threading.subject,
       bodyHtml: data.bodyHtml,
       bodyText,
       messageIdHeader,
@@ -506,6 +492,24 @@ export const unsuppressEmail = orgFn({ method: "POST" })
         ),
       );
     return { ok: true };
+  });
+
+export const bulkUnsuppressEmails = orgFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z.object({ emails: z.array(z.string().email()).min(1).max(500) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { organizationId } = context.orgContext;
+    const values = data.emails.map((e) => e.toLowerCase());
+    await db
+      .delete(tables.suppression)
+      .where(
+        and(
+          eq(tables.suppression.organizationId, organizationId),
+          inArray(tables.suppression.value, values),
+        ),
+      );
+    return { deleted: values.length };
   });
 
 export const listSuppressions = orgFn({ method: "POST" })

@@ -2,6 +2,24 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   createCrmConnectSession,
   disconnectCrm,
   finalizeCrmConnection,
@@ -9,15 +27,148 @@ import {
   triggerCrmSync,
   type CrmConnectionDto,
 } from "@/lib/crm.functions";
+import { createList, listLists } from "@/lib/prospects.functions.ts";
 import Nango from "@nangohq/frontend";
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_protected/settings/crm/")({
   component: CrmSettingsPage,
   loader: async () => listCrmConnections(),
 });
+
+type PullFilter = "all" | "modified_since" | "tagged";
+
+function PullToListDialog({ connection }: { connection: CrmConnectionDto }) {
+  const [open, setOpen] = useState(false);
+  const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
+  const [targetListId, setTargetListId] = useState("");
+  const [newListName, setNewListName] = useState("");
+  const [filter, setFilter] = useState<PullFilter>("all");
+  const [modifiedSinceDays, setModifiedSinceDays] = useState("30");
+  const [tag, setTag] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    void listLists({ data: {} }).then((rows) => {
+      setLists(rows.map((l) => ({ id: l.id, name: l.name })));
+    });
+  }, [open]);
+
+  const handlePull = async () => {
+    setBusy(true);
+    try {
+      let listId = targetListId;
+      if (targetListId === "__new__") {
+        if (!newListName.trim()) throw new Error("Enter a list name");
+        const created = await createList({
+          data: { name: newListName.trim(), description: `CRM pull from ${connection.provider}` },
+        });
+        listId = created.id;
+      }
+      if (!listId) throw new Error("Select a target list");
+
+      await triggerCrmSync({
+        data: {
+          connectionId: connection.id,
+          model: "Contact",
+          targetListId: listId,
+          filter,
+          modifiedSinceDays: filter === "modified_since" ? Number(modifiedSinceDays) : undefined,
+          tag: filter === "tagged" ? tag.trim() || undefined : undefined,
+        },
+      });
+      toast.success("CRM contacts pull enqueued");
+      setOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to enqueue pull");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="secondary">
+          Pull contacts to list
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Pull contacts to list</DialogTitle>
+          <DialogDescription>
+            Sync contacts from {connection.provider} into a Quiksend list.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Target list</Label>
+            <Select value={targetListId} onValueChange={setTargetListId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a list" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__new__">Create new list…</SelectItem>
+                {lists.map((list) => (
+                  <SelectItem key={list.id} value={list.id}>
+                    {list.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {targetListId === "__new__" && (
+              <Input
+                placeholder="New list name"
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+              />
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label>Filter</Label>
+            <Select value={filter} onValueChange={(v) => setFilter(v as PullFilter)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All contacts</SelectItem>
+                <SelectItem value="modified_since">Modified in last N days</SelectItem>
+                <SelectItem value="tagged">Contacts tagged X</SelectItem>
+              </SelectContent>
+            </Select>
+            {filter === "modified_since" && (
+              <Input
+                type="number"
+                min={1}
+                value={modifiedSinceDays}
+                onChange={(e) => setModifiedSinceDays(e.target.value)}
+                placeholder="Days"
+              />
+            )}
+            {filter === "tagged" && (
+              <Input
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+                placeholder="Tag name (provider-dependent)"
+              />
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button disabled={busy} onClick={() => void handlePull()}>
+            {busy ? "Enqueuing…" : "Pull contacts"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function CrmSettingsPage() {
   const initial = Route.useLoaderData();
@@ -149,6 +300,7 @@ function CrmSettingsPage() {
                 >
                   Sync contacts
                 </Button>
+                <PullToListDialog connection={conn} />
                 <Link
                   to="/settings/crm/$connectionId/mapping"
                   params={{ connectionId: conn.id }}
