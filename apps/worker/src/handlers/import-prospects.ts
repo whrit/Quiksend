@@ -1,6 +1,6 @@
 import { logger } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
-import { registerHandler } from "@quiksend/queue";
+import { enqueueWithRetries, registerHandler } from "@quiksend/queue";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 const CHUNK_SIZE = 500;
@@ -244,6 +244,17 @@ export async function registerImportProspectsHandler(): Promise<void> {
           { batchId, organizationId, createdCount, updatedCount, skippedCount, erroredCount },
           "import.process completed",
         );
+
+        const emails = [
+          ...new Set(
+            rows
+              .map((row) => normalizeEmail(row.prospect.email))
+              .filter((email): email is string => Boolean(email)),
+          ),
+        ];
+        if (emails.length > 0) {
+          await enqueueWithRetries("gateway.detect_bulk", { emails });
+        }
       } catch (err) {
         logger.error({ err, batchId, organizationId }, "import.process failed");
         await db

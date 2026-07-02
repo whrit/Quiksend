@@ -35,6 +35,7 @@ import { Route as ProtectedSettingsValuePropsIndexRouteImport } from './routes/_
 import { Route as ProtectedSettingsMailboxesIndexRouteImport } from './routes/_protected/settings/mailboxes/index'
 import { Route as ProtectedSettingsCrmIndexRouteImport } from './routes/_protected/settings/crm/index'
 import { Route as ProtectedSettingsApiKeysIndexRouteImport } from './routes/_protected/settings/api-keys/index'
+import { Route as ProtectedSequencesIdIndexRouteImport } from './routes/_protected/sequences/$id/index'
 import { Route as ApiV1ProspectsIdRouteImport } from './routes/api/v1/prospects.$id'
 import { Route as ApiV1OpenapiJsonRouteImport } from './routes/api/v1/openapi.json'
 import { Route as ProtectedSettingsMailboxesNewRouteImport } from './routes/_protected/settings/mailboxes/new'
@@ -184,6 +185,12 @@ const ProtectedSettingsApiKeysIndexRoute =
     path: '/settings/api-keys/',
     getParentRoute: () => ProtectedRoute,
   } as any)
+const ProtectedSequencesIdIndexRoute =
+  ProtectedSequencesIdIndexRouteImport.update({
+    id: '/sequences/$id/',
+    path: '/sequences/$id/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ApiV1ProspectsIdRoute = ApiV1ProspectsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -284,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/api/v1/openapi/json': typeof ApiV1OpenapiJsonRoute
   '/api/v1/prospects/$id': typeof ApiV1ProspectsIdRoute
+  '/sequences/$id/': typeof ProtectedSequencesIdIndexRoute
   '/settings/api-keys/': typeof ProtectedSettingsApiKeysIndexRoute
   '/settings/crm/': typeof ProtectedSettingsCrmIndexRoute
   '/settings/mailboxes/': typeof ProtectedSettingsMailboxesIndexRoute
@@ -323,6 +331,7 @@ export interface FileRoutesByTo {
   '/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/api/v1/openapi/json': typeof ApiV1OpenapiJsonRoute
   '/api/v1/prospects/$id': typeof ApiV1ProspectsIdRoute
+  '/sequences/$id': typeof ProtectedSequencesIdIndexRoute
   '/settings/api-keys': typeof ProtectedSettingsApiKeysIndexRoute
   '/settings/crm': typeof ProtectedSettingsCrmIndexRoute
   '/settings/mailboxes': typeof ProtectedSettingsMailboxesIndexRoute
@@ -364,6 +373,7 @@ export interface FileRoutesById {
   '/_protected/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
   '/api/v1/openapi/json': typeof ApiV1OpenapiJsonRoute
   '/api/v1/prospects/$id': typeof ApiV1ProspectsIdRoute
+  '/_protected/sequences/$id/': typeof ProtectedSequencesIdIndexRoute
   '/_protected/settings/api-keys/': typeof ProtectedSettingsApiKeysIndexRoute
   '/_protected/settings/crm/': typeof ProtectedSettingsCrmIndexRoute
   '/_protected/settings/mailboxes/': typeof ProtectedSettingsMailboxesIndexRoute
@@ -405,6 +415,7 @@ export interface FileRouteTypes {
     | '/settings/mailboxes/new'
     | '/api/v1/openapi/json'
     | '/api/v1/prospects/$id'
+    | '/sequences/$id/'
     | '/settings/api-keys/'
     | '/settings/crm/'
     | '/settings/mailboxes/'
@@ -444,6 +455,7 @@ export interface FileRouteTypes {
     | '/settings/mailboxes/new'
     | '/api/v1/openapi/json'
     | '/api/v1/prospects/$id'
+    | '/sequences/$id'
     | '/settings/api-keys'
     | '/settings/crm'
     | '/settings/mailboxes'
@@ -484,6 +496,7 @@ export interface FileRouteTypes {
     | '/_protected/settings/mailboxes/new'
     | '/api/v1/openapi/json'
     | '/api/v1/prospects/$id'
+    | '/_protected/sequences/$id/'
     | '/_protected/settings/api-keys/'
     | '/_protected/settings/crm/'
     | '/_protected/settings/mailboxes/'
@@ -695,6 +708,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedSettingsApiKeysIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/sequences/$id/': {
+      id: '/_protected/sequences/$id/'
+      path: '/sequences/$id'
+      fullPath: '/sequences/$id/'
+      preLoaderRoute: typeof ProtectedSequencesIdIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/api/v1/prospects/$id': {
       id: '/api/v1/prospects/$id'
       path: '/$id'
@@ -809,6 +829,7 @@ interface ProtectedRouteChildren {
   ProtectedSequencesIdEnrollRoute: typeof ProtectedSequencesIdEnrollRoute
   ProtectedSequencesIdEnrollmentsRoute: typeof ProtectedSequencesIdEnrollmentsRoute
   ProtectedSettingsMailboxesNewRoute: typeof ProtectedSettingsMailboxesNewRoute
+  ProtectedSequencesIdIndexRoute: typeof ProtectedSequencesIdIndexRoute
   ProtectedSettingsApiKeysIndexRoute: typeof ProtectedSettingsApiKeysIndexRoute
   ProtectedSettingsCrmIndexRoute: typeof ProtectedSettingsCrmIndexRoute
   ProtectedSettingsMailboxesIndexRoute: typeof ProtectedSettingsMailboxesIndexRoute
@@ -834,6 +855,7 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedSequencesIdEnrollRoute: ProtectedSequencesIdEnrollRoute,
   ProtectedSequencesIdEnrollmentsRoute: ProtectedSequencesIdEnrollmentsRoute,
   ProtectedSettingsMailboxesNewRoute: ProtectedSettingsMailboxesNewRoute,
+  ProtectedSequencesIdIndexRoute: ProtectedSequencesIdIndexRoute,
   ProtectedSettingsApiKeysIndexRoute: ProtectedSettingsApiKeysIndexRoute,
   ProtectedSettingsCrmIndexRoute: ProtectedSettingsCrmIndexRoute,
   ProtectedSettingsMailboxesIndexRoute: ProtectedSettingsMailboxesIndexRoute,

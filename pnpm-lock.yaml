@@ -507,6 +507,9 @@ importers:
       date-fns-tz:
         specifier: 3.2.0
         version: 3.2.0(date-fns@4.1.0)
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
 
   packages/db:
     dependencies:
@@ -563,6 +566,9 @@ importers:
       nodemailer:
         specifier: 9.0.3
         version: 9.0.3
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/nodemailer':
         specifier: 8.0.1

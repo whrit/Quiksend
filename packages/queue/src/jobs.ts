@@ -127,6 +127,33 @@ export interface ImportProcessPayload {
   rows: z.infer<typeof importProcessRowSchema>[];
 }
 
+// ── gateway.detect_* — email gateway classification (Phase 11A) ───────────
+export const gatewayDetectSingleSchema = z.object({
+  email: z.string().email(),
+});
+export interface GatewayDetectSinglePayload {
+  email: string;
+}
+
+export const gatewayDetectBulkSchema = z.object({
+  emails: z.array(z.string().email()).min(1).max(5000),
+});
+export interface GatewayDetectBulkPayload {
+  emails: string[];
+}
+
+export const gatewayApplyClassificationSchema = z.object({
+  organizationId: z.string().optional(),
+  domain: z.string().optional(),
+});
+export interface GatewayApplyClassificationPayload {
+  organizationId?: string;
+  domain?: string;
+}
+
+export const gatewaySweepStaleSchema = z.object({});
+export type GatewaySweepStalePayload = Record<string, never>;
+
 /**
  * Mapping from job name → concrete payload type. Consumers use this to look up
  * a payload interface by job name at the type level; runtime code uses
@@ -142,6 +169,10 @@ export interface JobPayloadMap {
   "webhook.deliver": WebhookDeliverPayload;
   "ai.research": AiResearchPayload;
   "import.process": ImportProcessPayload;
+  "gateway.detect_single": GatewayDetectSinglePayload;
+  "gateway.detect_bulk": GatewayDetectBulkPayload;
+  "gateway.apply_classification": GatewayApplyClassificationPayload;
+  "gateway.sweep_stale": GatewaySweepStalePayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -156,6 +187,10 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "webhook.deliver": webhookDeliverSchema,
   "ai.research": aiResearchSchema,
   "import.process": importProcessSchema,
+  "gateway.detect_single": gatewayDetectSingleSchema,
+  "gateway.detect_bulk": gatewayDetectBulkSchema,
+  "gateway.apply_classification": gatewayApplyClassificationSchema,
+  "gateway.sweep_stale": gatewaySweepStaleSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];

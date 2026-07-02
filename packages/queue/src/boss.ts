@@ -24,6 +24,24 @@ const QUEUE_DEFAULTS: Partial<Record<JobName, UpdateQueueOptions>> = {
     retryBackoff: true,
     retryDelayMax: 3600,
   },
+  "gateway.detect_single": {
+    retryLimit: 5,
+    retryDelay: 60,
+    retryBackoff: true,
+    retryDelayMax: 3600,
+  },
+  "gateway.detect_bulk": {
+    retryLimit: 5,
+    retryDelay: 60,
+    retryBackoff: true,
+    retryDelayMax: 3600,
+  },
+  "gateway.apply_classification": {
+    retryLimit: 5,
+    retryDelay: 60,
+    retryBackoff: true,
+    retryDelayMax: 3600,
+  },
 };
 
 const WORK_DEFAULTS: Partial<Record<JobName, WorkOptions>> = {
@@ -71,6 +89,22 @@ export async function enqueue<N extends JobName>(
   const id = await boss.send(job, validated as object, options);
   logger.debug({ job, id }, "job enqueued");
   return id;
+}
+
+const RETRY_ENQUEUE_DEFAULTS: EnqueueOptions = {
+  retryLimit: 5,
+  retryDelay: 60,
+  retryBackoff: true,
+  retryDelayMax: 3600,
+};
+
+/** Enqueue with standard retry policy (5 attempts, exponential backoff to 3600s). */
+export async function enqueueWithRetries<N extends JobName>(
+  job: N,
+  payload: JobPayloadMap[N],
+  options?: EnqueueOptions,
+): Promise<string | null> {
+  return enqueue(job, payload, { ...RETRY_ENQUEUE_DEFAULTS, ...options });
 }
 
 export type JobHandler<N extends JobName> = (payload: JobPayloadMap[N]) => Promise<void>;

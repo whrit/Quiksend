@@ -3,6 +3,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { GatewayBadge } from "@/components/gateway-badge.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -133,6 +134,7 @@ function ProspectDetailPage() {
           {[prospect.firstName, prospect.lastName].filter(Boolean).join(" ") || prospect.email}
         </h1>
         <Badge variant="secondary">{prospect.status}</Badge>
+        <GatewayBadge gateway={prospect.emailGateway} evidence={prospect.gatewayEvidence} />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">

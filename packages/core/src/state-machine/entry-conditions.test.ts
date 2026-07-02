@@ -6,6 +6,7 @@ const baseCtx = {
   hasBounceOnThread: false,
   currentStepIndex: 1,
   lastReplyAt: null,
+  recipientGateway: null,
 };
 
 describe("evaluateEntryCondition", () => {
@@ -24,5 +25,51 @@ describe("evaluateEntryCondition", () => {
 
   it("proceeds if_no_reply when no reply on thread", () => {
     expect(evaluateEntryCondition({ kind: "if_no_reply" }, baseCtx)).toEqual({ proceed: true });
+  });
+
+  it("skips when recipient gateway is not in allow list", () => {
+    const result = evaluateEntryCondition(
+      { recipientGatewayIn: ["proofpoint"] },
+      { ...baseCtx, recipientGateway: "mimecast" },
+    );
+    expect(result).toEqual({
+      proceed: false,
+      skipReason: "recipient_gateway_not_in_allow_list",
+    });
+  });
+
+  it("proceeds when recipient gateway is in allow list", () => {
+    expect(
+      evaluateEntryCondition(
+        { recipientGatewayIn: ["proofpoint", "mimecast"] },
+        { ...baseCtx, recipientGateway: "proofpoint" },
+      ),
+    ).toEqual({ proceed: true });
+  });
+
+  it("skips when recipient gateway is in deny list", () => {
+    const result = evaluateEntryCondition(
+      { recipientGatewayNotIn: ["proofpoint"] },
+      { ...baseCtx, recipientGateway: "proofpoint" },
+    );
+    expect(result).toEqual({
+      proceed: false,
+      skipReason: "recipient_gateway_in_deny_list",
+    });
+  });
+
+  it("proceeds deny list when recipient gateway is not listed", () => {
+    expect(
+      evaluateEntryCondition(
+        { recipientGatewayNotIn: ["proofpoint"] },
+        { ...baseCtx, recipientGateway: "google_workspace" },
+      ),
+    ).toEqual({ proceed: true });
+  });
+
+  it("ignores gateway predicates when recipient gateway is unknown/null", () => {
+    expect(evaluateEntryCondition({ recipientGatewayIn: ["proofpoint"] }, baseCtx)).toEqual({
+      proceed: true,
+    });
   });
 });

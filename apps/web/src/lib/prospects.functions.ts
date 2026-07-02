@@ -1,11 +1,14 @@
 import { db, tables } from "@quiksend/db";
-import { enqueue } from "@quiksend/queue";
+import { enqueue, enqueueWithRetries } from "@quiksend/queue";
+import type { EmailGateway } from "@quiksend/mail/gateway-detect";
+import { isAdminOrOwner } from "@quiksend/core";
 import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { DedupePolicy, ValidCsvRow } from "./prospect-import.ts";
 import { normalizeDomain, normalizeEmail } from "./prospect-import.ts";
 import { orgFn } from "./org-fn.ts";
 import { createProspectInputSchema, prospectStatusSchema } from "./schemas/prospect.ts";
+import { withAnalyticsTiming } from "./timing.ts";
 
 type ProspectRow = typeof tables.prospect.$inferSelect;
 type CompanyRow = typeof tables.company.$inferSelect;
@@ -32,6 +35,9 @@ function serializeProspect(row: ProspectRow) {
     crmExternalId: row.crmExternalId,
     crmConnectionId: row.crmConnectionId,
     lastCrmSyncAt: row.lastCrmSyncAt?.toISOString() ?? null,
+    emailGateway: row.emailGateway ?? null,
+    gatewayClassifiedAt: row.gatewayClassifiedAt?.toISOString() ?? null,
+    gatewayEvidence: row.gatewayEvidence ?? null,
     deletedAt: row.deletedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -165,6 +171,7 @@ const listProspectsInputSchema = z.object({
   status: z.array(prospectStatusSchema).optional(),
   listId: z.string().uuid().optional(),
   companyId: z.string().uuid().optional(),
+  gateways: z.array(z.string()).optional(),
   search: z.string().max(200).optional(),
   sortField: sortFieldSchema.default("createdAt"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
@@ -268,6 +275,9 @@ export const listProspects = orgFn({ method: "GET" })
     }
     if (data.companyId) {
       conditions.push(eq(tables.prospect.companyId, data.companyId));
+    }
+    if (data.gateways?.length) {
+      conditions.push(inArray(tables.prospect.emailGateway, data.gateways as EmailGateway[]));
     }
     if (data.search) {
       const term = `%${data.search.trim()}%`;
@@ -408,6 +418,7 @@ export const createProspect = orgFn({ method: "POST" })
       .returning();
 
     await enqueueCrmContactUpsertForProspect(organizationId, created!.id);
+    await enqueueWithRetries("gateway.detect_single", { email });
 
     return serializeProspect(created!);
   });
@@ -1038,4 +1049,141 @@ export const getProspectResearchProfile = orgFn({ method: "POST" })
       status: profile.status,
       updatedAt: profile.updatedAt.toISOString(),
     };
+  });
+
+function extractEmailDomain(email: string): string | null {
+  const at = email.lastIndexOf("@");
+  if (at < 0) return null;
+  return email.slice(at + 1).toLowerCase();
+}
+
+type GatewayMixRow = { gateway: string; count: number; pct: number };
+
+async function queryGatewayMix(
+  organizationId: string,
+  extraCondition?: ReturnType<typeof sql>,
+): Promise<{ mix: GatewayMixRow[]; classifiedPct: number; total: number }> {
+  const conditions = [
+    eq(tables.prospect.organizationId, organizationId),
+    isNull(tables.prospect.deletedAt),
+  ];
+  if (extraCondition) conditions.push(extraCondition);
+
+  const rows = await db
+    .select({
+      gateway: tables.prospect.emailGateway,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(tables.prospect)
+    .where(and(...conditions))
+    .groupBy(tables.prospect.emailGateway);
+
+  const total = rows.reduce((sum, r) => sum + r.count, 0);
+  const classified = rows.filter((r) => r.gateway !== null).reduce((sum, r) => sum + r.count, 0);
+
+  const mix = rows
+    .filter((r) => r.gateway !== null)
+    .map((r) => ({
+      gateway: r.gateway!,
+      count: r.count,
+      pct: total > 0 ? r.count / total : 0,
+    }))
+    .toSorted((a, b) => b.count - a.count);
+
+  return {
+    mix,
+    classifiedPct: total > 0 ? classified / total : 0,
+    total,
+  };
+}
+
+export const classifyEmail = orgFn({ method: "POST" })
+  .validator(z.object({ email: z.string().email() }))
+  .handler(async ({ data }) => {
+    const domain = extractEmailDomain(data.email);
+    if (!domain) {
+      return { gateway: "unknown" as const, evidence: [], cached: false };
+    }
+
+    const cached = await db.query.gatewayClassification.findFirst({
+      where: eq(tables.gatewayClassification.emailDomain, domain),
+    });
+
+    if (cached) {
+      return {
+        gateway: cached.gateway,
+        evidence: cached.evidence,
+        cached: true,
+      };
+    }
+
+    await enqueueWithRetries("gateway.detect_single", { email: data.email });
+    return { gateway: "unknown" as const, evidence: [], cached: false };
+  });
+
+export const reclassifyDomain = orgFn({ method: "POST" })
+  .validator(z.object({ emailDomain: z.string().min(1).max(255) }))
+  .handler(async ({ data, context }) => {
+    if (!isAdminOrOwner(context.orgContext as Parameters<typeof isAdminOrOwner>[0])) {
+      throw new Error("Admin role required");
+    }
+
+    const domain = data.emailDomain.trim().toLowerCase();
+    await db
+      .delete(tables.gatewayClassification)
+      .where(eq(tables.gatewayClassification.emailDomain, domain));
+
+    await enqueueWithRetries("gateway.detect_single", { email: `probe@${domain}` });
+    await enqueueWithRetries("gateway.apply_classification", {
+      organizationId: context.orgContext.organizationId,
+      domain,
+    });
+
+    return { success: true as const };
+  });
+
+export const getGatewayMixForOrg = orgFn({ method: "GET" })
+  .validator(z.object({}))
+  .handler(async ({ context }) => {
+    const { organizationId } = context.orgContext;
+    return withAnalyticsTiming("getGatewayMixForOrg", organizationId, async () =>
+      queryGatewayMix(organizationId),
+    );
+  });
+
+export const getGatewayMixForList = orgFn({ method: "GET" })
+  .validator(z.object({ listId: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { organizationId } = context.orgContext;
+    return withAnalyticsTiming("getGatewayMixForList", organizationId, async () => {
+      const list = await db.query.list.findFirst({
+        where: and(eq(tables.list.id, data.listId), eq(tables.list.organizationId, organizationId)),
+      });
+      if (!list) notFound();
+
+      return queryGatewayMix(
+        organizationId,
+        sql`${tables.prospect.id} in (select ${tables.listMember.prospectId} from ${tables.listMember} where ${tables.listMember.listId} = ${data.listId})`,
+      );
+    });
+  });
+
+export const getGatewayMixForSequence = orgFn({ method: "GET" })
+  .validator(z.object({ sequenceId: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { organizationId } = context.orgContext;
+    return withAnalyticsTiming("getGatewayMixForSequence", organizationId, async () => {
+      const sequence = await db.query.sequence.findFirst({
+        where: and(
+          eq(tables.sequence.id, data.sequenceId),
+          eq(tables.sequence.organizationId, organizationId),
+        ),
+      });
+      if (!sequence) notFound();
+
+      return queryGatewayMix(
+        organizationId,
+        sql`${tables.prospect.id} in (select ${tables.enrollment.prospectId} from ${tables.enrollment} where ${tables.enrollment.sequenceId} = ${data.sequenceId} and ${tables.enrollment.organizationId} = ${organizationId})`,
+      );
+    });
   });
