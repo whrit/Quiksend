@@ -1,0 +1,13 @@
+Return-Path: <>
+From: Mail Delivery Subsystem <mailer-daemon@mail.example.org>
+To: sender@example.com
+Subject: Undeliverable: Checking in
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+This is the mail system at host mail.example.org.
+
+I'm sorry to have to inform you that your message could not be delivered to one or more recipients.
+
+<quota@recipient.net>: host mx.recipient.net said:
+452 4.2.2 <quota@recipient.net>: Mailbox full - over quota; try again later

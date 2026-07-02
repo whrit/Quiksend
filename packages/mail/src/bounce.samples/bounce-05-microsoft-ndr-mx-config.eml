@@ -1,0 +1,34 @@
+Return-Path: <>
+From: Microsoft Outlook <MicrosoftExchange@outlook.com>
+To: sender@example.com
+Subject: Undeliverable: Follow up
+X-Failed-Recipients: admin@misconfigured-mx.com
+X-Postmaster-Msguid: 660e8400-e29b-41d4-a716-446655440001
+MIME-Version: 1.0
+Content-Type: multipart/report; boundary="ms-boundary-05"; report-type=delivery-status
+
+--ms-boundary-05
+Content-Type: text/plain; charset="utf-8"
+
+Delivery has failed to these recipients or groups:
+
+admin@misconfigured-mx.com
+A configuration error occurred with the recipient's mail server. Please try again later.
+
+Diagnostic information for administrators:
+
+Generating server: outlook.com
+admin@misconfigured-mx.com
+#451 4.4.4 DNS MX lookup failed; try again later ##
+
+--ms-boundary-05
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; outlook.com
+Final-Recipient: rfc822; admin@misconfigured-mx.com
+Original-Recipient: rfc822; admin@misconfigured-mx.com
+Action: delayed
+Status: 4.4.4
+Diagnostic-Code: smtp; 451 4.4.4 Temporary failure - MX configuration issue
+
+--ms-boundary-05--

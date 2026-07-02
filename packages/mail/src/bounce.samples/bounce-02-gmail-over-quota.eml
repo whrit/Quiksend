@@ -1,0 +1,28 @@
+Return-Path: <>
+From: Mail Delivery Subsystem <mailer-daemon@googlemail.com>
+To: sender@example.com
+Subject: Delivery Status Notification (Failure)
+MIME-Version: 1.0
+Content-Type: multipart/report; boundary="gmail-boundary-02"; report-type=delivery-status
+
+--gmail-boundary-02
+Content-Type: text/plain; charset="UTF-8"
+
+** Mailbox full **
+
+Your message wasn't delivered to fullbox@recipient.com because the mailbox is over quota.
+
+The response from the remote server was:
+452 4.2.2 The email account is over quota.
+
+--gmail-boundary-02
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; googlemail.com
+Final-Recipient: rfc822; fullbox@recipient.com
+Original-Recipient: rfc822; fullbox@recipient.com
+Action: failed
+Status: 4.2.2
+Diagnostic-Code: smtp; 452 4.2.2 Mailbox full - over quota
+
+--gmail-boundary-02--
