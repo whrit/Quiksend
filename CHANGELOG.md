@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.1.0](https://github.com/whrit/Quiksend/compare/v2.0.0...v2.1.0) (2026-07-02)
+
+
+### Features
+
+* **wave5-beta:** OAuth mailboxes + PRD gap-close ([#37](https://github.com/whrit/Quiksend/issues/37)) ([1cfce2d](https://github.com/whrit/Quiksend/commit/1cfce2deed08202a48af26dfd25970e6b4637b5a))
+
+
+### Bug Fixes
+
+* **wave5-alpha:** engine safety + CAN-SPAM auto-send + effect executor ([#39](https://github.com/whrit/Quiksend/issues/39)) ([77dbc99](https://github.com/whrit/Quiksend/commit/77dbc993159565b507bcbb07a323f370858f5b6d))
+* **wave5-gamma:** security hardening ([#38](https://github.com/whrit/Quiksend/issues/38)) ([5f3edfd](https://github.com/whrit/Quiksend/commit/5f3edfd3a21c1ea0903fb0793496471ee3660397))
+
+
+### Performance
+
+* **wave5-epsilon:** performance indexes + client hardening + Turbo cache ([#41](https://github.com/whrit/Quiksend/issues/41)) ([0b786b4](https://github.com/whrit/Quiksend/commit/0b786b4c1d395a2d901a330a7699461f042b0957))
+
+
+### Refactors
+
+* **wave5-delta:** architecture cleanup + correctness fixes ([#36](https://github.com/whrit/Quiksend/issues/36)) ([74c31d6](https://github.com/whrit/Quiksend/commit/74c31d6e639f566f4d665da0cce85ceb71b4a9fe))
+
 ## [2.0.0](https://github.com/whrit/Quiksend/compare/v1.13.0...v2.0.0) (2026-07-02)
 
 
