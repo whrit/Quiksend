@@ -4,12 +4,11 @@ import { db, tables } from "@quiksend/db";
 import { getNango } from "@quiksend/integrations";
 import {
   checkDomainAuth,
-  createSmtpTransport,
   decryptSmtpConfig,
   encryptSmtpConfig,
-  sendMime,
   type SmtpConfigPlain,
 } from "@quiksend/mail";
+import { createSmtpTransport, sendMime } from "@quiksend/mail/adapters/smtp";
 import { buildMime } from "@quiksend/mail/mime";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";

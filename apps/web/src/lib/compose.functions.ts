@@ -8,12 +8,8 @@ import {
 import { env } from "@quiksend/config";
 import { buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
 import { db, tables } from "@quiksend/db";
-import {
-  createSmtpTransport,
-  decryptSmtpConfig,
-  sendMime,
-  type ComplianceInput,
-} from "@quiksend/mail";
+import { decryptSmtpConfig, type ComplianceInput } from "@quiksend/mail";
+import { createSmtpTransport, sendMime } from "@quiksend/mail/adapters/smtp";
 import { buildMime } from "@quiksend/mail/mime";
 import { normalizeMessageId } from "@quiksend/mail/threading";
 import { and, asc, eq, sql } from "drizzle-orm";

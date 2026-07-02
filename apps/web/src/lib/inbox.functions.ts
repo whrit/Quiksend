@@ -1,11 +1,7 @@
 import { env } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
-import {
-  createSmtpTransport,
-  decryptSmtpConfig,
-  sendMime,
-  type ComplianceInput,
-} from "@quiksend/mail";
+import { decryptSmtpConfig, type ComplianceInput } from "@quiksend/mail";
+import { createSmtpTransport, sendMime } from "@quiksend/mail/adapters/smtp";
 import { buildMime } from "@quiksend/mail/mime";
 import { normalizeMessageId } from "@quiksend/mail/threading";
 import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";

@@ -1,10 +1,16 @@
 import { env } from "@quiksend/config";
 import { getNango } from "@quiksend/integrations";
-import { createAdapterForMailbox, createFakeAdapter } from "@quiksend/mail";
-import { decryptSmtpConfig } from "@quiksend/mail";
-import type { MailboxAdapter } from "@quiksend/mail";
+import { createAdapterForMailbox, decryptSmtpConfig } from "@quiksend/mail";
+import type { MailboxAdapter, MailProvider } from "@quiksend/mail";
 import type { NangoProxyClient } from "@quiksend/mail/nango-proxy";
-import type { tables } from "@quiksend/db";
+
+type MailboxRow = {
+  provider: MailProvider;
+  nangoConnectionId: string | null;
+  smtpConfig: string | null;
+  address: string;
+  fromName: string | null;
+};
 
 function createNangoProxyClient(): NangoProxyClient {
   if (!env.NANGO_SECRET_KEY) {
@@ -25,14 +31,8 @@ function createNangoProxyClient(): NangoProxyClient {
   };
 }
 
-export function createMailboxAdapter(
-  mailbox: typeof tables.mailbox.$inferSelect,
-  _organizationId: string,
-): MailboxAdapter {
-  if (process.env.QUIKSEND_ENGINE_FAKE_MAIL === "1") {
-    return createFakeAdapter().adapter;
-  }
-
+/** Web-app wiring for OAuth + SMTP mailbox adapters. */
+export function getMailboxAdapter(mailbox: MailboxRow): MailboxAdapter {
   const nangoProxy =
     mailbox.provider === "gmail" || mailbox.provider === "microsoft"
       ? createNangoProxyClient()

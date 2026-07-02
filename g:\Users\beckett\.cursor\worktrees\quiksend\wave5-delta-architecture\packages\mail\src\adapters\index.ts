@@ -1,6 +1,6 @@
 import type { MailboxAdapter, MailProvider } from "../adapter.ts";
-import type { SmtpConfigPlain } from "../crypto.ts";
 import type { NangoProxyClient } from "../nango-proxy.ts";
+import type { SmtpConfigPlain } from "../crypto.ts";
 import { createGmailAdapter } from "./gmail.ts";
 import { createMicrosoftAdapter } from "./microsoft.ts";
 import { createSmtpAdapter } from "./smtp.ts";

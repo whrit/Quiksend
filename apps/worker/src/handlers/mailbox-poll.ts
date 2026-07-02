@@ -13,6 +13,13 @@ import {
   handleInboundReply,
   type InboundEmail,
 } from "../sequence/inbound-handler.ts";
+import {
+  dedupeGraphMessages,
+  filterMessagesSince,
+  graphEndpointFromDeltaLink,
+  MS_DELTA_PAGE_CAP,
+  type GraphDeltaPage,
+} from "./microsoft-delta.ts";
 
 const GMAIL_PROVIDER_KEY = "google-mail";
 const MS_PROVIDER_KEY = "microsoft";
@@ -404,39 +411,48 @@ async function pollMicrosoft(
     return { messages: [], cursor };
   }
   const nango = getNango();
-  const endpoint = cursor.microsoftDeltaLink
-    ? cursor.microsoftDeltaLink.replace(/^https:\/\/graph\.microsoft\.com\/v1\.0/, "")
-    : "/v1.0/me/mailFolders/inbox/messages/delta";
+  let endpoint = graphEndpointFromDeltaLink(cursor.microsoftDeltaLink);
+  const rawItems: NonNullable<GraphDeltaPage["value"]>[number][] = [];
+  let deltaLink = cursor.microsoftDeltaLink;
+  let pageCount = 0;
+  let lastDeltaLink: string | undefined;
 
-  let response: { data: unknown; status: number };
-  try {
-    response = await nango.get({
-      endpoint,
-      providerConfigKey: MS_PROVIDER_KEY,
-      connectionId: mailbox.nangoConnectionId,
-    });
-  } catch (err) {
-    const status = (err as { response?: { status?: number } }).response?.status;
-    if (status === 404 || status === 410) {
-      return pollMicrosoft(mailbox, {}, since);
+  while (pageCount < MS_DELTA_PAGE_CAP) {
+    let response: { data: unknown; status: number };
+    try {
+      response = await nango.get({
+        endpoint,
+        providerConfigKey: MS_PROVIDER_KEY,
+        connectionId: mailbox.nangoConnectionId,
+      });
+    } catch (err) {
+      const status = (err as { response?: { status?: number } }).response?.status;
+      if (pageCount === 0 && (status === 404 || status === 410)) {
+        return pollMicrosoft(mailbox, {}, since);
+      }
+      throw err;
     }
-    throw err;
+
+    const data = response.data as GraphDeltaPage;
+    rawItems.push(...(data.value ?? []));
+    pageCount += 1;
+
+    if (data["@odata.deltaLink"]) {
+      lastDeltaLink = data["@odata.deltaLink"];
+    }
+
+    const nextLink = data["@odata.nextLink"];
+    if (!nextLink) break;
+    endpoint = graphEndpointFromDeltaLink(nextLink);
   }
 
-  const data = response.data as {
-    value?: {
-      id: string;
-      conversationId?: string;
-      receivedDateTime?: string;
-      internetMessageId?: string;
-    }[];
-    "@odata.deltaLink"?: string;
-    "@odata.nextLink"?: string;
-  };
+  logger.info(
+    { mailboxId: mailbox.id, pageCount, messageCount: rawItems.length },
+    "microsoft delta poll pages fetched",
+  );
 
   const messages: ParsedInbound[] = [];
-  for (const item of data.value ?? []) {
-    if (!item.receivedDateTime || new Date(item.receivedDateTime) < since) continue;
+  for (const item of filterMessagesSince(dedupeGraphMessages(rawItems), since)) {
     const mimeResponse = await nango.get({
       endpoint: `/v1.0/me/messages/${item.id}/$value`,
       providerConfigKey: MS_PROVIDER_KEY,
@@ -455,7 +471,7 @@ async function pollMicrosoft(
     messages,
     cursor: {
       ...cursor,
-      microsoftDeltaLink: data["@odata.deltaLink"] ?? cursor.microsoftDeltaLink,
+      microsoftDeltaLink: lastDeltaLink ?? deltaLink,
     },
   };
 }

@@ -11,21 +11,21 @@
 
 ## What shipped (V0 features)
 
-| Phase | Version | Scope |
-|---|---|---|
-| Foundations | v1.1.0 | `packages/{core,mail,integrations,queue,observability}` + `orgFn` tenancy chokepoint + shadcn breadth + tenancy CI guard |
-| 2 | v1.2.0 | Prospects + companies + CSV import wizard (papaparse streaming) |
-| 3 | v1.3.0 | Nango wrapper + inbound CRM sync (Salesforce + HubSpot) |
-| 4-back | v1.4.0 | Mailboxes + SMTP adapter + compose + single send |
-| 5 | v1.5.0 | Sequence model + dnd-kit builder + enrollment |
-| 4-rem | v1.6.0 | Gmail + Microsoft Graph adapters + full DKIM check |
-| 6 | v1.7.0 | Scheduler engine (LOAD-TESTED: zero double-sends) |
-| 7-prep | v1.8.0 | DSN bounce parser + inbound matcher + auto-reply detector |
-| 8-prep | v1.9.0 | packages/ai + pgvector schema + value_prop CRUD |
-| 7 | v1.10.0 | Inbound poller + suppression + unified inbox UI |
-| 8 | v1.11.0 | AI research + generation + humanizer + review UI |
-| 9 | v1.12.0 | CRM writeback (idempotent) + analytics dashboards |
-| 10 | v1.13.0 / v2.0.0 | Public REST API + HMAC webhooks + hardening + docs |
+| Phase       | Version          | Scope                                                                                                                    |
+| ----------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Foundations | v1.1.0           | `packages/{core,mail,integrations,queue,observability}` + `orgFn` tenancy chokepoint + shadcn breadth + tenancy CI guard |
+| 2           | v1.2.0           | Prospects + companies + CSV import wizard (papaparse streaming)                                                          |
+| 3           | v1.3.0           | Nango wrapper + inbound CRM sync (Salesforce + HubSpot)                                                                  |
+| 4-back      | v1.4.0           | Mailboxes + SMTP adapter + compose + single send                                                                         |
+| 5           | v1.5.0           | Sequence model + dnd-kit builder + enrollment                                                                            |
+| 4-rem       | v1.6.0           | Gmail + Microsoft Graph adapters + full DKIM check                                                                       |
+| 6           | v1.7.0           | Scheduler engine (LOAD-TESTED: zero double-sends)                                                                        |
+| 7-prep      | v1.8.0           | DSN bounce parser + inbound matcher + auto-reply detector                                                                |
+| 8-prep      | v1.9.0           | packages/ai + pgvector schema + value_prop CRUD                                                                          |
+| 7           | v1.10.0          | Inbound poller + suppression + unified inbox UI                                                                          |
+| 8           | v1.11.0          | AI research + generation + humanizer + review UI                                                                         |
+| 9           | v1.12.0          | CRM writeback (idempotent) + analytics dashboards                                                                        |
+| 10          | v1.13.0 / v2.0.0 | Public REST API + HMAC webhooks + hardening + docs                                                                       |
 
 ## Load-bearing invariants each reviewer must confirm
 
@@ -58,6 +58,7 @@ Write findings to `review/findings/{dimension}.md` in this shape:
 # {Dimension} Review Findings
 
 ## Summary
+
 - Files reviewed: N
 - Critical: N, High: N, Medium: N, Low: N
 - Overall: {ok | needs-fixes | major-concerns}
@@ -65,6 +66,7 @@ Write findings to `review/findings/{dimension}.md` in this shape:
 ## Findings
 
 ### [{DIM}-001] {short title}
+
 - Location: `path/to/file.ts:line-range`
 - Severity: critical | high | medium | low
 - What: {what the issue is, with quoted code if helpful}

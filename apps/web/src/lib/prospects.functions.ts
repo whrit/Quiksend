@@ -1,9 +1,10 @@
 import { db, tables } from "@quiksend/db";
-import { and, asc, desc, eq, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { enqueue } from "@quiksend/queue";
+import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import type { DedupePolicy, ValidCsvRow } from "./prospect-import.ts";
 import { normalizeDomain, normalizeEmail } from "./prospect-import.ts";
 import { orgFn } from "./org-fn.ts";
+import { createProspectInputSchema, prospectStatusSchema } from "./schemas/prospect.ts";
 
 type ProspectRow = typeof tables.prospect.$inferSelect;
 type CompanyRow = typeof tables.company.$inferSelect;
@@ -94,23 +95,25 @@ function serializeImportBatch(row: ImportBatchRow, errors: ImportErrorRow[] = []
   };
 }
 
-const prospectStatusSchema = z.enum([
-  "new",
-  "active",
-  "replied",
-  "bounced",
-  "unsubscribed",
-  "do_not_contact",
-]);
-
-const prospectSourceSchema = z.enum(["manual", "csv", "crm", "api"]);
-
 const sortFieldSchema = z.enum(["createdAt", "email", "lastName", "status"]);
 
-const cursorSchema = z.object({
-  id: z.string().uuid(),
-  createdAt: z.string().datetime(),
-});
+const cursorSchema = z.union([
+  z.object({
+    id: z.string().uuid(),
+    field: sortFieldSchema,
+    value: z.string(),
+  }),
+  z
+    .object({
+      id: z.string().uuid(),
+      createdAt: z.string().datetime(),
+    })
+    .transform((cursor) => ({
+      id: cursor.id,
+      field: "createdAt" as const,
+      value: cursor.createdAt,
+    })),
+]);
 
 const listProspectsInputSchema = z.object({
   status: z.array(prospectStatusSchema).optional(),
@@ -135,19 +138,6 @@ const prospectPatchSchema = z
     companyId: z.string().uuid().nullable().optional(),
   })
   .strict();
-
-const createProspectInputSchema = z.object({
-  email: z.string().min(1).max(320),
-  firstName: z.string().max(200).optional(),
-  lastName: z.string().max(200).optional(),
-  title: z.string().max(200).optional(),
-  phone: z.string().max(50).optional(),
-  linkedinUrl: z.string().max(500).optional(),
-  timezone: z.string().max(100).optional(),
-  status: prospectStatusSchema.optional(),
-  companyId: z.string().uuid().optional(),
-  source: prospectSourceSchema.default("manual"),
-});
 
 const listCompaniesInputSchema = z.object({
   search: z.string().max(200).optional(),
@@ -214,6 +204,51 @@ function sortColumn(field: z.infer<typeof sortFieldSchema>) {
   }
 }
 
+function cursorValueFromProspect(row: ProspectRow, field: z.infer<typeof sortFieldSchema>): string {
+  switch (field) {
+    case "email":
+      return row.email;
+    case "lastName":
+      return row.lastName ?? "";
+    case "status":
+      return row.status;
+    default:
+      return row.createdAt.toISOString();
+  }
+}
+
+function prospectCursorCondition(
+  sortField: z.infer<typeof sortFieldSchema>,
+  sortDir: "asc" | "desc",
+  cursor: { id: string; field: z.infer<typeof sortFieldSchema>; value: string },
+) {
+  const column = sortColumn(sortField);
+  if (sortField === "createdAt") {
+    const cursorDate = new Date(cursor.value);
+    if (sortDir === "desc") {
+      return or(
+        lt(column, cursorDate),
+        and(eq(column, cursorDate), lt(tables.prospect.id, cursor.id)),
+      )!;
+    }
+    return or(
+      gt(column, cursorDate),
+      and(eq(column, cursorDate), gt(tables.prospect.id, cursor.id)),
+    )!;
+  }
+
+  if (sortDir === "desc") {
+    return or(
+      lt(column, cursor.value),
+      and(eq(column, cursor.value), lt(tables.prospect.id, cursor.id)),
+    )!;
+  }
+  return or(
+    gt(column, cursor.value),
+    and(eq(column, cursor.value), gt(tables.prospect.id, cursor.id)),
+  )!;
+}
+
 function notFound(): never {
   throw new Response("Not found", { status: 404 });
 }
@@ -249,25 +284,10 @@ export const listProspects = orgFn({ method: "GET" })
       );
     }
     if (data.cursor) {
-      const cursorDate = new Date(data.cursor.createdAt);
-      if (data.sortDir === "desc") {
-        conditions.push(
-          or(
-            lt(tables.prospect.createdAt, cursorDate),
-            and(eq(tables.prospect.createdAt, cursorDate), lt(tables.prospect.id, data.cursor.id)),
-          )!,
-        );
-      } else {
-        conditions.push(
-          or(
-            sql`${tables.prospect.createdAt} > ${cursorDate}`,
-            and(
-              eq(tables.prospect.createdAt, cursorDate),
-              sql`${tables.prospect.id} > ${data.cursor.id}`,
-            ),
-          )!,
-        );
+      if (data.cursor.field !== data.sortField) {
+        throw new Error("Cursor sort field does not match request sort field");
       }
+      conditions.push(prospectCursorCondition(data.sortField, data.sortDir, data.cursor));
     }
 
     const order = data.sortDir === "asc" ? asc : desc;
@@ -291,7 +311,14 @@ export const listProspects = orgFn({ method: "GET" })
         ...serializeProspect(row.prospect),
         companyName: row.companyName,
       })),
-      nextCursor: hasMore && last ? { id: last.id, createdAt: last.createdAt.toISOString() } : null,
+      nextCursor:
+        hasMore && last
+          ? {
+              id: last.id,
+              field: data.sortField,
+              value: cursorValueFromProspect(last, data.sortField),
+            }
+          : null,
     };
   });
 
@@ -474,7 +501,7 @@ export const listCompanies = orgFn({ method: "GET" })
       conditions.push(or(ilike(tables.company.name, term), ilike(tables.company.domain, term))!);
     }
     if (data.cursor) {
-      const cursorDate = new Date(data.cursor.createdAt);
+      const cursorDate = new Date(data.cursor.value);
       conditions.push(
         or(
           lt(tables.company.createdAt, cursorDate),
@@ -496,7 +523,10 @@ export const listCompanies = orgFn({ method: "GET" })
 
     return {
       items: page.map(serializeCompany),
-      nextCursor: hasMore && last ? { id: last.id, createdAt: last.createdAt.toISOString() } : null,
+      nextCursor:
+        hasMore && last
+          ? { id: last.id, field: "createdAt" as const, value: last.createdAt.toISOString() }
+          : null,
     };
   });
 
@@ -657,108 +687,6 @@ export const removeFromList = orgFn({ method: "POST" })
     return { removed: data.prospectIds.length };
   });
 
-async function resolveCompanyId(
-  organizationId: string,
-  company: ValidCsvRow["company"],
-): Promise<string | null> {
-  if (!company) return null;
-
-  const domain = company.domain ? normalizeDomain(company.domain) : null;
-  const name = company.name?.trim() || null;
-
-  if (domain) {
-    const existing = await db.query.company.findFirst({
-      where: and(
-        eq(tables.company.organizationId, organizationId),
-        eq(tables.company.domain, domain),
-        isNull(tables.company.deletedAt),
-      ),
-    });
-    if (existing) return existing.id;
-
-    const [created] = await db
-      .insert(tables.company)
-      .values({
-        organizationId,
-        domain,
-        name: name ?? domain,
-        industry: company.industry,
-        website: company.website,
-      })
-      .returning();
-    return created?.id ?? null;
-  }
-
-  if (name) {
-    const existing = await db.query.company.findFirst({
-      where: and(
-        eq(tables.company.organizationId, organizationId),
-        sql`lower(${tables.company.name}) = ${name.toLowerCase()}`,
-        isNull(tables.company.deletedAt),
-      ),
-    });
-    if (existing) return existing.id;
-
-    const [created] = await db.insert(tables.company).values({ organizationId, name }).returning();
-    return created?.id ?? null;
-  }
-
-  return null;
-}
-
-async function importProspectRow(
-  organizationId: string,
-  row: ValidCsvRow,
-  dedupePolicy: DedupePolicy,
-): Promise<"created" | "updated" | "skipped"> {
-  const email = normalizeEmail(row.prospect.email);
-  if (!email) throw new Error("Invalid email");
-
-  const companyId = await resolveCompanyId(organizationId, row.company);
-
-  const existing = await db.query.prospect.findFirst({
-    where: and(
-      eq(tables.prospect.organizationId, organizationId),
-      eq(tables.prospect.email, email),
-    ),
-  });
-
-  const prospectValues = {
-    firstName: row.prospect.firstName ?? null,
-    lastName: row.prospect.lastName ?? null,
-    title: row.prospect.title ?? null,
-    phone: row.prospect.phone ?? null,
-    linkedinUrl: row.prospect.linkedinUrl ?? null,
-    timezone: row.prospect.timezone ?? null,
-    companyId,
-    source: "csv" as const,
-    deletedAt: null,
-  };
-
-  if (existing) {
-    if (existing.deletedAt || dedupePolicy === "update_existing") {
-      await db
-        .update(tables.prospect)
-        .set(prospectValues)
-        .where(
-          and(
-            eq(tables.prospect.id, existing.id),
-            eq(tables.prospect.organizationId, organizationId),
-          ),
-        );
-      return existing.deletedAt ? "created" : "updated";
-    }
-    return "skipped";
-  }
-
-  await db.insert(tables.prospect).values({
-    organizationId,
-    email,
-    ...prospectValues,
-  });
-  return "created";
-}
-
 export const startImport = orgFn({ method: "POST" })
   .validator(startImportInputSchema)
   .handler(async ({ data, context }) => {
@@ -771,15 +699,11 @@ export const startImport = orgFn({ method: "POST" })
         filename: data.filename,
         mapping: data.mapping,
         createdByUserId: userId,
-        status: "processing",
+        status: "queued",
+        erroredCount: data.invalidRows?.length ?? 0,
       })
       .returning();
     if (!batch) throw new Error("Failed to create import batch");
-
-    let createdCount = 0;
-    let updatedCount = 0;
-    let skippedCount = 0;
-    let erroredCount = data.invalidRows?.length ?? 0;
 
     if (data.invalidRows?.length) {
       await db.insert(tables.importError).values(
@@ -792,43 +716,21 @@ export const startImport = orgFn({ method: "POST" })
       );
     }
 
-    for (const row of data.rows) {
-      try {
-        const outcome = await importProspectRow(organizationId, row, data.dedupePolicy);
-        if (outcome === "created") createdCount += 1;
-        else if (outcome === "updated") updatedCount += 1;
-        else skippedCount += 1;
-      } catch (err) {
-        erroredCount += 1;
-        await db.insert(tables.importError).values({
-          batchId: batch.id,
-          rowNumber: row.rowNumber,
-          raw: row.prospect as unknown as Record<string, unknown>,
-          reason: err instanceof Error ? err.message : "Import failed",
-        });
-      }
-    }
-
-    const [completed] = await db
-      .update(tables.importBatch)
-      .set({
-        createdCount,
-        updatedCount,
-        skippedCount,
-        erroredCount,
-        status: "completed",
-      })
-      .where(
-        and(
-          eq(tables.importBatch.id, batch.id),
-          eq(tables.importBatch.organizationId, organizationId),
-        ),
-      )
-      .returning();
+    await enqueue("import.process", {
+      batchId: batch.id,
+      organizationId,
+      dedupePolicy: data.dedupePolicy,
+      rows: data.rows,
+    });
 
     return {
-      batch: serializeImportBatch(completed!),
-      summary: { createdCount, updatedCount, skippedCount, erroredCount },
+      batch: serializeImportBatch(batch),
+      summary: {
+        createdCount: 0,
+        updatedCount: 0,
+        skippedCount: 0,
+        erroredCount: data.invalidRows?.length ?? 0,
+      },
     };
   });
 
