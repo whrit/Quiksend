@@ -10,6 +10,7 @@
     "build": "tsc --noEmit"
   },
   "dependencies": {
+    "@quiksend/ai": "workspace:*",
     "@quiksend/config": "workspace:*",
     "@quiksend/core": "workspace:*",
     "@quiksend/db": "workspace:*",

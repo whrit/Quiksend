@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   jsonb,
   pgEnum,
@@ -11,11 +12,19 @@ import {
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth.ts";
 import { prospect } from "./prospects.ts";
+import { enrollment, sequenceStep } from "./sequences.ts";
 
 export const researchProfileStatusEnum = pgEnum("research_profile_status", [
   "pending",
   "ready",
   "error",
+]);
+
+export const generationStatusEnum = pgEnum("generation_status", [
+  "draft",
+  "approved",
+  "sent",
+  "discarded",
 ]);
 
 export const valueProp = pgTable(
@@ -87,3 +96,57 @@ export type ResearchSource = {
   title: string;
   published_at: string | null;
 };
+
+export type GenerationCitedFact = {
+  claim: string;
+  source_url?: string;
+};
+
+export type GenerationPromptPayload = {
+  system: string;
+  user: string;
+  researchSummary: string | null;
+  valuePropIds: string[];
+  stepId: string | null;
+  variant: "A" | "B";
+};
+
+export const generation = pgTable(
+  "generation",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    prospectId: uuid("prospect_id")
+      .notNull()
+      .references(() => prospect.id, { onDelete: "cascade" }),
+    enrollmentId: uuid("enrollment_id").references(() => enrollment.id, { onDelete: "set null" }),
+    stepId: uuid("step_id").references(() => sequenceStep.id, { onDelete: "set null" }),
+    variant: text("variant").$type<"A" | "B">().default("A").notNull(),
+    prompt: jsonb("prompt").$type<GenerationPromptPayload>().notNull(),
+    model: text("model").notNull(),
+    outputSubject: text("output_subject").notNull(),
+    outputBodyMarkdown: text("output_body_markdown").notNull(),
+    outputRationale: text("output_rationale").notNull(),
+    citedFacts: jsonb("cited_facts").$type<GenerationCitedFact[]>().notNull().default([]),
+    humanized: boolean("humanized").default(false).notNull(),
+    status: generationStatusEnum("status").default("draft").notNull(),
+    approvedByUserId: text("approved_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("generation_org_prospect_created_idx").on(
+      table.organizationId,
+      table.prospectId,
+      table.createdAt,
+    ),
+  ],
+);

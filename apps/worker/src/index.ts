@@ -3,6 +3,7 @@ import { client, db } from "@quiksend/db";
 import { initSentry, Sentry, shutdownPostHog } from "@quiksend/observability";
 import { enqueue, getBoss, registerHandler, stopBoss } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
+import { registerAiResearchHandler } from "./handlers/ai-research.ts";
 import { registerCrmSyncHandler } from "./handlers/crm-sync.ts";
 import { registerCrmWritebackHandler } from "./handlers/crm-writeback.ts";
 import { registerMailboxPollHandler, registerMailboxPollTick } from "./handlers/mailbox-poll.ts";
@@ -46,6 +47,7 @@ async function main(): Promise<void> {
 
   await registerCrmSyncHandler();
   await registerCrmWritebackHandler();
+  await registerAiResearchHandler();
   await registerSequenceHandlers();
   await registerMailboxPollHandler();
   await registerMailboxPollTick();

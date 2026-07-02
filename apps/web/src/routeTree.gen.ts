@@ -32,6 +32,7 @@ import { Route as ProtectedSequencesIdEnrollmentsRouteImport } from './routes/_p
 import { Route as ProtectedSequencesIdEnrollRouteImport } from './routes/_protected/sequences/$id/enroll'
 import { Route as ProtectedSequencesIdEditRouteImport } from './routes/_protected/sequences/$id/edit'
 import { Route as ProtectedSequencesIdAnalyticsRouteImport } from './routes/_protected/sequences/$id/analytics'
+import { Route as ProtectedProspectsIdGenerateRouteImport } from './routes/_protected/prospects/$id/generate'
 import { Route as ProtectedSettingsMailboxesIdHealthRouteImport } from './routes/_protected/settings/mailboxes/$id/health'
 import { Route as ProtectedSettingsCrmConnectionIdMappingRouteImport } from './routes/_protected/settings/crm/$connectionId/mapping'
 
@@ -159,6 +160,12 @@ const ProtectedSequencesIdAnalyticsRoute =
     path: '/sequences/$id/analytics',
     getParentRoute: () => ProtectedRoute,
   } as any)
+const ProtectedProspectsIdGenerateRoute =
+  ProtectedProspectsIdGenerateRouteImport.update({
+    id: '/generate',
+    path: '/generate',
+    getParentRoute: () => ProtectedProspectsIdRoute,
+  } as any)
 const ProtectedSettingsMailboxesIdHealthRoute =
   ProtectedSettingsMailboxesIdHealthRouteImport.update({
     id: '/settings/mailboxes/$id/health',
@@ -177,7 +184,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/compose': typeof ProtectedComposeRoute
   '/dashboard': typeof ProtectedDashboardRoute
-  '/prospects/$id': typeof ProtectedProspectsIdRoute
+  '/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/sequences/new': typeof ProtectedSequencesNewRoute
   '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
@@ -187,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/inbox/': typeof ProtectedInboxIndexRoute
   '/prospects/': typeof ProtectedProspectsIndexRoute
   '/sequences/': typeof ProtectedSequencesIndexRoute
+  '/prospects/$id/generate': typeof ProtectedProspectsIdGenerateRoute
   '/sequences/$id/analytics': typeof ProtectedSequencesIdAnalyticsRoute
   '/sequences/$id/edit': typeof ProtectedSequencesIdEditRoute
   '/sequences/$id/enroll': typeof ProtectedSequencesIdEnrollRoute
@@ -203,7 +211,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/compose': typeof ProtectedComposeRoute
   '/dashboard': typeof ProtectedDashboardRoute
-  '/prospects/$id': typeof ProtectedProspectsIdRoute
+  '/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/sequences/new': typeof ProtectedSequencesNewRoute
   '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
@@ -213,6 +221,7 @@ export interface FileRoutesByTo {
   '/inbox': typeof ProtectedInboxIndexRoute
   '/prospects': typeof ProtectedProspectsIndexRoute
   '/sequences': typeof ProtectedSequencesIndexRoute
+  '/prospects/$id/generate': typeof ProtectedProspectsIdGenerateRoute
   '/sequences/$id/analytics': typeof ProtectedSequencesIdAnalyticsRoute
   '/sequences/$id/edit': typeof ProtectedSequencesIdEditRoute
   '/sequences/$id/enroll': typeof ProtectedSequencesIdEnrollRoute
@@ -231,7 +240,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_protected/compose': typeof ProtectedComposeRoute
   '/_protected/dashboard': typeof ProtectedDashboardRoute
-  '/_protected/prospects/$id': typeof ProtectedProspectsIdRoute
+  '/_protected/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/_protected/prospects/import': typeof ProtectedProspectsImportRoute
   '/_protected/sequences/new': typeof ProtectedSequencesNewRoute
   '/_protected/settings/suppression': typeof ProtectedSettingsSuppressionRoute
@@ -241,6 +250,7 @@ export interface FileRoutesById {
   '/_protected/inbox/': typeof ProtectedInboxIndexRoute
   '/_protected/prospects/': typeof ProtectedProspectsIndexRoute
   '/_protected/sequences/': typeof ProtectedSequencesIndexRoute
+  '/_protected/prospects/$id/generate': typeof ProtectedProspectsIdGenerateRoute
   '/_protected/sequences/$id/analytics': typeof ProtectedSequencesIdAnalyticsRoute
   '/_protected/sequences/$id/edit': typeof ProtectedSequencesIdEditRoute
   '/_protected/sequences/$id/enroll': typeof ProtectedSequencesIdEnrollRoute
@@ -269,6 +279,7 @@ export interface FileRouteTypes {
     | '/inbox/'
     | '/prospects/'
     | '/sequences/'
+    | '/prospects/$id/generate'
     | '/sequences/$id/analytics'
     | '/sequences/$id/edit'
     | '/sequences/$id/enroll'
@@ -295,6 +306,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/prospects'
     | '/sequences'
+    | '/prospects/$id/generate'
     | '/sequences/$id/analytics'
     | '/sequences/$id/edit'
     | '/sequences/$id/enroll'
@@ -322,6 +334,7 @@ export interface FileRouteTypes {
     | '/_protected/inbox/'
     | '/_protected/prospects/'
     | '/_protected/sequences/'
+    | '/_protected/prospects/$id/generate'
     | '/_protected/sequences/$id/analytics'
     | '/_protected/sequences/$id/edit'
     | '/_protected/sequences/$id/enroll'
@@ -505,6 +518,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedSequencesIdAnalyticsRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/prospects/$id/generate': {
+      id: '/_protected/prospects/$id/generate'
+      path: '/generate'
+      fullPath: '/prospects/$id/generate'
+      preLoaderRoute: typeof ProtectedProspectsIdGenerateRouteImport
+      parentRoute: typeof ProtectedProspectsIdRoute
+    }
     '/_protected/settings/mailboxes/$id/health': {
       id: '/_protected/settings/mailboxes/$id/health'
       path: '/settings/mailboxes/$id/health'
@@ -522,10 +542,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ProtectedProspectsIdRouteChildren {
+  ProtectedProspectsIdGenerateRoute: typeof ProtectedProspectsIdGenerateRoute
+}
+
+const ProtectedProspectsIdRouteChildren: ProtectedProspectsIdRouteChildren = {
+  ProtectedProspectsIdGenerateRoute: ProtectedProspectsIdGenerateRoute,
+}
+
+const ProtectedProspectsIdRouteWithChildren =
+  ProtectedProspectsIdRoute._addFileChildren(ProtectedProspectsIdRouteChildren)
+
 interface ProtectedRouteChildren {
   ProtectedComposeRoute: typeof ProtectedComposeRoute
   ProtectedDashboardRoute: typeof ProtectedDashboardRoute
-  ProtectedProspectsIdRoute: typeof ProtectedProspectsIdRoute
+  ProtectedProspectsIdRoute: typeof ProtectedProspectsIdRouteWithChildren
   ProtectedProspectsImportRoute: typeof ProtectedProspectsImportRoute
   ProtectedSequencesNewRoute: typeof ProtectedSequencesNewRoute
   ProtectedSettingsSuppressionRoute: typeof ProtectedSettingsSuppressionRoute
@@ -548,7 +579,7 @@ interface ProtectedRouteChildren {
 const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedComposeRoute: ProtectedComposeRoute,
   ProtectedDashboardRoute: ProtectedDashboardRoute,
-  ProtectedProspectsIdRoute: ProtectedProspectsIdRoute,
+  ProtectedProspectsIdRoute: ProtectedProspectsIdRouteWithChildren,
   ProtectedProspectsImportRoute: ProtectedProspectsImportRoute,
   ProtectedSequencesNewRoute: ProtectedSequencesNewRoute,
   ProtectedSettingsSuppressionRoute: ProtectedSettingsSuppressionRoute,
