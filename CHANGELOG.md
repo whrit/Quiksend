@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/whrit/Quiksend/compare/v1.12.0...v1.13.0) (2026-07-02)
+
+
+### Features
+
+* **phase-10-api-webhooks:** Phase 10 complete ([#30](https://github.com/whrit/Quiksend/issues/30)) ([1b4ae6f](https://github.com/whrit/Quiksend/commit/1b4ae6f0a9fcada47fc636a02e79c9588cea2789))
+
 ## [1.12.0](https://github.com/whrit/Quiksend/compare/v1.11.0...v1.12.0) (2026-07-02)
 
 
