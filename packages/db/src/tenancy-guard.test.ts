@@ -36,6 +36,8 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "generation",
   // Phase 6:
   "task",
+  // Phase 7:
+  "suppression",
 ];
 
 const SCAN_ROOTS = ["apps/web/src", "apps/worker/src", "packages"];

@@ -24,6 +24,7 @@ export interface TestOrgs {
  */
 export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
   "generation",
+  "suppression",
   "research_profile",
   "value_prop",
   "job_log",

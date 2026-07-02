@@ -16,8 +16,10 @@ import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dash
 import { Route as ProtectedComposeRouteImport } from './routes/_protected/compose'
 import { Route as ProtectedSequencesIndexRouteImport } from './routes/_protected/sequences/index'
 import { Route as ProtectedProspectsIndexRouteImport } from './routes/_protected/prospects/index'
+import { Route as ProtectedInboxIndexRouteImport } from './routes/_protected/inbox/index'
 import { Route as ApiNangoWebhookRouteImport } from './routes/api/nango/webhook'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ProtectedSettingsSuppressionRouteImport } from './routes/_protected/settings/suppression'
 import { Route as ProtectedSequencesNewRouteImport } from './routes/_protected/sequences/new'
 import { Route as ProtectedProspectsImportRouteImport } from './routes/_protected/prospects/import'
 import { Route as ProtectedProspectsIdRouteImport } from './routes/_protected/prospects/$id'
@@ -65,6 +67,11 @@ const ProtectedProspectsIndexRoute = ProtectedProspectsIndexRouteImport.update({
   path: '/prospects/',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedInboxIndexRoute = ProtectedInboxIndexRouteImport.update({
+  id: '/inbox/',
+  path: '/inbox/',
+  getParentRoute: () => ProtectedRoute,
+} as any)
 const ApiNangoWebhookRoute = ApiNangoWebhookRouteImport.update({
   id: '/api/nango/webhook',
   path: '/api/nango/webhook',
@@ -75,6 +82,12 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProtectedSettingsSuppressionRoute =
+  ProtectedSettingsSuppressionRouteImport.update({
+    id: '/settings/suppression',
+    path: '/settings/suppression',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ProtectedSequencesNewRoute = ProtectedSequencesNewRouteImport.update({
   id: '/sequences/new',
   path: '/sequences/new',
@@ -154,8 +167,10 @@ export interface FileRoutesByFullPath {
   '/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/sequences/new': typeof ProtectedSequencesNewRoute
+  '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
+  '/inbox/': typeof ProtectedInboxIndexRoute
   '/prospects/': typeof ProtectedProspectsIndexRoute
   '/sequences/': typeof ProtectedSequencesIndexRoute
   '/prospects/$id/generate': typeof ProtectedProspectsIdGenerateRoute
@@ -176,8 +191,10 @@ export interface FileRoutesByTo {
   '/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/sequences/new': typeof ProtectedSequencesNewRoute
+  '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
+  '/inbox': typeof ProtectedInboxIndexRoute
   '/prospects': typeof ProtectedProspectsIndexRoute
   '/sequences': typeof ProtectedSequencesIndexRoute
   '/prospects/$id/generate': typeof ProtectedProspectsIdGenerateRoute
@@ -200,8 +217,10 @@ export interface FileRoutesById {
   '/_protected/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/_protected/prospects/import': typeof ProtectedProspectsImportRoute
   '/_protected/sequences/new': typeof ProtectedSequencesNewRoute
+  '/_protected/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
+  '/_protected/inbox/': typeof ProtectedInboxIndexRoute
   '/_protected/prospects/': typeof ProtectedProspectsIndexRoute
   '/_protected/sequences/': typeof ProtectedSequencesIndexRoute
   '/_protected/prospects/$id/generate': typeof ProtectedProspectsIdGenerateRoute
@@ -224,8 +243,10 @@ export interface FileRouteTypes {
     | '/prospects/$id'
     | '/prospects/import'
     | '/sequences/new'
+    | '/settings/suppression'
     | '/api/auth/$'
     | '/api/nango/webhook'
+    | '/inbox/'
     | '/prospects/'
     | '/sequences/'
     | '/prospects/$id/generate'
@@ -246,8 +267,10 @@ export interface FileRouteTypes {
     | '/prospects/$id'
     | '/prospects/import'
     | '/sequences/new'
+    | '/settings/suppression'
     | '/api/auth/$'
     | '/api/nango/webhook'
+    | '/inbox'
     | '/prospects'
     | '/sequences'
     | '/prospects/$id/generate'
@@ -269,8 +292,10 @@ export interface FileRouteTypes {
     | '/_protected/prospects/$id'
     | '/_protected/prospects/import'
     | '/_protected/sequences/new'
+    | '/_protected/settings/suppression'
     | '/api/auth/$'
     | '/api/nango/webhook'
+    | '/_protected/inbox/'
     | '/_protected/prospects/'
     | '/_protected/sequences/'
     | '/_protected/prospects/$id/generate'
@@ -343,6 +368,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedProspectsIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/inbox/': {
+      id: '/_protected/inbox/'
+      path: '/inbox'
+      fullPath: '/inbox/'
+      preLoaderRoute: typeof ProtectedInboxIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/api/nango/webhook': {
       id: '/api/nango/webhook'
       path: '/api/nango/webhook'
@@ -356,6 +388,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_protected/settings/suppression': {
+      id: '/_protected/settings/suppression'
+      path: '/settings/suppression'
+      fullPath: '/settings/suppression'
+      preLoaderRoute: typeof ProtectedSettingsSuppressionRouteImport
+      parentRoute: typeof ProtectedRoute
     }
     '/_protected/sequences/new': {
       id: '/_protected/sequences/new'
@@ -461,6 +500,8 @@ interface ProtectedRouteChildren {
   ProtectedProspectsIdRoute: typeof ProtectedProspectsIdRouteWithChildren
   ProtectedProspectsImportRoute: typeof ProtectedProspectsImportRoute
   ProtectedSequencesNewRoute: typeof ProtectedSequencesNewRoute
+  ProtectedSettingsSuppressionRoute: typeof ProtectedSettingsSuppressionRoute
+  ProtectedInboxIndexRoute: typeof ProtectedInboxIndexRoute
   ProtectedProspectsIndexRoute: typeof ProtectedProspectsIndexRoute
   ProtectedSequencesIndexRoute: typeof ProtectedSequencesIndexRoute
   ProtectedSequencesIdEditRoute: typeof ProtectedSequencesIdEditRoute
@@ -479,6 +520,8 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedProspectsIdRoute: ProtectedProspectsIdRouteWithChildren,
   ProtectedProspectsImportRoute: ProtectedProspectsImportRoute,
   ProtectedSequencesNewRoute: ProtectedSequencesNewRoute,
+  ProtectedSettingsSuppressionRoute: ProtectedSettingsSuppressionRoute,
+  ProtectedInboxIndexRoute: ProtectedInboxIndexRoute,
   ProtectedProspectsIndexRoute: ProtectedProspectsIndexRoute,
   ProtectedSequencesIndexRoute: ProtectedSequencesIndexRoute,
   ProtectedSequencesIdEditRoute: ProtectedSequencesIdEditRoute,

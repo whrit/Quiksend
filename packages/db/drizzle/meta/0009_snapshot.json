@@ -1,6 +1,6 @@
 {
-  "id": "d1ac2dcb-4654-4710-ab88-8e261b53d8f8",
-  "prevId": "0af4ce91-f3ce-4723-b793-6d20840b14a3",
+  "id": "6e5f9a6a-4c72-4eed-8eaf-2905a74a4d38",
+  "prevId": "d1ac2dcb-4654-4710-ab88-8e261b53d8f8",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2940,6 +2940,209 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.generation": {
+      "name": "generation",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prospect_id": {
+          "name": "prospect_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enrollment_id": {
+          "name": "enrollment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "step_id": {
+          "name": "step_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "variant": {
+          "name": "variant",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'A'"
+        },
+        "prompt": {
+          "name": "prompt",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "output_subject": {
+          "name": "output_subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "output_body_markdown": {
+          "name": "output_body_markdown",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "output_rationale": {
+          "name": "output_rationale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cited_facts": {
+          "name": "cited_facts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "humanized": {
+          "name": "humanized",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "status": {
+          "name": "status",
+          "type": "generation_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "approved_by_user_id": {
+          "name": "approved_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "generation_org_prospect_created_idx": {
+          "name": "generation_org_prospect_created_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "prospect_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "generation_organization_id_organization_id_fk": {
+          "name": "generation_organization_id_organization_id_fk",
+          "tableFrom": "generation",
+          "tableTo": "organization",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "generation_prospect_id_prospect_id_fk": {
+          "name": "generation_prospect_id_prospect_id_fk",
+          "tableFrom": "generation",
+          "tableTo": "prospect",
+          "columnsFrom": ["prospect_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "generation_enrollment_id_enrollment_id_fk": {
+          "name": "generation_enrollment_id_enrollment_id_fk",
+          "tableFrom": "generation",
+          "tableTo": "enrollment",
+          "columnsFrom": ["enrollment_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "generation_step_id_sequence_step_id_fk": {
+          "name": "generation_step_id_sequence_step_id_fk",
+          "tableFrom": "generation",
+          "tableTo": "sequence_step",
+          "columnsFrom": ["step_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "generation_approved_by_user_id_user_id_fk": {
+          "name": "generation_approved_by_user_id_user_id_fk",
+          "tableFrom": "generation",
+          "tableTo": "user",
+          "columnsFrom": ["approved_by_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.research_profile": {
       "name": "research_profile",
       "schema": "",
@@ -3722,6 +3925,11 @@
       "name": "sequence_step_type",
       "schema": "public",
       "values": ["manual_email", "auto_email", "wait", "task"]
+    },
+    "public.generation_status": {
+      "name": "generation_status",
+      "schema": "public",
+      "values": ["draft", "approved", "sent", "discarded"]
     },
     "public.research_profile_status": {
       "name": "research_profile_status",

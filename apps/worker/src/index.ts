@@ -5,6 +5,7 @@ import { enqueue, getBoss, registerHandler, stopBoss } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
 import { registerAiResearchHandler } from "./handlers/ai-research.ts";
 import { registerCrmSyncHandler } from "./handlers/crm-sync.ts";
+import { registerMailboxPollHandler, registerMailboxPollTick } from "./handlers/mailbox-poll.ts";
 import { registerSequenceHandlers } from "./sequence/register.ts";
 
 /**
@@ -46,6 +47,8 @@ async function main(): Promise<void> {
   await registerCrmSyncHandler();
   await registerAiResearchHandler();
   await registerSequenceHandlers();
+  await registerMailboxPollHandler();
+  await registerMailboxPollTick();
 
   if (env.NODE_ENV !== "production") {
     await enqueue("hello.ping", { message: "worker boot smoke test" });
