@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.12.0](https://github.com/whrit/Quiksend/compare/v1.11.0...v1.12.0) (2026-07-02)
+
+
+### Features
+
+* **phase-9-writeback-analytics:** Phase 9 complete ([#29](https://github.com/whrit/Quiksend/issues/29)) ([75f8cd0](https://github.com/whrit/Quiksend/commit/75f8cd0a4818ee2c9bece78df2279f02a3a6964a))
+
+## [1.11.0](https://github.com/whrit/Quiksend/compare/v1.10.0...v1.11.0) (2026-07-02)
+
+
+### Features
+
+* **phase-8-ai:** Phase 8 complete ([#28](https://github.com/whrit/Quiksend/issues/28)) ([7d0e0ee](https://github.com/whrit/Quiksend/commit/7d0e0eec1b22738cb76fd6cc263fc9c3cedf6842))
+
+## [1.10.0](https://github.com/whrit/Quiksend/compare/v1.9.0...v1.10.0) (2026-07-02)
+
+
+### Features
+
+* **phase-7-inbox:** Phase 7 complete ([#27](https://github.com/whrit/Quiksend/issues/27)) ([07e61c3](https://github.com/whrit/Quiksend/commit/07e61c36a522c18f4504fba519c88a3f2fae8fc5))
+
 ## [1.9.0](https://github.com/whrit/Quiksend/compare/v1.8.0...v1.9.0) (2026-07-02)
 
 

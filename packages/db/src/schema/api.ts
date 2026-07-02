@@ -8,7 +8,6 @@ import {
   pgTable,
   text,
   timestamp,
-  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth.ts";
@@ -38,12 +37,6 @@ export const webhookDeliveryStatusEnum = pgEnum("webhook_delivery_status", [
   "succeeded",
   "failed",
   "dead",
-]);
-
-export const suppressionReasonEnum = pgEnum("suppression_reason", [
-  "unsubscribe",
-  "bounce",
-  "manual",
 ]);
 
 export const apiKeyUsage = pgTable(
@@ -118,49 +111,7 @@ export const webhookDelivery = pgTable(
   ],
 );
 
-/** Domain events fan out to subscribed webhook endpoints. */
-export const domainEvent = pgTable(
-  "domain_event",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organization.id, { onDelete: "cascade" }),
-    eventType: text("event_type").notNull(),
-    payload: jsonb("payload").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  },
-  (table) => [
-    index("domain_event_org_created_idx").on(table.organizationId, table.createdAt.desc()),
-  ],
-);
-
-export const suppressionValueTypeEnum = pgEnum("suppression_value_type", ["email", "domain"]);
-
-export const suppression = pgTable(
-  "suppression",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organization.id, { onDelete: "cascade" }),
-    value: text("value").notNull(),
-    valueType: suppressionValueTypeEnum("value_type").default("email").notNull(),
-    reason: suppressionReasonEnum("reason").notNull(),
-    sourceMessageId: uuid("source_message_id"),
-    notes: text("notes"),
-    createdByUserId: text("created_by_user_id").references(() => user.id),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => [
-    index("suppression_org_reason_idx").on(table.organizationId, table.reason),
-    uniqueIndex("suppression_org_value_uidx").on(table.organizationId, table.value),
-  ],
-);
+// domainEvent + suppression + their enums live in schema/writeback.ts (phase 9) and schema/suppression.ts (phase 7)
 
 export const webhookEndpointRelations = relations(webhookEndpoint, ({ one, many }) => ({
   organization: one(organization, {
@@ -182,16 +133,5 @@ export const webhookDeliveryRelations = relations(webhookDelivery, ({ one }) => 
   endpoint: one(webhookEndpoint, {
     fields: [webhookDelivery.endpointId],
     references: [webhookEndpoint.id],
-  }),
-}));
-
-export const suppressionRelations = relations(suppression, ({ one }) => ({
-  organization: one(organization, {
-    fields: [suppression.organizationId],
-    references: [organization.id],
-  }),
-  createdBy: one(user, {
-    fields: [suppression.createdByUserId],
-    references: [user.id],
   }),
 }));

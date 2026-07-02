@@ -24,6 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { searchProspects, sendComposedMessage } from "@/lib/compose.functions";
+import { generateEmailForProspect } from "@/lib/ai.functions.ts";
 import { listMailboxes, type PublicMailbox } from "@/lib/mailboxes.functions";
 
 export const Route = createFileRoute("/_protected/compose")({
@@ -46,6 +47,7 @@ function ComposePage() {
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [sending, setSending] = useState(false);
+  const [aiAssisting, setAiAssisting] = useState(false);
   const [lastMessageId, setLastMessageId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -71,6 +73,24 @@ function ComposePage() {
     }, 300);
     return () => clearTimeout(handle);
   }, [prospectQuery]);
+
+  const handleAiAssist = async () => {
+    if (!prospectId) {
+      toast.error("Select a prospect first");
+      return;
+    }
+    setAiAssisting(true);
+    try {
+      const row = await generateEmailForProspect({ data: { prospectId } });
+      setSubject(row.outputSubject);
+      setBodyHtml(row.outputBodyMarkdown.replace(/\n/g, "<br>"));
+      toast.success("AI draft loaded — review before sending");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "AI assist failed");
+    } finally {
+      setAiAssisting(false);
+    }
+  };
 
   const handleSend = async () => {
     if (!mailboxId || !prospectId || !subject.trim() || !bodyHtml.trim()) {
@@ -178,7 +198,17 @@ function ComposePage() {
 
         <div className="space-y-2">
           <Label htmlFor="subject">Subject</Label>
-          <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+          <div className="flex gap-2">
+            <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!prospectId || aiAssisting}
+              onClick={() => void handleAiAssist()}
+            >
+              {aiAssisting ? <Loader2 className="h-4 w-4 animate-spin" /> : "AI-assist"}
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-2">

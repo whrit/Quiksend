@@ -18,7 +18,9 @@
     "@ai-sdk/openai": "4.0.5",
     "@quiksend/config": "workspace:*",
     "@quiksend/db": "workspace:*",
+    "@quiksend/integrations": "workspace:*",
     "ai": "7.0.11",
+    "drizzle-orm": "0.45.2",
     "zod": "4.4.3"
   }
 }

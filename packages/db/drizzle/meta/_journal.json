@@ -61,8 +61,29 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1782966775320,
-      "tag": "0008_phase10_api_webhooks",
+      "when": 1782966687332,
+      "tag": "0008_phase7_inbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782970760173,
+      "tag": "0009_phase8_ai",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782971063900,
+      "tag": "0010_phase9_writeback_analytics",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782971427660,
+      "tag": "0011_phase10_api_webhooks",
       "breakpoints": true
     }
   ]

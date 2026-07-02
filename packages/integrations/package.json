@@ -8,7 +8,8 @@
     "./nango": "./src/nango.ts",
     "./webhook": "./src/webhook.ts",
     "./providers": "./src/providers/index.ts",
-    "./sync/tables": "./src/sync/tables.ts"
+    "./sync/tables": "./src/sync/tables.ts",
+    "./writeback": "./src/writeback/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

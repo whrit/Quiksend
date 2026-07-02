@@ -25,9 +25,11 @@ export interface TestOrgs {
 export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
   "webhook_delivery",
   "webhook_endpoint",
-  "domain_event",
-  "suppression",
   "api_key_usage",
+  "crm_writeback_log",
+  "event",
+  "generation",
+  "suppression",
   "research_profile",
   "value_prop",
   "job_log",

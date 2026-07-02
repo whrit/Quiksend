@@ -15,6 +15,7 @@
     "@dnd-kit/utilities": "3.2.2",
     "@hookform/resolvers": "5.4.0",
     "@nangohq/frontend": "0.70.9",
+    "@quiksend/ai": "workspace:*",
     "@quiksend/auth": "workspace:*",
     "@quiksend/config": "workspace:*",
     "@quiksend/core": "workspace:*",
@@ -46,6 +47,7 @@
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-hook-form": "7.80.0",
+    "recharts": "3.3.0",
     "sonner": "2.0.7",
     "tailwind-merge": "3.6.0",
     "zod": "4.4.3"

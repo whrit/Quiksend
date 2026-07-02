@@ -16,6 +16,8 @@ import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dash
 import { Route as ProtectedComposeRouteImport } from './routes/_protected/compose'
 import { Route as ProtectedSequencesIndexRouteImport } from './routes/_protected/sequences/index'
 import { Route as ProtectedProspectsIndexRouteImport } from './routes/_protected/prospects/index'
+import { Route as ProtectedInboxIndexRouteImport } from './routes/_protected/inbox/index'
+import { Route as ProtectedAnalyticsIndexRouteImport } from './routes/_protected/analytics/index'
 import { Route as ApiV1WebhooksRouteImport } from './routes/api/v1/webhooks'
 import { Route as ApiV1UnsubscribeRouteImport } from './routes/api/v1/unsubscribe'
 import { Route as ApiV1ProspectsRouteImport } from './routes/api/v1/prospects'
@@ -23,6 +25,7 @@ import { Route as ApiV1MessagesRouteImport } from './routes/api/v1/messages'
 import { Route as ApiV1EnrollmentsRouteImport } from './routes/api/v1/enrollments'
 import { Route as ApiNangoWebhookRouteImport } from './routes/api/nango/webhook'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ProtectedSettingsSuppressionRouteImport } from './routes/_protected/settings/suppression'
 import { Route as ProtectedSequencesNewRouteImport } from './routes/_protected/sequences/new'
 import { Route as ProtectedProspectsImportRouteImport } from './routes/_protected/prospects/import'
 import { Route as ProtectedProspectsIdRouteImport } from './routes/_protected/prospects/$id'
@@ -37,8 +40,11 @@ import { Route as ProtectedSettingsMailboxesNewRouteImport } from './routes/_pro
 import { Route as ProtectedSequencesIdEnrollmentsRouteImport } from './routes/_protected/sequences/$id/enrollments'
 import { Route as ProtectedSequencesIdEnrollRouteImport } from './routes/_protected/sequences/$id/enroll'
 import { Route as ProtectedSequencesIdEditRouteImport } from './routes/_protected/sequences/$id/edit'
+import { Route as ProtectedSequencesIdAnalyticsRouteImport } from './routes/_protected/sequences/$id/analytics'
+import { Route as ProtectedProspectsIdGenerateRouteImport } from './routes/_protected/prospects/$id/generate'
 import { Route as ApiV1WebhooksIdDeliveriesRouteImport } from './routes/api/v1/webhooks.$id.deliveries'
 import { Route as ApiV1SequencesIdAnalyticsRouteImport } from './routes/api/v1/sequences.$id.analytics'
+import { Route as ProtectedSettingsMailboxesIdHealthRouteImport } from './routes/_protected/settings/mailboxes/$id/health'
 import { Route as ProtectedSettingsCrmConnectionIdMappingRouteImport } from './routes/_protected/settings/crm/$connectionId/mapping'
 
 const LoginRoute = LoginRouteImport.update({
@@ -73,6 +79,16 @@ const ProtectedSequencesIndexRoute = ProtectedSequencesIndexRouteImport.update({
 const ProtectedProspectsIndexRoute = ProtectedProspectsIndexRouteImport.update({
   id: '/prospects/',
   path: '/prospects/',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedInboxIndexRoute = ProtectedInboxIndexRouteImport.update({
+  id: '/inbox/',
+  path: '/inbox/',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedAnalyticsIndexRoute = ProtectedAnalyticsIndexRouteImport.update({
+  id: '/analytics/',
+  path: '/analytics/',
   getParentRoute: () => ProtectedRoute,
 } as any)
 const ApiV1WebhooksRoute = ApiV1WebhooksRouteImport.update({
@@ -110,6 +126,12 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProtectedSettingsSuppressionRoute =
+  ProtectedSettingsSuppressionRouteImport.update({
+    id: '/settings/suppression',
+    path: '/settings/suppression',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ProtectedSequencesNewRoute = ProtectedSequencesNewRouteImport.update({
   id: '/sequences/new',
   path: '/sequences/new',
@@ -190,6 +212,18 @@ const ProtectedSequencesIdEditRoute =
     path: '/sequences/$id/edit',
     getParentRoute: () => ProtectedRoute,
   } as any)
+const ProtectedSequencesIdAnalyticsRoute =
+  ProtectedSequencesIdAnalyticsRouteImport.update({
+    id: '/sequences/$id/analytics',
+    path: '/sequences/$id/analytics',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedProspectsIdGenerateRoute =
+  ProtectedProspectsIdGenerateRouteImport.update({
+    id: '/generate',
+    path: '/generate',
+    getParentRoute: () => ProtectedProspectsIdRoute,
+  } as any)
 const ApiV1WebhooksIdDeliveriesRoute =
   ApiV1WebhooksIdDeliveriesRouteImport.update({
     id: '/$id/deliveries',
@@ -201,6 +235,12 @@ const ApiV1SequencesIdAnalyticsRoute =
     id: '/api/v1/sequences/$id/analytics',
     path: '/api/v1/sequences/$id/analytics',
     getParentRoute: () => rootRouteImport,
+  } as any)
+const ProtectedSettingsMailboxesIdHealthRoute =
+  ProtectedSettingsMailboxesIdHealthRouteImport.update({
+    id: '/settings/mailboxes/$id/health',
+    path: '/settings/mailboxes/$id/health',
+    getParentRoute: () => ProtectedRoute,
   } as any)
 const ProtectedSettingsCrmConnectionIdMappingRoute =
   ProtectedSettingsCrmConnectionIdMappingRouteImport.update({
@@ -214,9 +254,10 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/compose': typeof ProtectedComposeRoute
   '/dashboard': typeof ProtectedDashboardRoute
-  '/prospects/$id': typeof ProtectedProspectsIdRoute
+  '/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/sequences/new': typeof ProtectedSequencesNewRoute
+  '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/api/v1/enrollments': typeof ApiV1EnrollmentsRoute
@@ -224,8 +265,12 @@ export interface FileRoutesByFullPath {
   '/api/v1/prospects': typeof ApiV1ProspectsRouteWithChildren
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRouteWithChildren
+  '/analytics/': typeof ProtectedAnalyticsIndexRoute
+  '/inbox/': typeof ProtectedInboxIndexRoute
   '/prospects/': typeof ProtectedProspectsIndexRoute
   '/sequences/': typeof ProtectedSequencesIndexRoute
+  '/prospects/$id/generate': typeof ProtectedProspectsIdGenerateRoute
+  '/sequences/$id/analytics': typeof ProtectedSequencesIdAnalyticsRoute
   '/sequences/$id/edit': typeof ProtectedSequencesIdEditRoute
   '/sequences/$id/enroll': typeof ProtectedSequencesIdEnrollRoute
   '/sequences/$id/enrollments': typeof ProtectedSequencesIdEnrollmentsRoute
@@ -238,6 +283,7 @@ export interface FileRoutesByFullPath {
   '/settings/value-props/': typeof ProtectedSettingsValuePropsIndexRoute
   '/settings/webhooks/': typeof ProtectedSettingsWebhooksIndexRoute
   '/settings/crm/$connectionId/mapping': typeof ProtectedSettingsCrmConnectionIdMappingRoute
+  '/settings/mailboxes/$id/health': typeof ProtectedSettingsMailboxesIdHealthRoute
   '/api/v1/sequences/$id/analytics': typeof ApiV1SequencesIdAnalyticsRoute
   '/api/v1/webhooks/$id/deliveries': typeof ApiV1WebhooksIdDeliveriesRoute
 }
@@ -246,9 +292,10 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/compose': typeof ProtectedComposeRoute
   '/dashboard': typeof ProtectedDashboardRoute
-  '/prospects/$id': typeof ProtectedProspectsIdRoute
+  '/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/sequences/new': typeof ProtectedSequencesNewRoute
+  '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/api/v1/enrollments': typeof ApiV1EnrollmentsRoute
@@ -256,8 +303,12 @@ export interface FileRoutesByTo {
   '/api/v1/prospects': typeof ApiV1ProspectsRouteWithChildren
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRouteWithChildren
+  '/analytics': typeof ProtectedAnalyticsIndexRoute
+  '/inbox': typeof ProtectedInboxIndexRoute
   '/prospects': typeof ProtectedProspectsIndexRoute
   '/sequences': typeof ProtectedSequencesIndexRoute
+  '/prospects/$id/generate': typeof ProtectedProspectsIdGenerateRoute
+  '/sequences/$id/analytics': typeof ProtectedSequencesIdAnalyticsRoute
   '/sequences/$id/edit': typeof ProtectedSequencesIdEditRoute
   '/sequences/$id/enroll': typeof ProtectedSequencesIdEnrollRoute
   '/sequences/$id/enrollments': typeof ProtectedSequencesIdEnrollmentsRoute
@@ -270,6 +321,7 @@ export interface FileRoutesByTo {
   '/settings/value-props': typeof ProtectedSettingsValuePropsIndexRoute
   '/settings/webhooks': typeof ProtectedSettingsWebhooksIndexRoute
   '/settings/crm/$connectionId/mapping': typeof ProtectedSettingsCrmConnectionIdMappingRoute
+  '/settings/mailboxes/$id/health': typeof ProtectedSettingsMailboxesIdHealthRoute
   '/api/v1/sequences/$id/analytics': typeof ApiV1SequencesIdAnalyticsRoute
   '/api/v1/webhooks/$id/deliveries': typeof ApiV1WebhooksIdDeliveriesRoute
 }
@@ -280,9 +332,10 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_protected/compose': typeof ProtectedComposeRoute
   '/_protected/dashboard': typeof ProtectedDashboardRoute
-  '/_protected/prospects/$id': typeof ProtectedProspectsIdRoute
+  '/_protected/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/_protected/prospects/import': typeof ProtectedProspectsImportRoute
   '/_protected/sequences/new': typeof ProtectedSequencesNewRoute
+  '/_protected/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/api/v1/enrollments': typeof ApiV1EnrollmentsRoute
@@ -290,8 +343,12 @@ export interface FileRoutesById {
   '/api/v1/prospects': typeof ApiV1ProspectsRouteWithChildren
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRouteWithChildren
+  '/_protected/analytics/': typeof ProtectedAnalyticsIndexRoute
+  '/_protected/inbox/': typeof ProtectedInboxIndexRoute
   '/_protected/prospects/': typeof ProtectedProspectsIndexRoute
   '/_protected/sequences/': typeof ProtectedSequencesIndexRoute
+  '/_protected/prospects/$id/generate': typeof ProtectedProspectsIdGenerateRoute
+  '/_protected/sequences/$id/analytics': typeof ProtectedSequencesIdAnalyticsRoute
   '/_protected/sequences/$id/edit': typeof ProtectedSequencesIdEditRoute
   '/_protected/sequences/$id/enroll': typeof ProtectedSequencesIdEnrollRoute
   '/_protected/sequences/$id/enrollments': typeof ProtectedSequencesIdEnrollmentsRoute
@@ -304,6 +361,7 @@ export interface FileRoutesById {
   '/_protected/settings/value-props/': typeof ProtectedSettingsValuePropsIndexRoute
   '/_protected/settings/webhooks/': typeof ProtectedSettingsWebhooksIndexRoute
   '/_protected/settings/crm/$connectionId/mapping': typeof ProtectedSettingsCrmConnectionIdMappingRoute
+  '/_protected/settings/mailboxes/$id/health': typeof ProtectedSettingsMailboxesIdHealthRoute
   '/api/v1/sequences/$id/analytics': typeof ApiV1SequencesIdAnalyticsRoute
   '/api/v1/webhooks/$id/deliveries': typeof ApiV1WebhooksIdDeliveriesRoute
 }
@@ -317,6 +375,7 @@ export interface FileRouteTypes {
     | '/prospects/$id'
     | '/prospects/import'
     | '/sequences/new'
+    | '/settings/suppression'
     | '/api/auth/$'
     | '/api/nango/webhook'
     | '/api/v1/enrollments'
@@ -324,8 +383,12 @@ export interface FileRouteTypes {
     | '/api/v1/prospects'
     | '/api/v1/unsubscribe'
     | '/api/v1/webhooks'
+    | '/analytics/'
+    | '/inbox/'
     | '/prospects/'
     | '/sequences/'
+    | '/prospects/$id/generate'
+    | '/sequences/$id/analytics'
     | '/sequences/$id/edit'
     | '/sequences/$id/enroll'
     | '/sequences/$id/enrollments'
@@ -338,6 +401,7 @@ export interface FileRouteTypes {
     | '/settings/value-props/'
     | '/settings/webhooks/'
     | '/settings/crm/$connectionId/mapping'
+    | '/settings/mailboxes/$id/health'
     | '/api/v1/sequences/$id/analytics'
     | '/api/v1/webhooks/$id/deliveries'
   fileRoutesByTo: FileRoutesByTo
@@ -349,6 +413,7 @@ export interface FileRouteTypes {
     | '/prospects/$id'
     | '/prospects/import'
     | '/sequences/new'
+    | '/settings/suppression'
     | '/api/auth/$'
     | '/api/nango/webhook'
     | '/api/v1/enrollments'
@@ -356,8 +421,12 @@ export interface FileRouteTypes {
     | '/api/v1/prospects'
     | '/api/v1/unsubscribe'
     | '/api/v1/webhooks'
+    | '/analytics'
+    | '/inbox'
     | '/prospects'
     | '/sequences'
+    | '/prospects/$id/generate'
+    | '/sequences/$id/analytics'
     | '/sequences/$id/edit'
     | '/sequences/$id/enroll'
     | '/sequences/$id/enrollments'
@@ -370,6 +439,7 @@ export interface FileRouteTypes {
     | '/settings/value-props'
     | '/settings/webhooks'
     | '/settings/crm/$connectionId/mapping'
+    | '/settings/mailboxes/$id/health'
     | '/api/v1/sequences/$id/analytics'
     | '/api/v1/webhooks/$id/deliveries'
   id:
@@ -382,6 +452,7 @@ export interface FileRouteTypes {
     | '/_protected/prospects/$id'
     | '/_protected/prospects/import'
     | '/_protected/sequences/new'
+    | '/_protected/settings/suppression'
     | '/api/auth/$'
     | '/api/nango/webhook'
     | '/api/v1/enrollments'
@@ -389,8 +460,12 @@ export interface FileRouteTypes {
     | '/api/v1/prospects'
     | '/api/v1/unsubscribe'
     | '/api/v1/webhooks'
+    | '/_protected/analytics/'
+    | '/_protected/inbox/'
     | '/_protected/prospects/'
     | '/_protected/sequences/'
+    | '/_protected/prospects/$id/generate'
+    | '/_protected/sequences/$id/analytics'
     | '/_protected/sequences/$id/edit'
     | '/_protected/sequences/$id/enroll'
     | '/_protected/sequences/$id/enrollments'
@@ -403,6 +478,7 @@ export interface FileRouteTypes {
     | '/_protected/settings/value-props/'
     | '/_protected/settings/webhooks/'
     | '/_protected/settings/crm/$connectionId/mapping'
+    | '/_protected/settings/mailboxes/$id/health'
     | '/api/v1/sequences/$id/analytics'
     | '/api/v1/webhooks/$id/deliveries'
   fileRoutesById: FileRoutesById
@@ -473,6 +549,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedProspectsIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/inbox/': {
+      id: '/_protected/inbox/'
+      path: '/inbox'
+      fullPath: '/inbox/'
+      preLoaderRoute: typeof ProtectedInboxIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/analytics/': {
+      id: '/_protected/analytics/'
+      path: '/analytics'
+      fullPath: '/analytics/'
+      preLoaderRoute: typeof ProtectedAnalyticsIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/api/v1/webhooks': {
       id: '/api/v1/webhooks'
       path: '/api/v1/webhooks'
@@ -521,6 +611,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_protected/settings/suppression': {
+      id: '/_protected/settings/suppression'
+      path: '/settings/suppression'
+      fullPath: '/settings/suppression'
+      preLoaderRoute: typeof ProtectedSettingsSuppressionRouteImport
+      parentRoute: typeof ProtectedRoute
     }
     '/_protected/sequences/new': {
       id: '/_protected/sequences/new'
@@ -620,6 +717,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedSequencesIdEditRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/sequences/$id/analytics': {
+      id: '/_protected/sequences/$id/analytics'
+      path: '/sequences/$id/analytics'
+      fullPath: '/sequences/$id/analytics'
+      preLoaderRoute: typeof ProtectedSequencesIdAnalyticsRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/prospects/$id/generate': {
+      id: '/_protected/prospects/$id/generate'
+      path: '/generate'
+      fullPath: '/prospects/$id/generate'
+      preLoaderRoute: typeof ProtectedProspectsIdGenerateRouteImport
+      parentRoute: typeof ProtectedProspectsIdRoute
+    }
     '/api/v1/webhooks/$id/deliveries': {
       id: '/api/v1/webhooks/$id/deliveries'
       path: '/$id/deliveries'
@@ -634,6 +745,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1SequencesIdAnalyticsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_protected/settings/mailboxes/$id/health': {
+      id: '/_protected/settings/mailboxes/$id/health'
+      path: '/settings/mailboxes/$id/health'
+      fullPath: '/settings/mailboxes/$id/health'
+      preLoaderRoute: typeof ProtectedSettingsMailboxesIdHealthRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/settings/crm/$connectionId/mapping': {
       id: '/_protected/settings/crm/$connectionId/mapping'
       path: '/settings/crm/$connectionId/mapping'
@@ -644,14 +762,29 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ProtectedProspectsIdRouteChildren {
+  ProtectedProspectsIdGenerateRoute: typeof ProtectedProspectsIdGenerateRoute
+}
+
+const ProtectedProspectsIdRouteChildren: ProtectedProspectsIdRouteChildren = {
+  ProtectedProspectsIdGenerateRoute: ProtectedProspectsIdGenerateRoute,
+}
+
+const ProtectedProspectsIdRouteWithChildren =
+  ProtectedProspectsIdRoute._addFileChildren(ProtectedProspectsIdRouteChildren)
+
 interface ProtectedRouteChildren {
   ProtectedComposeRoute: typeof ProtectedComposeRoute
   ProtectedDashboardRoute: typeof ProtectedDashboardRoute
-  ProtectedProspectsIdRoute: typeof ProtectedProspectsIdRoute
+  ProtectedProspectsIdRoute: typeof ProtectedProspectsIdRouteWithChildren
   ProtectedProspectsImportRoute: typeof ProtectedProspectsImportRoute
   ProtectedSequencesNewRoute: typeof ProtectedSequencesNewRoute
+  ProtectedSettingsSuppressionRoute: typeof ProtectedSettingsSuppressionRoute
+  ProtectedAnalyticsIndexRoute: typeof ProtectedAnalyticsIndexRoute
+  ProtectedInboxIndexRoute: typeof ProtectedInboxIndexRoute
   ProtectedProspectsIndexRoute: typeof ProtectedProspectsIndexRoute
   ProtectedSequencesIndexRoute: typeof ProtectedSequencesIndexRoute
+  ProtectedSequencesIdAnalyticsRoute: typeof ProtectedSequencesIdAnalyticsRoute
   ProtectedSequencesIdEditRoute: typeof ProtectedSequencesIdEditRoute
   ProtectedSequencesIdEnrollRoute: typeof ProtectedSequencesIdEnrollRoute
   ProtectedSequencesIdEnrollmentsRoute: typeof ProtectedSequencesIdEnrollmentsRoute
@@ -662,16 +795,21 @@ interface ProtectedRouteChildren {
   ProtectedSettingsValuePropsIndexRoute: typeof ProtectedSettingsValuePropsIndexRoute
   ProtectedSettingsWebhooksIndexRoute: typeof ProtectedSettingsWebhooksIndexRoute
   ProtectedSettingsCrmConnectionIdMappingRoute: typeof ProtectedSettingsCrmConnectionIdMappingRoute
+  ProtectedSettingsMailboxesIdHealthRoute: typeof ProtectedSettingsMailboxesIdHealthRoute
 }
 
 const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedComposeRoute: ProtectedComposeRoute,
   ProtectedDashboardRoute: ProtectedDashboardRoute,
-  ProtectedProspectsIdRoute: ProtectedProspectsIdRoute,
+  ProtectedProspectsIdRoute: ProtectedProspectsIdRouteWithChildren,
   ProtectedProspectsImportRoute: ProtectedProspectsImportRoute,
   ProtectedSequencesNewRoute: ProtectedSequencesNewRoute,
+  ProtectedSettingsSuppressionRoute: ProtectedSettingsSuppressionRoute,
+  ProtectedAnalyticsIndexRoute: ProtectedAnalyticsIndexRoute,
+  ProtectedInboxIndexRoute: ProtectedInboxIndexRoute,
   ProtectedProspectsIndexRoute: ProtectedProspectsIndexRoute,
   ProtectedSequencesIndexRoute: ProtectedSequencesIndexRoute,
+  ProtectedSequencesIdAnalyticsRoute: ProtectedSequencesIdAnalyticsRoute,
   ProtectedSequencesIdEditRoute: ProtectedSequencesIdEditRoute,
   ProtectedSequencesIdEnrollRoute: ProtectedSequencesIdEnrollRoute,
   ProtectedSequencesIdEnrollmentsRoute: ProtectedSequencesIdEnrollmentsRoute,
@@ -683,6 +821,8 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedSettingsWebhooksIndexRoute: ProtectedSettingsWebhooksIndexRoute,
   ProtectedSettingsCrmConnectionIdMappingRoute:
     ProtectedSettingsCrmConnectionIdMappingRoute,
+  ProtectedSettingsMailboxesIdHealthRoute:
+    ProtectedSettingsMailboxesIdHealthRoute,
 }
 
 const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(

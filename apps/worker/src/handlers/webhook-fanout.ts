@@ -50,19 +50,23 @@ export async function fanoutWebhookEvent(input: {
 export async function insertDomainEventAndFanout(input: {
   organizationId: string;
   eventType: WebhookEventType | string;
+  entityType?: string;
+  entityId?: string;
   payload: Record<string, unknown>;
 }): Promise<{ eventId: string; deliveryIds: string[] }> {
-  const [event] = await db
-    .insert(tables.domainEvent)
+  const [row] = await db
+    .insert(tables.event)
     .values({
       organizationId: input.organizationId,
-      eventType: input.eventType,
+      type: input.eventType,
+      entityType: input.entityType ?? "webhook",
+      entityId: input.entityId ?? "00000000-0000-0000-0000-000000000000",
       payload: input.payload,
     })
-    .returning({ id: tables.domainEvent.id });
+    .returning({ id: tables.event.id });
 
   const deliveryIds = await fanoutWebhookEvent(input);
-  return { eventId: event?.id ?? "", deliveryIds };
+  return { eventId: row?.id ?? "", deliveryIds };
 }
 
 export async function registerWebhookFanoutHandler(): Promise<void> {
