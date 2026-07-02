@@ -4,6 +4,7 @@ import { initSentry, Sentry, shutdownPostHog } from "@quiksend/observability";
 import { enqueue, getBoss, registerHandler, stopBoss } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
 import { registerCrmSyncHandler } from "./handlers/crm-sync.ts";
+import { registerSequenceHandlers } from "./sequence/register.ts";
 
 /**
  * Worker entrypoint. Boots pg-boss, registers job handlers, and idles waiting
@@ -42,6 +43,7 @@ async function main(): Promise<void> {
   });
 
   await registerCrmSyncHandler();
+  await registerSequenceHandlers();
 
   if (env.NODE_ENV !== "production") {
     await enqueue("hello.ping", { message: "worker boot smoke test" });
