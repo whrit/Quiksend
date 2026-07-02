@@ -1,4 +1,3 @@
-import { logger } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
 import type { WebhookEventType } from "@quiksend/db/schema";
 import { enqueue } from "@quiksend/queue";
@@ -6,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import {
   computeNextAttemptAt,
   registerWebhookDeliverHandler,
+  registerWebhookSweep,
   sweepPendingWebhookDeliveries,
 } from "./webhook-deliver.ts";
 
@@ -71,13 +71,7 @@ export async function insertDomainEventAndFanout(input: {
 
 export async function registerWebhookFanoutHandler(): Promise<void> {
   await registerWebhookDeliverHandler();
-
-  const interval = setInterval(() => {
-    void sweepPendingWebhookDeliveries().catch((err) => {
-      logger.error({ err }, "webhook delivery sweep failed");
-    });
-  }, 60_000);
-  interval.unref();
+  await registerWebhookSweep();
 }
 
 export { computeNextAttemptAt, sweepPendingWebhookDeliveries };

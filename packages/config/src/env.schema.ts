@@ -16,6 +16,13 @@ export const EnvSchema = z
 
     // Required (Phase 0)
     DATABASE_URL: z.string().url(),
+    // Set to `transaction` when using PgBouncer/Neon pooled endpoints (disables prepared statements).
+    DATABASE_POOLER_MODE: z.enum(["transaction"]).optional(),
+
+    // Webhook delivery throughput (Phase 10)
+    WEBHOOK_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+    WEBHOOK_SWEEP_BATCH_SIZE: z.coerce.number().int().positive().default(50),
+    WEBHOOK_DELIVER_CONCURRENCY: z.coerce.number().int().positive().default(5),
 
     // Auth (Phase 1)
     BETTER_AUTH_SECRET: z.string().min(1).optional(),

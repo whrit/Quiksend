@@ -99,6 +99,13 @@
       "when": 1782978470087,
       "tag": "0013_wave5_beta_sentiment",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1782978676813,
+      "tag": "0014_wave5_epsilon_perf_indexes",
+      "breakpoints": true
     }
   ]
 }

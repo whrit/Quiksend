@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -125,6 +125,11 @@ export const enrollment = pgTable(
       table.prospectId,
     ),
     index("enrollment_state_next_run_idx").on(table.state, table.nextRunAt),
+    index("enrollment_active_next_run_idx")
+      .on(table.state, table.nextRunAt)
+      .where(sql`${table.state} = 'active' AND ${table.nextRunAt} IS NOT NULL`),
+    index("enrollment_org_sequence_idx").on(table.organizationId, table.sequenceId),
+    index("enrollment_org_state_idx").on(table.organizationId, table.state),
     index("enrollment_org_prospect_idx").on(table.organizationId, table.prospectId),
   ],
 );

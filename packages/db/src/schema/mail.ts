@@ -1,3 +1,4 @@
+import { sql, type SQL } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -72,6 +73,7 @@ export const mailbox = pgTable(
       table.address,
       table.provider,
     ),
+    index("mailbox_status_id_idx").on(table.status, table.id),
   ],
 );
 
@@ -103,6 +105,9 @@ export const message = pgTable(
     dsn: jsonb("dsn"),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     receivedAt: timestamp("received_at", { withTimezone: true }),
+    threadAt: timestamp("thread_at", { withTimezone: true }).generatedAlwaysAs(
+      (): SQL => sql`coalesce(${message.receivedAt}, ${message.sentAt})`,
+    ),
     error: text("error"),
     idempotencyKey: text("idempotency_key").unique(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -127,5 +132,10 @@ export const message = pgTable(
       table.receivedAt.desc(),
     ),
     index("message_org_status_idx").on(table.organizationId, table.status),
+    index("message_enrollment_id_idx").on(table.enrollmentId),
+    index("message_mailbox_throttle_idx")
+      .on(table.mailboxId, table.sentAt.desc())
+      .where(sql`${table.direction} = 'outbound' AND ${table.status} = 'sent'`),
+    index("message_org_thread_at_idx").on(table.organizationId, table.threadAt.desc()),
   ],
 );
