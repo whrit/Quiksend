@@ -17,9 +17,12 @@
     "@quiksend/mail": "workspace:*",
     "@quiksend/observability": "workspace:*",
     "@quiksend/queue": "workspace:*",
-    "drizzle-orm": "0.45.2"
+    "drizzle-orm": "0.45.2",
+    "imapflow": "1.0.184",
+    "mailparser": "3.7.2"
   },
   "devDependencies": {
+    "@types/mailparser": "3.4.6",
     "dotenv-cli": "11.0.0",
     "tsx": "4.22.4"
   }
