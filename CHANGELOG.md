@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/whrit/Quiksend/compare/v1.10.0...v1.11.0) (2026-07-02)
+
+
+### Features
+
+* **phase-8-ai:** Phase 8 complete ([#28](https://github.com/whrit/Quiksend/issues/28)) ([7d0e0ee](https://github.com/whrit/Quiksend/commit/7d0e0eec1b22738cb76fd6cc263fc9c3cedf6842))
+
 ## [1.10.0](https://github.com/whrit/Quiksend/compare/v1.9.0...v1.10.0) (2026-07-02)
 
 
