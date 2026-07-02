@@ -14,9 +14,12 @@ import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
 import { Route as ProtectedProspectsIndexRouteImport } from './routes/_protected/prospects/index'
+import { Route as ApiNangoWebhookRouteImport } from './routes/api/nango/webhook'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ProtectedProspectsImportRouteImport } from './routes/_protected/prospects/import'
 import { Route as ProtectedProspectsIdRouteImport } from './routes/_protected/prospects/$id'
+import { Route as ProtectedSettingsCrmIndexRouteImport } from './routes/_protected/settings/crm/index'
+import { Route as ProtectedSettingsCrmConnectionIdMappingRouteImport } from './routes/_protected/settings/crm/$connectionId/mapping'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -42,6 +45,11 @@ const ProtectedProspectsIndexRoute = ProtectedProspectsIndexRouteImport.update({
   path: '/prospects/',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ApiNangoWebhookRoute = ApiNangoWebhookRouteImport.update({
+  id: '/api/nango/webhook',
+  path: '/api/nango/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -58,6 +66,18 @@ const ProtectedProspectsIdRoute = ProtectedProspectsIdRouteImport.update({
   path: '/prospects/$id',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedSettingsCrmIndexRoute =
+  ProtectedSettingsCrmIndexRouteImport.update({
+    id: '/settings/crm/',
+    path: '/settings/crm/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSettingsCrmConnectionIdMappingRoute =
+  ProtectedSettingsCrmConnectionIdMappingRouteImport.update({
+    id: '/settings/crm/$connectionId/mapping',
+    path: '/settings/crm/$connectionId/mapping',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -66,7 +86,10 @@ export interface FileRoutesByFullPath {
   '/prospects/$id': typeof ProtectedProspectsIdRoute
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/prospects/': typeof ProtectedProspectsIndexRoute
+  '/settings/crm/': typeof ProtectedSettingsCrmIndexRoute
+  '/settings/crm/$connectionId/mapping': typeof ProtectedSettingsCrmConnectionIdMappingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -75,7 +98,10 @@ export interface FileRoutesByTo {
   '/prospects/$id': typeof ProtectedProspectsIdRoute
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/prospects': typeof ProtectedProspectsIndexRoute
+  '/settings/crm': typeof ProtectedSettingsCrmIndexRoute
+  '/settings/crm/$connectionId/mapping': typeof ProtectedSettingsCrmConnectionIdMappingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -86,7 +112,10 @@ export interface FileRoutesById {
   '/_protected/prospects/$id': typeof ProtectedProspectsIdRoute
   '/_protected/prospects/import': typeof ProtectedProspectsImportRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/_protected/prospects/': typeof ProtectedProspectsIndexRoute
+  '/_protected/settings/crm/': typeof ProtectedSettingsCrmIndexRoute
+  '/_protected/settings/crm/$connectionId/mapping': typeof ProtectedSettingsCrmConnectionIdMappingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -97,7 +126,10 @@ export interface FileRouteTypes {
     | '/prospects/$id'
     | '/prospects/import'
     | '/api/auth/$'
+    | '/api/nango/webhook'
     | '/prospects/'
+    | '/settings/crm/'
+    | '/settings/crm/$connectionId/mapping'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -106,7 +138,10 @@ export interface FileRouteTypes {
     | '/prospects/$id'
     | '/prospects/import'
     | '/api/auth/$'
+    | '/api/nango/webhook'
     | '/prospects'
+    | '/settings/crm'
+    | '/settings/crm/$connectionId/mapping'
   id:
     | '__root__'
     | '/'
@@ -116,7 +151,10 @@ export interface FileRouteTypes {
     | '/_protected/prospects/$id'
     | '/_protected/prospects/import'
     | '/api/auth/$'
+    | '/api/nango/webhook'
     | '/_protected/prospects/'
+    | '/_protected/settings/crm/'
+    | '/_protected/settings/crm/$connectionId/mapping'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -124,6 +162,7 @@ export interface RootRouteChildren {
   ProtectedRoute: typeof ProtectedRouteWithChildren
   LoginRoute: typeof LoginRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiNangoWebhookRoute: typeof ApiNangoWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -163,6 +202,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedProspectsIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/api/nango/webhook': {
+      id: '/api/nango/webhook'
+      path: '/api/nango/webhook'
+      fullPath: '/api/nango/webhook'
+      preLoaderRoute: typeof ApiNangoWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -184,6 +230,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedProspectsIdRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/settings/crm/': {
+      id: '/_protected/settings/crm/'
+      path: '/settings/crm'
+      fullPath: '/settings/crm/'
+      preLoaderRoute: typeof ProtectedSettingsCrmIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings/crm/$connectionId/mapping': {
+      id: '/_protected/settings/crm/$connectionId/mapping'
+      path: '/settings/crm/$connectionId/mapping'
+      fullPath: '/settings/crm/$connectionId/mapping'
+      preLoaderRoute: typeof ProtectedSettingsCrmConnectionIdMappingRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
   }
 }
 
@@ -192,6 +252,8 @@ interface ProtectedRouteChildren {
   ProtectedProspectsIdRoute: typeof ProtectedProspectsIdRoute
   ProtectedProspectsImportRoute: typeof ProtectedProspectsImportRoute
   ProtectedProspectsIndexRoute: typeof ProtectedProspectsIndexRoute
+  ProtectedSettingsCrmIndexRoute: typeof ProtectedSettingsCrmIndexRoute
+  ProtectedSettingsCrmConnectionIdMappingRoute: typeof ProtectedSettingsCrmConnectionIdMappingRoute
 }
 
 const ProtectedRouteChildren: ProtectedRouteChildren = {
@@ -199,6 +261,9 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedProspectsIdRoute: ProtectedProspectsIdRoute,
   ProtectedProspectsImportRoute: ProtectedProspectsImportRoute,
   ProtectedProspectsIndexRoute: ProtectedProspectsIndexRoute,
+  ProtectedSettingsCrmIndexRoute: ProtectedSettingsCrmIndexRoute,
+  ProtectedSettingsCrmConnectionIdMappingRoute:
+    ProtectedSettingsCrmConnectionIdMappingRoute,
 }
 
 const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(
@@ -210,6 +275,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProtectedRoute: ProtectedRouteWithChildren,
   LoginRoute: LoginRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiNangoWebhookRoute: ApiNangoWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

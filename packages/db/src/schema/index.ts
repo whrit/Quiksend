@@ -18,3 +18,5 @@ export const appMeta = pgTable("app_meta", {
   value: jsonb("value"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export * from "./crm.ts";

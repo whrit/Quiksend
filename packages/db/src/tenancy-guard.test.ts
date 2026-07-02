@@ -21,7 +21,8 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "list",
   "importBatch",
   // Phase 3:
-  // "crmConnection", "syncState",
+  "crmConnection",
+  "syncState",
   // Phase 4:
   // "mailbox", "message",
   // etc. — flip on as tables land.

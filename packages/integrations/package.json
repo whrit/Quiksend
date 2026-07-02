@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./nango": "./src/nango.ts",
     "./webhook": "./src/webhook.ts",
-    "./providers": "./src/providers/index.ts"
+    "./providers": "./src/providers/index.ts",
+    "./sync/tables": "./src/sync/tables.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -16,6 +17,11 @@
   "dependencies": {
     "@nangohq/node": "0.70.9",
     "@quiksend/config": "workspace:*",
+    "drizzle-orm": "0.45.2",
     "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@quiksend/db": "workspace:*",
+    "postgres": "3.4.9"
   }
 }
