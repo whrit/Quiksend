@@ -20,7 +20,11 @@ export interface TestOrgs {
  * Names of app-scoped tables truncated between tests. Empty until Phase 2 adds
  * `prospect`/`company`/`list`; Phase 4 adds `mailbox`/`message`; etc.
  */
-export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [];
+export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
+  "message",
+  "mailbox",
+  // "prospect" — Track 2 adds when its table lands.
+];
 
 export async function truncateAppTables(): Promise<void> {
   if (APP_SCOPED_TABLES_TO_TRUNCATE.length === 0) return;

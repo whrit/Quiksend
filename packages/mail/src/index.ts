@@ -11,3 +11,11 @@ export * from "./adapter.ts";
 export * from "./threading.ts";
 export * from "./compliance.ts";
 export { buildMime, type BuildMimeInput, type BuildMimeOutput } from "./mime.ts";
+export { decryptSmtpConfig, encryptSmtpConfig, type SmtpConfigPlain } from "./crypto.ts";
+export { checkDomainAuth, type DomainAuthResult } from "./dns.ts";
+export {
+  createFakeAdapter,
+  createSmtpAdapter,
+  createSmtpTransport,
+  sendMime,
+} from "./adapters/index.ts";

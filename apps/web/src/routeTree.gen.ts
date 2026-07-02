@@ -13,7 +13,10 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
+import { Route as ProtectedComposeRouteImport } from './routes/_protected/compose'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ProtectedSettingsMailboxesIndexRouteImport } from './routes/_protected/settings/mailboxes/index'
+import { Route as ProtectedSettingsMailboxesNewRouteImport } from './routes/_protected/settings/mailboxes/new'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -34,44 +37,87 @@ const ProtectedDashboardRoute = ProtectedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedComposeRoute = ProtectedComposeRouteImport.update({
+  id: '/compose',
+  path: '/compose',
+  getParentRoute: () => ProtectedRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProtectedSettingsMailboxesIndexRoute =
+  ProtectedSettingsMailboxesIndexRouteImport.update({
+    id: '/settings/mailboxes/',
+    path: '/settings/mailboxes/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSettingsMailboxesNewRoute =
+  ProtectedSettingsMailboxesNewRouteImport.update({
+    id: '/settings/mailboxes/new',
+    path: '/settings/mailboxes/new',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/compose': typeof ProtectedComposeRoute
   '/dashboard': typeof ProtectedDashboardRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
+  '/settings/mailboxes/': typeof ProtectedSettingsMailboxesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/compose': typeof ProtectedComposeRoute
   '/dashboard': typeof ProtectedDashboardRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
+  '/settings/mailboxes': typeof ProtectedSettingsMailboxesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_protected': typeof ProtectedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_protected/compose': typeof ProtectedComposeRoute
   '/_protected/dashboard': typeof ProtectedDashboardRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/_protected/settings/mailboxes/new': typeof ProtectedSettingsMailboxesNewRoute
+  '/_protected/settings/mailboxes/': typeof ProtectedSettingsMailboxesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/dashboard' | '/api/auth/$'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/compose'
+    | '/dashboard'
+    | '/api/auth/$'
+    | '/settings/mailboxes/new'
+    | '/settings/mailboxes/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/dashboard' | '/api/auth/$'
+  to:
+    | '/'
+    | '/login'
+    | '/compose'
+    | '/dashboard'
+    | '/api/auth/$'
+    | '/settings/mailboxes/new'
+    | '/settings/mailboxes'
   id:
     | '__root__'
     | '/'
     | '/_protected'
     | '/login'
+    | '/_protected/compose'
     | '/_protected/dashboard'
     | '/api/auth/$'
+    | '/_protected/settings/mailboxes/new'
+    | '/_protected/settings/mailboxes/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -111,6 +157,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedDashboardRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/compose': {
+      id: '/_protected/compose'
+      path: '/compose'
+      fullPath: '/compose'
+      preLoaderRoute: typeof ProtectedComposeRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -118,15 +171,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_protected/settings/mailboxes/': {
+      id: '/_protected/settings/mailboxes/'
+      path: '/settings/mailboxes'
+      fullPath: '/settings/mailboxes/'
+      preLoaderRoute: typeof ProtectedSettingsMailboxesIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings/mailboxes/new': {
+      id: '/_protected/settings/mailboxes/new'
+      path: '/settings/mailboxes/new'
+      fullPath: '/settings/mailboxes/new'
+      preLoaderRoute: typeof ProtectedSettingsMailboxesNewRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
   }
 }
 
 interface ProtectedRouteChildren {
+  ProtectedComposeRoute: typeof ProtectedComposeRoute
   ProtectedDashboardRoute: typeof ProtectedDashboardRoute
+  ProtectedSettingsMailboxesNewRoute: typeof ProtectedSettingsMailboxesNewRoute
+  ProtectedSettingsMailboxesIndexRoute: typeof ProtectedSettingsMailboxesIndexRoute
 }
 
 const ProtectedRouteChildren: ProtectedRouteChildren = {
+  ProtectedComposeRoute: ProtectedComposeRoute,
   ProtectedDashboardRoute: ProtectedDashboardRoute,
+  ProtectedSettingsMailboxesNewRoute: ProtectedSettingsMailboxesNewRoute,
+  ProtectedSettingsMailboxesIndexRoute: ProtectedSettingsMailboxesIndexRoute,
 }
 
 const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(
