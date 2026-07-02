@@ -51,5 +51,8 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Migrate DB (tenancy tests need real schema)
+        run: pnpm db:migrate
+
       - name: Test
         run: pnpm test
