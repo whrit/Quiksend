@@ -1,0 +1,25 @@
+[
+  { "pattern": "\\.pphosted\\.com$", "gateway": "proofpoint", "confidence": "high" },
+  { "pattern": "\\.ppe-hosted\\.com$", "gateway": "proofpoint", "confidence": "high" },
+  { "pattern": "\\.mimecast\\.com$", "gateway": "mimecast", "confidence": "high" },
+  { "pattern": "\\.mimecast\\.co\\.[a-z]+$", "gateway": "mimecast", "confidence": "high" },
+  { "pattern": "\\.barracudanetworks\\.com$", "gateway": "barracuda", "confidence": "high" },
+  { "pattern": "\\.essentialscloud\\.com$", "gateway": "barracuda", "confidence": "high" },
+  { "pattern": "\\.iphmx\\.com$", "gateway": "cisco_ironport", "confidence": "high" },
+  { "pattern": "tmes\\.trendmicro\\.com$", "gateway": "trend_micro", "confidence": "high" },
+  { "pattern": "\\.fortimail\\.com$", "gateway": "fortinet", "confidence": "high" },
+  { "pattern": "\\.mail\\.sophos\\.com$", "gateway": "sophos", "confidence": "high" },
+  { "pattern": "messagelabs\\.com$", "gateway": "symantec", "confidence": "high" },
+  { "pattern": "symantec\\.cloud$", "gateway": "symantec", "confidence": "high" },
+  { "pattern": "aspmx\\.l\\.google\\.com$", "gateway": "google_workspace", "confidence": "high" },
+  { "pattern": "\\.googlemail\\.com$", "gateway": "google_workspace", "confidence": "high" },
+  {
+    "pattern": "\\.mail\\.protection\\.outlook\\.com$",
+    "gateway": "microsoft_365",
+    "confidence": "high"
+  },
+  { "pattern": "\\.outlook\\.com$", "gateway": "microsoft_365", "confidence": "high" },
+  { "pattern": "zoho\\.com$", "gateway": "zoho", "confidence": "high" },
+  { "pattern": "zohomail\\.com$", "gateway": "zoho", "confidence": "high" },
+  { "pattern": "messagingengine\\.com$", "gateway": "fastmail", "confidence": "high" }
+]

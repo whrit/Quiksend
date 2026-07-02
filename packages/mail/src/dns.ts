@@ -2,6 +2,55 @@ import * as dns from "node:dns/promises";
 
 export type SpfMode = "strict" | "softfail" | "neutral" | null;
 
+export interface MxRecord {
+  readonly exchange: string;
+  readonly priority: number;
+}
+
+export interface ResolveMxResult {
+  readonly records: MxRecord[];
+  readonly error: string | null;
+}
+
+const DEFAULT_MX_TIMEOUT_MS = 5_000;
+
+/** Resolve MX records for a domain with a timeout. Returns empty records on failure. */
+export async function resolveMxRecords(
+  domain: string,
+  timeoutMs = DEFAULT_MX_TIMEOUT_MS,
+): Promise<ResolveMxResult> {
+  const normalized = domain.trim().toLowerCase().replace(/^@/, "");
+  try {
+    const records = await Promise.race([
+      dns.resolveMx(normalized),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("MX lookup timeout")), timeoutMs);
+      }),
+    ]);
+    const sorted = [...records].toSorted((a, b) => a.priority - b.priority);
+    return {
+      records: sorted.map((r) => ({
+        exchange: r.exchange.toLowerCase(),
+        priority: r.priority,
+      })),
+      error: null,
+    };
+  } catch (err) {
+    return {
+      records: [],
+      error: err instanceof Error ? err.message : "MX lookup failed",
+    };
+  }
+}
+
+export async function resolveTxtRecords(host: string): Promise<string[][]> {
+  try {
+    return await dns.resolveTxt(host);
+  } catch {
+    return [];
+  }
+}
+
 export interface DomainAuthResult {
   readonly spf: {
     readonly pass: boolean;

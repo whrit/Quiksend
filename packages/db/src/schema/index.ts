@@ -12,6 +12,7 @@ export * from "./mail.ts";
  * schema markers, seed guards, etc.
  */
 export * from "./deliverability-enums.ts";
+export * from "./deliverability.ts";
 export * from "./prospects.ts";
 
 export const appMeta = pgTable("app_meta", {

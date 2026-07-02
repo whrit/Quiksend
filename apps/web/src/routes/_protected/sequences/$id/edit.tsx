@@ -24,6 +24,8 @@ import {
   Plus,
   Settings,
   Trash2,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -47,6 +49,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -56,6 +67,7 @@ import {
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { generateEmailForProspect } from "@/lib/ai.functions.ts";
+import { GATEWAY_FILTER_OPTIONS } from "@/components/gateway-badge.tsx";
 import { listMailboxes } from "@/lib/mailboxes.functions.ts";
 import { renderPreview, validateTemplate } from "@/lib/sequence-templates.ts";
 import {
@@ -68,6 +80,7 @@ import {
   type SequenceSettings,
   type StepConfig,
 } from "@/lib/sequences.functions.ts";
+import { cn } from "@/lib/utils";
 
 type SequenceDetail = Awaited<ReturnType<typeof getSequence>>;
 
@@ -119,6 +132,9 @@ interface StepFormState {
   variantBSubject: string;
   variantBBody: string;
   showVariantB: boolean;
+  ifNoReply: boolean;
+  recipientGatewayIn: string[];
+  recipientGatewayNotIn: string[];
 }
 
 function emptyStepForm(index: number, type: StepType = "manual_email"): StepFormState {
@@ -136,6 +152,9 @@ function emptyStepForm(index: number, type: StepType = "manual_email"): StepForm
     variantBSubject: "",
     variantBBody: "",
     showVariantB: false,
+    ifNoReply: false,
+    recipientGatewayIn: [],
+    recipientGatewayNotIn: [],
   };
 }
 
@@ -157,16 +176,33 @@ function stepToForm(step: Step): StepFormState {
     variantBSubject: variantB?.subject ?? "",
     variantBBody: variantB?.body_template ?? "",
     showVariantB: Boolean(variantB),
+    ifNoReply: step.entryCondition?.kind === "if_no_reply",
+    recipientGatewayIn: step.entryCondition?.recipientGatewayIn ?? [],
+    recipientGatewayNotIn: step.entryCondition?.recipientGatewayNotIn ?? [],
+  };
+}
+
+function buildEntryCondition(form: StepFormState) {
+  const hasGateway = form.recipientGatewayIn.length > 0 || form.recipientGatewayNotIn.length > 0;
+  if (!form.ifNoReply && !hasGateway) return undefined;
+  return {
+    ...(form.ifNoReply ? { kind: "if_no_reply" as const } : {}),
+    ...(form.recipientGatewayIn.length > 0 ? { recipientGatewayIn: form.recipientGatewayIn } : {}),
+    ...(form.recipientGatewayNotIn.length > 0
+      ? { recipientGatewayNotIn: form.recipientGatewayNotIn }
+      : {}),
   };
 }
 
 function formToStepPayload(form: StepFormState) {
+  const entryCondition = buildEntryCondition(form);
   const base = {
     id: form.id,
     index: form.index,
     type: form.type,
     delayMinutes: form.delayMinutes,
     businessDaysOnly: form.businessDaysOnly,
+    ...(entryCondition ? { entryCondition } : {}),
   };
 
   if (form.type === "wait") {
@@ -648,6 +684,32 @@ function SequenceBuilderPage() {
               <Label htmlFor="step-biz-days">Business days only</Label>
             </div>
 
+            <div className="space-y-3 rounded border p-3">
+              <p className="text-sm font-medium">Entry conditions</p>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="if-no-reply"
+                  checked={stepForm.ifNoReply}
+                  onCheckedChange={(c) => setStepForm((f) => ({ ...f, ifNoReply: c === true }))}
+                />
+                <Label htmlFor="if-no-reply">Only if no reply on thread</Label>
+              </div>
+              <GatewayMultiSelect
+                label="Only send if recipient is behind"
+                selected={stepForm.recipientGatewayIn}
+                onChange={(recipientGatewayIn) =>
+                  setStepForm((f) => ({ ...f, recipientGatewayIn }))
+                }
+              />
+              <GatewayMultiSelect
+                label="Never send if recipient is behind"
+                selected={stepForm.recipientGatewayNotIn}
+                onChange={(recipientGatewayNotIn) =>
+                  setStepForm((f) => ({ ...f, recipientGatewayNotIn }))
+                }
+              />
+            </div>
+
             {(stepForm.type === "manual_email" || stepForm.type === "auto_email") && (
               <>
                 <div className="flex items-center gap-2">
@@ -855,6 +917,61 @@ function SequenceBuilderPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function GatewayMultiSelect({
+  label,
+  selected,
+  onChange,
+}: {
+  label: string;
+  selected: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="w-full justify-between font-normal">
+            {selected.length > 0 ? `${selected.length} selected` : "Select gateways…"}
+            <ChevronsUpDown className="h-4 w-4 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Search gateways…" />
+            <CommandList>
+              <CommandEmpty>No gateway found.</CommandEmpty>
+              <CommandGroup>
+                {GATEWAY_FILTER_OPTIONS.map((opt) => {
+                  const checked = selected.includes(opt.value);
+                  return (
+                    <CommandItem
+                      key={opt.value}
+                      onSelect={() => {
+                        onChange(
+                          checked
+                            ? selected.filter((v) => v !== opt.value)
+                            : [...selected, opt.value],
+                        );
+                      }}
+                    >
+                      <Check
+                        className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")}
+                      />
+                      {opt.label}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
