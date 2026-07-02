@@ -1,0 +1,34 @@
+Return-Path: <>
+From: MAILER-DAEMON@mail.example.org (Mail Delivery System)
+To: MAILER-DAEMON@mail.example.org
+Subject: Undelivered Mail Returned to Sender
+MIME-Version: 1.0
+Content-Type: multipart/report; boundary="postfix-boundary-08"; report-type=delivery-status
+
+--postfix-boundary-08
+Content-Type: text/plain; charset="us-ascii"
+
+This is the mail system at host mail.example.org.
+
+I'm sorry to have to inform you that your message could not be delivered to one or more recipients. It's attached below.
+
+For further assistance, please send mail to postmaster.
+
+If you do so, please include this problem report. You can delete your own text from the attached returned message.
+
+                   The mail system
+
+<MAILER-DAEMON@mail.example.org>: double bounce
+
+--postfix-boundary-08
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; mail.example.org
+X-Postfix-Sender: rfc822; MAILER-DAEMON@mail.example.org
+Final-Recipient: rfc822; MAILER-DAEMON@mail.example.org
+Original-Recipient: rfc822; MAILER-DAEMON@mail.example.org
+Action: failed
+Status: 5.4.6
+Diagnostic-Code: X-Postfix; double bounce
+
+--postfix-boundary-08--
