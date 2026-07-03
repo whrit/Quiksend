@@ -53,6 +53,9 @@ export const EnvSchema = z
     MAILBOX_ENCRYPTION_KEY: z.string().optional(),
     // Encrypts provider-managed seed inbox IMAP credentials (Quiksend Systems infra only).
     SYSTEM_SEED_ENCRYPTION_KEY: z.string().optional(),
+    // Provider seed pool ops — optional alerts + event attribution (Quiksend Systems infra only).
+    SYSTEM_ADMIN_EMAIL: z.string().email().optional(),
+    QUIKSEND_SYSTEM_ORG_ID: z.string().optional(),
 
     // Signs unsubscribe tokens embedded in outbound messages.
     UNSUBSCRIBE_TOKEN_SECRET: z.string().optional(),

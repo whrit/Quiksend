@@ -44,7 +44,7 @@ describe("sanitizeForSeg", () => {
     expect(result.html).toContain(dataUri);
   });
 
-  it("prefers plain text by dropping html", () => {
+  it("prefers plain text by dropping html when plain text is complete", () => {
     const result = sanitizeForSeg(
       { html: "<p><strong>Hi</strong></p>", text: "Hi" },
       {
@@ -55,6 +55,65 @@ describe("sanitizeForSeg", () => {
     );
     expect(result.html).toBe("");
     expect(result.text).toBe("Hi");
+  });
+
+  it("keeps html when plain text is minimal vs full html", () => {
+    const html = "<p><strong>Hello</strong> with <em>formatting</em> and more detail.</p>";
+    const result = sanitizeForSeg(
+      { html, text: "Hi" },
+      {
+        stripTrackingPixel: false,
+        stripExternalImages: false,
+        preferPlainText: true,
+      },
+    );
+    expect(result.html).toBe(html);
+    expect(result.text).toBe("Hi");
+  });
+
+  it("strips oversized inline data-uri images", () => {
+    const bigPayload = "a".repeat(101 * 1024);
+    const dataUri = `data:image/png;base64,${bigPayload}`;
+    const html = `<p>Hi</p><img src="${dataUri}" />`;
+    const result = sanitizeForSeg(
+      { html, text: "Hi" },
+      {
+        stripTrackingPixel: false,
+        stripExternalImages: true,
+        preferPlainText: false,
+      },
+    );
+    expect(result.html).not.toContain("data:image/png");
+  });
+
+  it("keeps inline data-uri images under 100KB", () => {
+    const dataUri = "data:image/png;base64,aaaa";
+    const html = `<p>Hi</p><img src="${dataUri}" />`;
+    const result = sanitizeForSeg(
+      { html, text: "Hi" },
+      {
+        stripTrackingPixel: false,
+        stripExternalImages: true,
+        preferPlainText: false,
+      },
+    );
+    expect(result.html).toContain(dataUri);
+  });
+
+  it("strips tracking pixel but keeps non-tracking external image tag when not stripping externals", () => {
+    const html =
+      '<p>Hi</p><img src="https://track.example.com/pixel" width="1" /><img src="https://cdn.example.com/logo.png" />';
+    const result = sanitizeForSeg(
+      { html, text: "Hi" },
+      {
+        stripTrackingPixel: true,
+        stripExternalImages: false,
+        preferPlainText: false,
+        trackingDomain: "track.example.com",
+      },
+    );
+    expect(result.html).not.toMatch(/track\.example\.com/);
+    expect(result.html).toContain("cdn.example.com");
   });
 
   it("sanitizes multipart content while remaining usable", () => {

@@ -183,6 +183,13 @@ export type CanaryCheckPayload = Record<string, never>;
 export const deliverabilitySnapshotSchema = z.object({});
 export type DeliverabilitySnapshotPayload = Record<string, never>;
 
+// ── seed_pool.* — provider seed pool maintenance (Phase 11C) ─────────────────
+export const seedPoolHealthCheckSchema = z.object({});
+export type SeedPoolHealthCheckPayload = Record<string, never>;
+
+export const seedPoolGenerateLegitMailSchema = z.object({});
+export type SeedPoolGenerateLegitMailPayload = Record<string, never>;
+
 export interface JobPayloadMap {
   "hello.ping": HelloPingPayload;
   "sequence.tick": SequenceTickPayload;
@@ -201,6 +208,8 @@ export interface JobPayloadMap {
   "canary.send": CanarySendJobPayload;
   "canary.check": CanaryCheckPayload;
   "deliverability.snapshot": DeliverabilitySnapshotPayload;
+  "seed_pool.health_check": SeedPoolHealthCheckPayload;
+  "seed_pool.generate_legit_mail": SeedPoolGenerateLegitMailPayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -223,6 +232,8 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "canary.send": canarySendJobSchema,
   "canary.check": canaryCheckSchema,
   "deliverability.snapshot": deliverabilitySnapshotSchema,
+  "seed_pool.health_check": seedPoolHealthCheckSchema,
+  "seed_pool.generate_legit_mail": seedPoolGenerateLegitMailSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];

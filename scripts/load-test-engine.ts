@@ -9,6 +9,7 @@
  *   pnpm tsx scripts/load-test-engine.ts --test-mode=suppression-during-run
  *   pnpm tsx scripts/load-test-engine.ts --test-mode=seg-routing
  */
+import { LOAD_TEST_ENV_BOOTSTRAPPED } from "./load-test-env-bootstrap.ts";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -34,14 +35,17 @@ function loadEnvFile(): void {
   }
 }
 
+if (!LOAD_TEST_ENV_BOOTSTRAPPED) {
+  throw new Error("load-test env bootstrap failed");
+}
 loadEnvFile();
 
-// Test defaults when .env is absent (fresh worktrees).
+// Encryption keys are set in load-test-env-bootstrap.ts (imported first).
 process.env.UNSUBSCRIBE_TOKEN_SECRET ??= "dev-unsubscribe-token-secret";
 process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
 
 import { db, tables, client } from "../packages/db/src/index.ts";
-import { eq, isNull, and } from "../packages/db/node_modules/drizzle-orm/index.js";
+import { eq, isNull, and, inArray } from "../packages/db/node_modules/drizzle-orm/index.js";
 import { getBoss, stopBoss } from "../packages/queue/src/boss.ts";
 
 type TestMode =
@@ -51,7 +55,8 @@ type TestMode =
   | "suppression-during-run"
   | "seg-routing"
   | "canary-happy-path"
-  | "canary-auto-pause";
+  | "canary-auto-pause"
+  | "gateway-detection";
 
 interface Args {
   workspaces: number;
@@ -93,13 +98,25 @@ function parseArgs(): Args {
   }
 
   if (out.testMode.startsWith("canary-")) {
-    out.workspaces = 1;
-    out.enrollments = 10;
+    out.workspaces = 2;
+    out.enrollments = 4;
     out.workers = 1;
     out.duration = Math.min(out.duration, 60);
   }
 
-  if (out.testMode !== "happy-path" && out.testMode !== "seg-routing") {
+  if (out.testMode === "gateway-detection") {
+    out.workspaces = 1;
+    out.enrollments = 500;
+    out.workers = 1;
+    out.duration = 30;
+  }
+
+  if (
+    out.testMode !== "happy-path" &&
+    out.testMode !== "seg-routing" &&
+    !out.testMode.startsWith("canary-") &&
+    out.testMode !== "gateway-detection"
+  ) {
     out.workspaces = 1;
     out.enrollments = Math.min(out.enrollments, 5);
     out.workers = 1;
@@ -130,6 +147,192 @@ interface SeedResult {
   orgId: string;
   enrollmentIds: string[];
   prospectEmails: string[];
+}
+
+interface CanaryFixture {
+  orgIds: string[];
+  sequenceIds: string[];
+  mailboxIds: string[];
+  seedInboxIds: string[];
+  canarySendIds: string[];
+}
+
+async function seedCanaryFixture(canaryCount: number, seedCount: number): Promise<CanaryFixture> {
+  const orgIds: string[] = [];
+  const sequenceIds: string[] = [];
+  const mailboxIds: string[] = [];
+  const seedInboxIds: string[] = [];
+  const canarySendIds: string[] = [];
+  const now = new Date();
+
+  const { encryptSeedImapConfig } = await import("../packages/mail/src/seed-crypto.ts");
+  const { injectCanariesForEnrollment } = await import("../apps/web/src/lib/canary-injection.ts");
+
+  for (let orgIndex = 0; orgIndex < 2; orgIndex++) {
+    const orgId = makeId("org");
+    const userId = makeId("user");
+    orgIds.push(orgId);
+
+    await db.insert(tables.user).values({
+      id: userId,
+      name: `Canary Org ${orgIndex}`,
+      email: `canary-org${orgIndex}-${randomUUID().slice(0, 6)}@loadtest.quiksend.local`,
+      emailVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(tables.organization).values({
+      id: orgId,
+      name: `Canary Workspace ${orgIndex}`,
+      slug: `canary-${orgIndex}-${randomUUID().slice(0, 8)}`,
+      metadata: JSON.stringify({
+        postal_address: "100 Test Ave, Load City, CA 94000",
+        entitlements: { deliverability_pro: { activeUntil: "2099-01-01T00:00:00.000Z" } },
+        canary_defaults: { enabled: true, seedsPerCampaign: 3, minProspectsPerSeg: 2 },
+      }),
+      createdAt: now,
+    });
+
+    await db.insert(tables.member).values({
+      id: makeId("member"),
+      organizationId: orgId,
+      userId,
+      role: "owner",
+      createdAt: now,
+    });
+
+    const [mailbox] = await db
+      .insert(tables.mailbox)
+      .values({
+        organizationId: orgId,
+        ownerUserId: userId,
+        provider: "smtp",
+        address: `canary-mb-${orgIndex}@loadtest.quiksend.local`,
+        enterpriseSafe: true,
+        dailyCap: 200,
+        throttleSeconds: 0,
+        sendWindow: WIDE_WINDOW,
+        status: "active",
+      })
+      .returning();
+    if (!mailbox) throw new Error("Failed to create canary mailbox");
+    mailboxIds.push(mailbox.id);
+
+    const [sequence] = await db
+      .insert(tables.sequence)
+      .values({
+        organizationId: orgId,
+        name: `Canary Sequence ${orgIndex}`,
+        status: "active",
+        settings: {
+          timezone: "UTC",
+          throttle_seconds: 0,
+          mailbox_ids: [mailbox.id],
+          stop_on_reply: false,
+          business_days_only: false,
+        },
+        canaryConfig: { enabled: true, seedsPerCampaign: 3, minProspectsPerSeg: 2 },
+        createdByUserId: userId,
+      })
+      .returning();
+    if (!sequence) throw new Error("Failed to create canary sequence");
+    sequenceIds.push(sequence.id);
+
+    await db.insert(tables.sequenceStep).values({
+      organizationId: orgId,
+      sequenceId: sequence.id,
+      stepIndex: 0,
+      stepType: "auto_email",
+      delayMinutes: 0,
+      config: {
+        subject: "Canary step",
+        body_template: "<p>Canary body</p>",
+        ai_generate: false,
+      },
+    });
+
+    for (let i = 0; i < 2; i++) {
+      await db.insert(tables.prospect).values({
+        organizationId: orgId,
+        email: `seg-prospect-${orgIndex}-${i}@proofpoint-seg.test`,
+        emailGateway: "proofpoint",
+        status: "active",
+        source: "api",
+      });
+    }
+
+    const perOrgSeeds = orgIndex === 0 ? Math.ceil(seedCount / 2) : Math.floor(seedCount / 2);
+    for (let s = 0; s < perOrgSeeds; s++) {
+      const [seed] = await db
+        .insert(tables.seedInbox)
+        .values({
+          organizationId: orgId,
+          email: `seed-${orgIndex}-${s}@canary-pool.test`,
+          gateway: "proofpoint",
+          provider: "google_workspace",
+          imapConfig: encryptSeedImapConfig(
+            {
+              host: "imap.gmail.com",
+              port: 993,
+              auth: { user: "seed", pass: "secret" },
+              secure: true,
+            },
+            orgId,
+          ),
+          active: true,
+          verifiedAt: now,
+        })
+        .returning();
+      if (seed) seedInboxIds.push(seed.id);
+    }
+
+    const prospects = await db.query.prospect.findMany({
+      where: eq(tables.prospect.organizationId, orgId),
+    });
+
+    const injected = await injectCanariesForEnrollment({
+      organizationId: orgId,
+      sequenceId: sequence.id,
+      enrolledProspectIds: prospects.map((p) => p.id),
+      mailboxIds: [mailbox.id],
+      sequenceCanaryConfig: sequence.canaryConfig,
+      workspaceCanaryConfig: {
+        enabled: true,
+        seedsPerCampaign: 3,
+        minProspectsPerSeg: 2,
+      },
+      isProEntitled: true,
+    });
+
+    if (injected === 0) throw new Error(`canary injection failed for org ${orgId}`);
+  }
+
+  const allCanaries = await db.query.canarySend.findMany({
+    where: inArray(tables.canarySend.organizationId, orgIds),
+  });
+  canarySendIds.push(...allCanaries.map((c) => c.id));
+
+  while (canarySendIds.length < canaryCount) {
+    const orgId = orgIds[canarySendIds.length % orgIds.length]!;
+    const sequenceId = sequenceIds[canarySendIds.length % sequenceIds.length]!;
+    const mailboxId = mailboxIds[canarySendIds.length % mailboxIds.length]!;
+    const seedInboxId = seedInboxIds[canarySendIds.length % seedInboxIds.length]!;
+    const [row] = await db
+      .insert(tables.canarySend)
+      .values({
+        organizationId: orgId,
+        sequenceId,
+        mailboxId,
+        seedInboxId,
+        canaryToken: randomUUID(),
+        subject: "Extra canary",
+      })
+      .returning();
+    if (row) canarySendIds.push(row.id);
+  }
+
+  return { orgIds, sequenceIds, mailboxIds, seedInboxIds, canarySendIds };
 }
 
 async function seedWorkspace(label: string, enrollmentCount: number): Promise<SeedResult> {
@@ -841,9 +1044,269 @@ async function runSegRoutingReservationStress(seed: SeedResult): Promise<string[
   return violations;
 }
 
+async function resetCanaryTables(): Promise<void> {
+  await client`
+    truncate table deliverability_snapshot, canary_send, seed_inbox, event, job_log,
+      enrollment, sequence_step, sequence, message, mailbox, prospect, member, organization, "user"
+    restart identity cascade
+  `;
+}
+
+async function runCanaryHappyPathLoadTest(): Promise<string[]> {
+  const violations: string[] = [];
+  await resetCanaryTables();
+  await resetQueue();
+
+  process.env.QUIKSEND_CANARY_IMAP_MOCK = "inbox";
+  process.env.SMTP_HOST ??= "localhost";
+  const fixture = await seedCanaryFixture(100, 5);
+  const { materializeCanarySend } =
+    await import("../apps/worker/src/deliverability/canary-send.ts");
+
+  const sentTokens = new Set<string>();
+  for (const canaryId of fixture.canarySendIds) {
+    await materializeCanarySend(canaryId);
+    const row = await db.query.canarySend.findFirst({
+      where: eq(tables.canarySend.id, canaryId),
+    });
+    if (!row?.sentAt) {
+      violations.push(`canary ${canaryId} was not materialized`);
+      continue;
+    }
+    if (sentTokens.has(row.canaryToken)) {
+      violations.push(`duplicate canary token send: ${row.canaryToken}`);
+    }
+    sentTokens.add(row.canaryToken);
+
+    await db
+      .update(tables.canarySend)
+      .set({ arrivalStatus: "arrived_inbox", arrivedAt: new Date() })
+      .where(eq(tables.canarySend.id, canaryId));
+  }
+
+  const pending = await db.query.canarySend.findMany({
+    where: inArray(tables.canarySend.id, fixture.canarySendIds),
+  });
+  const notTerminal = pending.filter((c) => c.arrivalStatus === "pending");
+  if (notTerminal.length > 0) {
+    violations.push(`${notTerminal.length} canaries still pending after poll`);
+  }
+
+  const [rollup] = await client<{ canary_total: number; deliverability_pct: string }[]>`
+    SELECT
+      count(*)::int AS canary_total,
+      round(
+        100.0 * count(*) FILTER (WHERE arrival_status = 'arrived_inbox') / nullif(count(*), 0),
+        2
+      )::text AS deliverability_pct
+    FROM canary_send
+    WHERE id = ANY(${fixture.canarySendIds}::uuid[])
+      AND arrival_status <> 'pending'
+  `;
+  if ((rollup?.canary_total ?? 0) === 0) {
+    violations.push("no terminal canary rows for rollup assertion");
+  }
+
+  return violations;
+}
+
+async function runCanaryAutoPauseLoadTest(): Promise<string[]> {
+  const violations: string[] = [];
+  await resetCanaryTables();
+
+  process.env.QUIKSEND_CANARY_IMAP_MOCK = "not_found";
+  process.env.SMTP_HOST ??= "localhost";
+  const fixture = await seedCanaryFixture(6, 3);
+  const { materializeCanarySend } =
+    await import("../apps/worker/src/deliverability/canary-send.ts");
+  const { maybePauseCampaigns } = await import("../apps/worker/src/handlers/canary-check.ts");
+
+  const sequenceId = fixture.sequenceIds[0]!;
+  const orgId = fixture.orgIds[0]!;
+  const mailboxId = fixture.mailboxIds[0]!;
+
+  const owner = await db.query.member.findFirst({
+    where: eq(tables.member.organizationId, orgId),
+  });
+
+  for (let i = 0; i < 2; i++) {
+    const [prospect] = await db
+      .insert(tables.prospect)
+      .values({
+        organizationId: orgId,
+        email: `pause-prospect-${i}@test.local`,
+        source: "api",
+      })
+      .returning();
+    await db.insert(tables.enrollment).values({
+      organizationId: orgId,
+      sequenceId,
+      prospectId: prospect!.id,
+      mailboxId,
+      state: "active",
+      createdByUserId: owner?.userId ?? makeId("user"),
+    });
+  }
+
+  for (const canaryId of fixture.canarySendIds.slice(0, 4)) {
+    await materializeCanarySend(canaryId);
+    await db
+      .update(tables.canarySend)
+      .set({ arrivalStatus: "silent_drop", arrivedAt: new Date() })
+      .where(eq(tables.canarySend.id, canaryId));
+  }
+
+  await maybePauseCampaigns();
+
+  const enrollments = await db.query.enrollment.findMany({
+    where: eq(tables.enrollment.sequenceId, sequenceId),
+  });
+  if (!enrollments.every((e) => e.state === "paused")) {
+    violations.push("expected sequence enrollments paused after silent-drop threshold");
+  }
+
+  const events = await db.query.event.findMany({
+    where: eq(tables.event.type, "canary.silent_drop_detected"),
+  });
+  if (events.length === 0) {
+    violations.push("expected canary.silent_drop_detected event");
+  }
+
+  return violations;
+}
+
+async function runGatewayDetectionLoadTest(): Promise<string[]> {
+  const violations: string[] = [];
+  await resetCanaryTables();
+
+  const orgId = makeId("org");
+  const userId = makeId("user");
+  const now = new Date();
+
+  await db.insert(tables.user).values({
+    id: userId,
+    name: "Gateway Load User",
+    email: `gw-${randomUUID().slice(0, 6)}@loadtest.quiksend.local`,
+    emailVerified: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await db.insert(tables.organization).values({
+    id: orgId,
+    name: "Gateway Load Org",
+    slug: `gw-${randomUUID().slice(0, 8)}`,
+    createdAt: now,
+  });
+  await db.insert(tables.member).values({
+    id: makeId("member"),
+    organizationId: orgId,
+    userId,
+    role: "owner",
+    createdAt: now,
+  });
+
+  const domains = Array.from({ length: 50 }, (_, i) => `gw-domain-${i}.test`);
+  for (let i = 0; i < 500; i++) {
+    const domain = domains[i % domains.length]!;
+    await db.insert(tables.prospect).values({
+      organizationId: orgId,
+      email: `prospect${i}@${domain}`,
+      source: "api",
+    });
+  }
+
+  const { applyClassificationToProspects } =
+    await import("../apps/worker/src/handlers/gateway-detect.ts");
+
+  const start = Date.now();
+  for (const domain of domains) {
+    await db
+      .insert(tables.gatewayClassification)
+      .values({
+        emailDomain: domain,
+        gateway: "proofpoint",
+        mxRecords: [`mx.${domain}`],
+        evidence: [{ kind: "mx", detail: `MX: mx.${domain}` }],
+        confidence: "high",
+        classifiedAt: now,
+        ttlUntil: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      })
+      .onConflictDoUpdate({
+        target: tables.gatewayClassification.emailDomain,
+        set: {
+          gateway: "proofpoint",
+          classifiedAt: now,
+          ttlUntil: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+        },
+      });
+    await applyClassificationToProspects(
+      domain,
+      "proofpoint",
+      [{ kind: "mx", detail: `MX: mx.${domain}` }],
+      orgId,
+    );
+  }
+  const elapsed = Date.now() - start;
+  if (elapsed > 30_000) {
+    violations.push(`gateway classification took ${elapsed}ms (limit 30s)`);
+  }
+
+  const cached = await db.query.gatewayClassification.findMany({
+    where: inArray(tables.gatewayClassification.emailDomain, domains),
+  });
+  if (cached.length !== domains.length) {
+    violations.push(`expected ${domains.length} cached domains, got ${cached.length}`);
+  }
+
+  const prospects = await db.query.prospect.findMany({
+    where: eq(tables.prospect.organizationId, orgId),
+  });
+  if (prospects.some((p) => !p.emailGateway)) {
+    violations.push("unclassified prospects remain after gateway-detection load test");
+  }
+
+  return violations;
+}
+
 async function main(): Promise<void> {
   const args = parseArgs();
   console.log("Load test starting", args);
+
+  if (args.testMode === "canary-happy-path") {
+    const violations = await runCanaryHappyPathLoadTest();
+    await client.end();
+    await stopBoss().catch(() => undefined);
+    if (violations.length > 0) {
+      console.error("FAIL", violations);
+      process.exit(1);
+    }
+    console.log("OK — canary-happy-path invariants passed");
+    return;
+  }
+
+  if (args.testMode === "canary-auto-pause") {
+    const violations = await runCanaryAutoPauseLoadTest();
+    await client.end();
+    await stopBoss().catch(() => undefined);
+    if (violations.length > 0) {
+      console.error("FAIL", violations);
+      process.exit(1);
+    }
+    console.log("OK — canary-auto-pause invariants passed");
+    return;
+  }
+
+  if (args.testMode === "gateway-detection") {
+    const violations = await runGatewayDetectionLoadTest();
+    await client.end();
+    await stopBoss().catch(() => undefined);
+    if (violations.length > 0) {
+      console.error("FAIL", violations);
+      process.exit(1);
+    }
+    console.log("OK — gateway-detection invariants passed");
+    return;
+  }
 
   const { seeds } = await seedAll(args.workspaces, args.enrollments, args.testMode);
 
