@@ -8,20 +8,20 @@
 
 ### P1 invariant checklist (Phase 11 focus)
 
-| Invariant | Status | Notes |
-| --- | --- | --- |
-| Tenant isolation — `seed_inbox` user paths | **OK** | Web mutations filter `organizationId`; provider pool reads gated on `isDeliverabilityProEntitled` |
-| Tenant isolation — `seed_inbox` worker paths | **OK** | Worker jobs are global cron/queue consumers by design; lookups keyed by UUID from prior scoped inserts |
-| Tenant isolation — `canary_send` | **OK** | Web reads/writes filter `organizationId`; worker updates keyed by row `id` from prior query |
-| Tenant isolation — `deliverability_snapshot` | **OK** | Grid read filters `organizationId`; rollup SQL groups by `cs.organization_id` |
-| `gateway_classification` intentionally shared | **OK** | No `organization_id` column; stores domain-level gateway/MX/evidence only — no prospect PII |
-| `APP_SCOPED_TABLES` includes Phase 11C tables | **OK** | `seedInbox`, `canarySend`, `deliverabilitySnapshot` present; CI guard passes |
-| Encryption domain split (user vs provider seeds) | **OK** | `resolveSeedEncryptionKey` uses `MAILBOX_ENCRYPTION_KEY` vs `SYSTEM_SEED_ENCRYPTION_KEY` |
-| Provider IMAP credentials hidden from workspace API | **OK** | `PublicSeedInbox` omits `imapConfig`; only aggregate counts in `getProviderManagedSeedGateways` |
-| Decrypted IMAP creds not logged | **OK** | `canary-check.ts` / `seed-inbox-verify.ts` log `{ err, seedInboxId }` only — no config/pass fields |
-| Phase 11 webhook payload cross-tenant leakage | **N/A (not wired)** | Three of four Phase 11 webhook types are never emitted; `enrollment.no_safe_mailbox_for_gateway` writes org-scoped `event` rows only (no webhook fanout) |
-| Admin gate on routing policy | **OK** | `setWorkspaceDeliverabilityPolicy` calls `requireAdmin` |
-| Auto-downgrade clear is admin-only | **OK** | `setMailboxEnterpriseSafe` requires admin; sets `enterpriseSafeAutoDowngraded: false` when re-declaring safe |
+| Invariant                                           | Status              | Notes                                                                                                                                                    |
+| --------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tenant isolation — `seed_inbox` user paths          | **OK**              | Web mutations filter `organizationId`; provider pool reads gated on `isDeliverabilityProEntitled`                                                        |
+| Tenant isolation — `seed_inbox` worker paths        | **OK**              | Worker jobs are global cron/queue consumers by design; lookups keyed by UUID from prior scoped inserts                                                   |
+| Tenant isolation — `canary_send`                    | **OK**              | Web reads/writes filter `organizationId`; worker updates keyed by row `id` from prior query                                                              |
+| Tenant isolation — `deliverability_snapshot`        | **OK**              | Grid read filters `organizationId`; rollup SQL groups by `cs.organization_id`                                                                            |
+| `gateway_classification` intentionally shared       | **OK**              | No `organization_id` column; stores domain-level gateway/MX/evidence only — no prospect PII                                                              |
+| `APP_SCOPED_TABLES` includes Phase 11C tables       | **OK**              | `seedInbox`, `canarySend`, `deliverabilitySnapshot` present; CI guard passes                                                                             |
+| Encryption domain split (user vs provider seeds)    | **OK**              | `resolveSeedEncryptionKey` uses `MAILBOX_ENCRYPTION_KEY` vs `SYSTEM_SEED_ENCRYPTION_KEY`                                                                 |
+| Provider IMAP credentials hidden from workspace API | **OK**              | `PublicSeedInbox` omits `imapConfig`; only aggregate counts in `getProviderManagedSeedGateways`                                                          |
+| Decrypted IMAP creds not logged                     | **OK**              | `canary-check.ts` / `seed-inbox-verify.ts` log `{ err, seedInboxId }` only — no config/pass fields                                                       |
+| Phase 11 webhook payload cross-tenant leakage       | **N/A (not wired)** | Three of four Phase 11 webhook types are never emitted; `enrollment.no_safe_mailbox_for_gateway` writes org-scoped `event` rows only (no webhook fanout) |
+| Admin gate on routing policy                        | **OK**              | `setWorkspaceDeliverabilityPolicy` calls `requireAdmin`                                                                                                  |
+| Auto-downgrade clear is admin-only                  | **OK**              | `setMailboxEnterpriseSafe` requires admin; sets `enterpriseSafeAutoDowngraded: false` when re-declaring safe                                             |
 
 ---
 

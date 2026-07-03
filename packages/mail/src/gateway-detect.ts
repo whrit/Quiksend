@@ -132,6 +132,41 @@ function loadFingerprints(): CompiledFingerprint[] {
 
 const MX_FINGERPRINTS = loadFingerprints();
 
+const RFC6761_SUFFIXES = [".local", ".internal", ".test", ".example", ".invalid"] as const;
+const SINGLE_LABEL_ALLOWLIST = new Set<string>();
+
+/** Reject domains unsuitable for DNS classification (RFC 1035 + RFC 6761). */
+export function validateClassificationDomain(
+  domain: string,
+): { ok: true } | { ok: false; detail: string } {
+  const normalized = domain.trim().toLowerCase().replace(/^@/, "");
+  if (normalized.length === 0 || normalized.length > 253) {
+    return { ok: false, detail: "blocked domain shape" };
+  }
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(normalized) || normalized.includes(":")) {
+    return { ok: false, detail: "blocked domain shape" };
+  }
+  for (const suffix of RFC6761_SUFFIXES) {
+    const bare = suffix.slice(1);
+    if (normalized === bare || normalized.endsWith(suffix)) {
+      return { ok: false, detail: "blocked domain shape" };
+    }
+  }
+  const labels = normalized.split(".");
+  if (labels.some((label) => label.length === 0)) {
+    return { ok: false, detail: "blocked domain shape" };
+  }
+  if (labels.length === 1 && !SINGLE_LABEL_ALLOWLIST.has(normalized)) {
+    return { ok: false, detail: "blocked domain shape" };
+  }
+  for (const label of labels) {
+    if (label.length > 63 || !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/i.test(label)) {
+      return { ok: false, detail: "blocked domain shape" };
+    }
+  }
+  return { ok: true };
+}
+
 function extractDomain(email: string): string | null {
   const trimmed = email.trim().toLowerCase();
   const at = trimmed.lastIndexOf("@");
@@ -228,6 +263,11 @@ export async function detectEmailGateway(email: string): Promise<GatewayDetectio
   const domain = extractDomain(email);
   if (!domain) {
     return unknownResult([{ kind: "heuristic", detail: "Invalid email address" }], []);
+  }
+
+  const shape = validateClassificationDomain(domain);
+  if (!shape.ok) {
+    return unknownResult([{ kind: "heuristic", detail: shape.detail }], []);
   }
 
   const mx = await resolveMxRecords(domain);

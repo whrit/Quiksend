@@ -13,6 +13,7 @@ export interface ResolveMxResult {
 }
 
 const DEFAULT_MX_TIMEOUT_MS = 5_000;
+const DEFAULT_TXT_TIMEOUT_MS = 5_000;
 
 /** Resolve MX records for a domain with a timeout. Returns empty records on failure. */
 export async function resolveMxRecords(
@@ -43,9 +44,18 @@ export async function resolveMxRecords(
   }
 }
 
-export async function resolveTxtRecords(host: string): Promise<string[][]> {
+export async function resolveTxtRecords(
+  host: string,
+  timeoutMs = DEFAULT_TXT_TIMEOUT_MS,
+): Promise<string[][]> {
+  const normalized = host.trim().toLowerCase().replace(/^@/, "");
   try {
-    return await dns.resolveTxt(host);
+    return await Promise.race([
+      dns.resolveTxt(normalized),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("TXT lookup timeout")), timeoutMs);
+      }),
+    ]);
   } catch {
     return [];
   }

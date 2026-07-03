@@ -205,24 +205,24 @@ P1 pure-domain modules (gateway fingerprinting, auto-pause evaluator, mailbox-sa
 
 ## P1 Invariant Checklist (brief cross-walk)
 
-| # | Invariant | Status |
-|---|-----------|--------|
-| 1 | Gateway detection cascade (`gateway-detect.test.ts`) | **Covered** — 8 SEG fingerprints + Google/M365 + split-brain + timeout/SERVFAIL/empty MX (`packages/mail/src/gateway-detect.test.ts:24-110`) |
-| 2 | Routing decision table (`mailbox-router.test.ts`) | **Partial** — see TEST-004 |
-| 3 | Content sanitizer transformations | **Partial** — see TEST-005 |
-| 4 | Entry conditions gateway predicates | **Mostly covered** — null/allow/deny; combined `if_no_reply` gap (TEST-007) |
-| 5 | Auto-pause evaluator | **Covered** at unit level (`auto-pause.test.ts`); handler grouping gap (TEST-008) |
-| 6 | Mailbox safety helper | **Covered** (`mailbox-safety.test.ts:16-41`) |
-| 7 | Canary polling arrival detection | **Not covered** — TEST-001, TEST-002 |
-| 8 | Gateway detect worker handlers | **Partial** — bulk+apply yes; single+sweep no (TEST-006) |
-| 9 | Canary injection on enroll | **Not covered** — TEST-003 |
-| 10 | Deliverability HTTP API tenancy | **N/A for REST** per `docs/api.md`; server-fn tenancy tests missing (TEST-009) |
-| 11 | Weak assertions in new tests | **Acceptable** — `toBe(true)` uses are on `.some()`/`.every()` booleans, not vacuous success checks |
-| 12 | Fixture data quality | **Good** — Phase 11 DB tests use `withTestOrgs` + `randomUUID()`; no hardcoded org IDs observed |
-| 13 | Silent-drop 24h / snapshot / webhook fanout / least-loaded / IMAP pool | **Gaps** — TEST-002, TEST-004, TEST-014, TEST-015; no IMAP pool in codebase (new connection per poll at `seed-imap.ts:61-100`) |
-| 14 | Canary load-test modes | **Not wired** — TEST-011 |
-| 15 | `APP_SCOPED_TABLES` completeness | **OK** (`tenancy-guard.test.ts:52-55`) |
-| 16 | `APP_SCOPED_TABLES_TO_TRUNCATE` | **Missing 3 tables** — TEST-013 |
+| #   | Invariant                                                              | Status                                                                                                                                       |
+| --- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Gateway detection cascade (`gateway-detect.test.ts`)                   | **Covered** — 8 SEG fingerprints + Google/M365 + split-brain + timeout/SERVFAIL/empty MX (`packages/mail/src/gateway-detect.test.ts:24-110`) |
+| 2   | Routing decision table (`mailbox-router.test.ts`)                      | **Partial** — see TEST-004                                                                                                                   |
+| 3   | Content sanitizer transformations                                      | **Partial** — see TEST-005                                                                                                                   |
+| 4   | Entry conditions gateway predicates                                    | **Mostly covered** — null/allow/deny; combined `if_no_reply` gap (TEST-007)                                                                  |
+| 5   | Auto-pause evaluator                                                   | **Covered** at unit level (`auto-pause.test.ts`); handler grouping gap (TEST-008)                                                            |
+| 6   | Mailbox safety helper                                                  | **Covered** (`mailbox-safety.test.ts:16-41`)                                                                                                 |
+| 7   | Canary polling arrival detection                                       | **Not covered** — TEST-001, TEST-002                                                                                                         |
+| 8   | Gateway detect worker handlers                                         | **Partial** — bulk+apply yes; single+sweep no (TEST-006)                                                                                     |
+| 9   | Canary injection on enroll                                             | **Not covered** — TEST-003                                                                                                                   |
+| 10  | Deliverability HTTP API tenancy                                        | **N/A for REST** per `docs/api.md`; server-fn tenancy tests missing (TEST-009)                                                               |
+| 11  | Weak assertions in new tests                                           | **Acceptable** — `toBe(true)` uses are on `.some()`/`.every()` booleans, not vacuous success checks                                          |
+| 12  | Fixture data quality                                                   | **Good** — Phase 11 DB tests use `withTestOrgs` + `randomUUID()`; no hardcoded org IDs observed                                              |
+| 13  | Silent-drop 24h / snapshot / webhook fanout / least-loaded / IMAP pool | **Gaps** — TEST-002, TEST-004, TEST-014, TEST-015; no IMAP pool in codebase (new connection per poll at `seed-imap.ts:61-100`)               |
+| 14  | Canary load-test modes                                                 | **Not wired** — TEST-011                                                                                                                     |
+| 15  | `APP_SCOPED_TABLES` completeness                                       | **OK** (`tenancy-guard.test.ts:52-55`)                                                                                                       |
+| 16  | `APP_SCOPED_TABLES_TO_TRUNCATE`                                        | **Missing 3 tables** — TEST-013                                                                                                              |
 
 ---
 

@@ -1,6 +1,7 @@
 # Architecture Review Findings
 
 ## Summary
+
 - Files reviewed: ~95 (packages/mail, packages/core/deliverability, packages/db/schema, apps/web server-fns + routes, apps/worker handlers/sequence engine, 4 Phase 11 migrations)
 - Critical: 0, High: 0, Medium: 1, Low: 5
 - Overall: **needs-fixes**

@@ -1099,14 +1099,21 @@ async function queryGatewayMix(
 
 export const classifyEmail = orgFn({ method: "POST" })
   .validator(z.object({ email: z.string().email() }))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    if (!isAdminOrOwner(context.orgContext as Parameters<typeof isAdminOrOwner>[0])) {
+      throw new Error("Admin role required");
+    }
+
     const domain = extractEmailDomain(data.email);
     if (!domain) {
       return { gateway: "unknown" as const, evidence: [], cached: false };
     }
 
     const cached = await db.query.gatewayClassification.findFirst({
-      where: eq(tables.gatewayClassification.emailDomain, domain),
+      where: and(
+        eq(tables.gatewayClassification.emailDomain, domain),
+        sql`${tables.gatewayClassification.ttlUntil} > now()`,
+      ),
     });
 
     if (cached) {
