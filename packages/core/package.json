@@ -8,7 +8,8 @@
     "./schedule": "./src/schedule/index.ts",
     "./state-machine": "./src/state-machine/index.ts",
     "./tenancy": "./src/tenancy.ts",
-    "./deliverability": "./src/deliverability/index.ts"
+    "./deliverability": "./src/deliverability/index.ts",
+    "./utils/semaphore": "./src/utils/semaphore.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

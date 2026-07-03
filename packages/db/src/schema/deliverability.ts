@@ -96,6 +96,7 @@ export const canarySend = pgTable(
       .notNull()
       .references(() => seedInbox.id, { onDelete: "cascade" }),
     canaryToken: uuid("canary_token").notNull(),
+    stepIndex: integer("step_index"),
     subject: text("subject").notNull(),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     expectedArrivalAt: timestamp("expected_arrival_at", { withTimezone: true }),

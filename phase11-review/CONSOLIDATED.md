@@ -187,7 +187,7 @@ production impact.
   unbounded TXT). At 50 concurrent lookups, a single import saturates
   worker DNS for minutes and hammers upstream resolvers.
 - **Fix**: Before `classifyDomain`, batch-load cached rows: `WHERE
-  email_domain = ANY($1) AND ttl_until > now()`. Only enqueue DNS for
+email_domain = ANY($1) AND ttl_until > now()`. Only enqueue DNS for
   cache misses. The pattern used correctly in
   `gateway.apply_classification` (`gateway-detect.ts:170-177`) should be
   applied at the top of `detect_bulk` and `detect_single`.
@@ -244,14 +244,14 @@ production impact.
 - **Fix**: Implement both handlers:
   - `apps/worker/src/handlers/seed-pool-health.ts` — 24h cron; for each
     active `seed_inbox WHERE organization_id IS NULL`, run IMAP `LOGIN`
-    + `LIST INBOX`; alert on failure via `event` insert + admin email.
-    Also check message count in last 30 days for dormancy.
+    - `LIST INBOX`; alert on failure via `event` insert + admin email.
+      Also check message count in last 30 days for dormancy.
   - `apps/worker/src/handlers/seed-pool-legit-mail.ts` — weekly cron;
     cycle through templates in `internal-runbooks/seed-pool-legit-usage-patterns.md`;
     cap at 5 messages/seed/week.
-  If deferring is acceptable, rewrite the runbook and troubleshooting doc
-  to say "manual weekly ops procedure" and remove "Track PHI ships"
-  language.
+    If deferring is acceptable, rewrite the runbook and troubleshooting doc
+    to say "manual weekly ops procedure" and remove "Track PHI ships"
+    language.
 
 ### [CR-10] Canary polling handler has no handler-level tests (only re-tests auto-pause evaluator)
 
@@ -297,18 +297,21 @@ production impact.
 ## Medium Findings (16)
 
 ### [CR-12] Canary step selection ignores injected positions
+
 - **Location**: `apps/web/src/lib/canary-injection.ts:85-114` + `apps/worker/src/deliverability/canary-send.ts:57-58`
 - **Dimension**: Correctness (CORR-003)
 - **Description**: Injected positions used only for `startAfter` delay (`positions[i] * 5` min). At send time step chosen via `hashToIndex(canaryToken, autoSteps.length)` — independent of injected position. Spec: "same body template as an adjacent real send in the campaign."
 - **Fix**: Persist `stepIndex` on `canary_send` at injection time; use it in `materializeCanarySend()` instead of hash.
 
 ### [CR-13] `injectionStrategy` config accepted but not implemented
+
 - **Location**: `apps/web/src/lib/canary-injection.ts:121-134` + `packages/core/src/deliverability/canary-config.ts:6-16`
 - **Dimension**: Correctness (CORR-004)
 - **Description**: Schema supports `random_position` / `first_then_last` / `every_nth`; code always calls `pickRandomPositions`.
 - **Fix**: Branch on `config.injectionStrategy` or narrow the union until implemented.
 
 ### [CR-14] Canary sends bypass `send_reservation` throttle path
+
 - **Location**: `apps/worker/src/deliverability/canary-send.ts:102-128`
 - **Dimension**: Correctness (CORR-005)
 - **Description**: Spec: "scheduled via the same `send_reservation` mechanism." Actual: standalone `canary.send` jobs; no `reserveSendSlotInTx`. No SEG sub-cap, per-mailbox daily cap, or 5-min per-domain gap for canaries.
@@ -316,78 +319,91 @@ production impact.
 - **Fix**: Route canaries through `reserveSendSlotInTx` with a synthetic canary reservation type OR document as intentional simplification (with spec update).
 
 ### [CR-15] Deliverability snapshot hardcoded 7-day window; grid supports 14/30-day selectors
+
 - **Location**: `apps/worker/src/handlers/deliverability-snapshot.ts:35-49` + `apps/web/src/lib/deliverability.functions.ts:47-54`
 - **Dimensions**: Correctness (CORR-006), Performance (PERF-012 partial)
 - **Description**: Only 7-day rollup exists. Grid's 14/30-day selectors return the same 7-day snapshot rows. Misrepresents longer trends.
 - **Fix**: Parameterize snapshot job for 7/14/30 windows OR compute dynamically in `getDeliverabilityGrid`.
 
 ### [CR-16] Sequence live canary indicator server-fn shipped but not wired to UI
+
 - **Location**: `apps/web/src/lib/deliverability.functions.ts:205-259` + `apps/web/src/routes/_protected/sequences/$id/index.tsx`
 - **Dimensions**: Architecture (ARCH-004), Completeness (COMP-P11-004)
 - **Description**: `getSequenceDeliverability` returns live 2h stats + threshold + `autoPaused`. Never called. Ticket 11C.13 partial: server-fn ships, UI missing.
 - **Fix**: Loader-fetch in `sequences/$id/index.tsx`; render green/yellow/red indicator + auto-paused banner.
 
 ### [CR-17] In-app auto-pause notifications missing (11C.14 partial)
+
 - **Location**: `apps/worker/src/handlers/canary-check.ts:242-306` + `apps/web/src/routes/_protected/sequences/$id/index.tsx`
 - **Dimension**: Completeness (COMP-P11-005)
 - **Description**: Email alerts fire; docs promise "toast + persistent banner on sequence page" — not implemented.
 - **Fix**: Sequence detail loader checks paused-state + recent `canary.silent_drop_detected` event; render Alert + first-visit toast.
 
 ### [CR-18] DNS gateway classification has no domain-allowlist / SSRF-adjacent risk + member-level DNS queries
+
 - **Location**: `packages/mail/src/gateway-detect.ts:133-138` + `apps/web/src/lib/prospects.functions.ts:1100-1136`
 - **Dimensions**: Security (SEC-P11-002, SEC-P11-003)
 - **Description**: Any workspace member can enqueue DNS lookups on arbitrary domains via `classifyEmail`. Admins can force reclassify. No blocklist for `.local`, `.internal`, `localhost`, metadata-style hostnames. Combined with globally-shared `gateway_classification` cache, an attacker controlling DNS for a domain can poison the cached gateway for that domain **for all workspaces**.
 - **Fix**: Domain validation before DNS (reject invalid labels, single-label hosts, reserved names). Rate-limit per-org classification enqueue. Gate `classifyEmail` on `isAdminOrOwner` (or add explicit per-org daily quota).
 
 ### [CR-19] User seed IMAP config allows arbitrary host — worker makes outbound connections
+
 - **Location**: `apps/web/src/lib/seed-inbox.functions.ts:51-56` + `apps/worker/src/deliverability/seed-imap.ts:103-110`
 - **Dimension**: Security (SEC-P11-001)
 - **Description**: `createUserSeedInbox` validates `imapHost` via `z.string().min(1)` only. Worker opens IMAP to arbitrary addresses on 5-min cron. SSRF-style vector for compromised workspace admin (metadata endpoints, internal IPs, port probing).
 - **Fix**: Validate `imapHost` against blocklist (RFC1918, link-local, localhost, cloud metadata, bare IPs). Consider provider enum. Add connection timeout + per-org rate limit on verify/poll jobs.
 
 ### [CR-20] `docs/deliverability.md` overstates classification triggers
+
 - **Location**: `docs/deliverability.md:29-32`
 - **Dimension**: Completeness (COMP-P11-006)
 - **Description**: Doc says classification runs for "manual, CSV import, **CRM sync, public API**". Only manual + CSV enqueue detection. CRM upsert path + `POST /api/v1/prospects` skip.
 - **Fix**: Enqueue `gateway.detect_single` from CRM upsert + API prospect create paths, OR narrow doc to "manual create + CSV import".
 
 ### [CR-21] 6 spec-mandated tests missing (content sanitizer edge cases, gateway single/sweep, per-group auto-pause, snapshot rollup, seed crypto, gateway load-test)
+
 - **Location**: `packages/mail/src/content-sanitizer.test.ts` + `apps/worker/src/handlers/gateway-detect.test.ts` + `canary-check.test.ts` + `packages/mail/src/seed-crypto.ts` + `scripts/load-test-engine.ts`
 - **Dimension**: Testing (TEST-005, TEST-006, TEST-008, TEST-010, TEST-012, TEST-014)
 - **Description**: Six spec-mandated Phase 11 test cases missing: >100KB image strip, selective pixel keep (tracking vs CDN), `detect_single` cache-miss, `sweep_stale` TTL re-classify, per-`(sequence, mailbox, gateway)` grouping at handler level, snapshot rollup math, seed cred crypto round-trip with both key domains, `gateway-detection` load-test mode.
-- **Fix**: Add each test file per spec. See individual TEST-* entries in `phase11-review/findings/testing.md` for exact expected assertions.
+- **Fix**: Add each test file per spec. See individual TEST-\* entries in `phase11-review/findings/testing.md` for exact expected assertions.
 
 ### [CR-22] Phase 11 tables missing from `APP_SCOPED_TABLES_TO_TRUNCATE`
+
 - **Location**: `packages/db/src/testing.ts:25-52`
 - **Dimensions**: Security (SEC-P11-005), Testing (TEST-013)
 - **Description**: `seed_inbox`, `canary_send`, `deliverability_snapshot` not in truncation list. `withTestOrgs` doesn't clear Phase 11C rows between tests. Not a prod bug but masks tenancy regressions in CI. `tenancy-guard.test.ts` `APP_SCOPED_TABLES` is correct — this is only the truncation list.
 - **Fix**: Append the 3 tables (respect FK order: `canary_send` before `seed_inbox`, use CASCADE).
 
 ### [CR-23] Missing `canary_send(sent_at)` index + spec's `seed_inbox` indexes
+
 - **Location**: `apps/worker/src/handlers/canary-check.ts:50-59` + `packages/db/src/schema/deliverability.ts:72-76`
 - **Dimension**: Performance (PERF-008, PERF-013)
 - **Description**: Silent-drop sweep runs every 5 min against unindexed `sent_at`. Spec called for `seed_inbox (organization_id, active)` and partial `(organization_id IS NULL)` — neither exists. Fine at pilot scale; degrades at 10k+ pending canaries or 100+ pool seeds.
 - **Fix**: Add partial `(sent_at) WHERE arrival_status = 'pending' AND sent_at IS NOT NULL`. Add spec'd `seed_inbox` composite + partial indexes.
 
 ### [CR-24] `maybePauseCampaigns` N+1: per-row sequence + org metadata fetches
+
 - **Location**: `apps/worker/src/handlers/canary-check.ts:156-191`
 - **Dimension**: Performance (PERF-009)
 - **Description**: Efficient single aggregation SQL, then loops with `db.query.sequence.findFirst` + `loadOrgMetadata` per row. At 1k active sequences with canary coverage → thousands of round trips per 5-min cycle after poll completes.
 - **Fix**: Batch-load sequences + org metadata for distinct IDs from aggregation result (2× `inArray` queries), cache in `Map`, evaluate in memory. Optional: lateral join for threshold lookup.
 
 ### [CR-25] Pending-canary query unbounded + no DMARC/SPF TXT timeout + no idle seed heartbeat / IMAP pool
+
 - **Location**: `apps/worker/src/handlers/canary-check.ts:31-41` + `packages/mail/src/dns.ts:46-52` + `apps/worker/src/deliverability/seed-imap.ts:61-98`
 - **Dimension**: Performance (PERF-006, PERF-007, PERF-010)
 - **Description**: 3 spec-listed patterns not shipped: unbounded pending query (no LIMIT), no timeout on `resolveTxtRecords` (MX has 5s), no 30-min idle-seed heartbeat and no IMAP connection pool. All acceptable at pilot scale.
 - **Fix**: Add LIMIT + batch processing to pending query. Wrap TXT in same 5s Promise.race. Track `lastPollAt` per seed; poll idle seeds on 30-min cron; introduce per-process IMAP pool keyed by `seedInboxId` (idle TTL 15min, max 20).
 
 ### [CR-26] Runbook + troubleshooting docs claim PHI shipped provider-seed crons that don't exist
+
 - **Location**: `internal-runbooks/seed-pool-setup.md:453,470` + `docs/troubleshooting.md:413`
 - **Dimension**: Completeness (COMP-P11-007)
 - **Description**: Direct downstream of CR-09. Ops runbook says "the seed pool health check cron should have alerted us." Incident-response advice is wrong.
 - **Fix**: Bundle with CR-09 fix — either implement crons or rewrite docs.
 
 ### [CR-27] Canary effect kinds `send_canary` + `emit_canary_bundle` orphaned in state machine
+
 - **Location**: `packages/core/src/state-machine/types.ts:74-79` + `apps/worker/src/sequence/effects.ts:57-61` + `apps/web/src/lib/effect-executor.ts:206-207`
 - **Dimension**: Architecture (ARCH-001)
 - **Description**: `Effect` union extended with two canary kinds. Worker has `handleSendCanary`. Both executors have no-op switch arms for `emit_canary_bundle`. **Neither kind is ever produced** by `transition()`. Actual canary path bypasses state machine entirely via `enqueue("canary.send")` from `injectCanariesForEnrollment`. Two parallel canary-send mechanisms coexist; only one is reachable.
@@ -418,6 +434,7 @@ Consolidated where they share concerns:
 ## Cross-cutting themes
 
 ### Theme 1: Canary system scaffolded but signal not yet trustworthy
+
 CR-02, CR-03, CR-04, CR-05, CR-10 all touch the canary pipeline. Content mismatch
 (CR-02) + missing bounce path (CR-03) + IMAP full-body-fetch scale-blocker
 (CR-04) + no connection cap (CR-05) + zero handler tests (CR-10) means the
@@ -427,18 +444,21 @@ next sprint** — they're the entire "signal reliability" story for
 Deliverability Pro.
 
 ### Theme 2: Provider seed pool automation missing
+
 CR-09 (crons don't exist) + CR-26 (runbook lies about them) is one problem
 with two surfaces. Either implement `seed_pool.health_check` +
 `seed_pool.generate_legit_mail` or gut the runbook language. Cannot ship
 Deliverability Pro to paying customers with this gap.
 
 ### Theme 3: Webhook events registered, never fired
+
 CR-01. Fanout wire is missing. Four documented event types produce nothing.
 Marketing doc + settings UI advertise capabilities that don't exist. Simple
 fix (5 `insertDomainEventAndFanout` calls), high urgency because docs are
 already public.
 
 ### Theme 4: Test coverage gaps concentrated on 11C handlers
+
 CR-08 (no tenancy tests) + CR-10 (no handler tests) + CR-11 (load test not
 wired) + CR-21 (6 spec-mandated tests missing) — 4 of 11 High findings are
 testing gaps. Phase 11 shipped test files that don't test what they claim
@@ -447,6 +467,7 @@ alongside the feature fixes, otherwise the fixes have no regression
 protection.
 
 ### Theme 5: Perf hot paths not-yet-optimized
+
 CR-04, CR-05, CR-06, CR-07, CR-23, CR-24, CR-25 are all Phase 11
 performance concerns. None are broken at pilot scale (10s of canaries,
 100s of prospects, single-workspace usage). At Phase 11 target scale (1k+
@@ -455,6 +476,7 @@ Fix in order: CR-06 (bulk detect skips cache) first, then CR-07 (per-row
 UPDATE), then CR-04 + CR-05 (IMAP), then rest.
 
 ### Theme 6: What DIDN'T regress
+
 Wave 5-6 invariants held cleanly. `packages/mail` still decoupled from
 `packages/integrations`. `packages/core/deliverability/*` genuinely pure.
 `orgFn` chokepoint on all new server-fns. Effect executor extensions clean.
@@ -473,49 +495,53 @@ wiring, canary signal quality, test coverage).
 Pro to paying customers.** Split into two sprints:
 
 ### Sprint 1 (v2.3.0) — signal reliability + fanout
+
 The five findings that make the deliverability signal trustworthy plus the
 webhook fanout that makes it externally-consumable:
 
-| CR | Title | Est. |
-|---|---|---|
-| CR-02 | Canary sanitizer parity | 0.5 day |
-| CR-03 | Bounce path + spam mock + tests | 1 day |
-| CR-04 | Header-only IMAP search | 0.5 day |
-| CR-05 | IMAP semaphore | 0.5 day |
-| CR-10 | Real canary handler tests | 1 day |
-| CR-01 | Webhook fanout wiring | 1 day |
-| CR-08 | Deliverability tenancy tests | 0.5 day |
+| CR    | Title                           | Est.    |
+| ----- | ------------------------------- | ------- |
+| CR-02 | Canary sanitizer parity         | 0.5 day |
+| CR-03 | Bounce path + spam mock + tests | 1 day   |
+| CR-04 | Header-only IMAP search         | 0.5 day |
+| CR-05 | IMAP semaphore                  | 0.5 day |
+| CR-10 | Real canary handler tests       | 1 day   |
+| CR-01 | Webhook fanout wiring           | 1 day   |
+| CR-08 | Deliverability tenancy tests    | 0.5 day |
 
 **~5 days, one agent.** After Sprint 1, the deliverability grid numbers are
 trustworthy and external systems can subscribe to real signals.
 
 ### Sprint 2 (v2.4.0) — Pro tier operational readiness
+
 The rest of the High findings + top Medium findings before real Deliverability
 Pro subscribers can be onboarded:
 
-| CR | Title | Est. |
-|---|---|---|
-| CR-09 | Implement seed pool health check + legit-usage crons | 2 days |
+| CR    | Title                                                             | Est.    |
+| ----- | ----------------------------------------------------------------- | ------- |
+| CR-09 | Implement seed pool health check + legit-usage crons              | 2 days  |
 | CR-26 | Reconcile runbook + troubleshooting with reality (fixup of CR-09) | 0.5 day |
-| CR-06 | Bulk detect cache-lookup | 0.5 day |
-| CR-07 | Bulk UPDATE in apply-classification | 0.5 day |
-| CR-11 | Wire canary load-test modes (with fixture + assertions) | 1 day |
-| CR-14 | Route canaries through send_reservation | 1 day |
-| CR-15 | Snapshot windowing | 0.5 day |
-| CR-16 | Wire sequence live indicator | 0.5 day |
-| CR-17 | In-app auto-pause banner | 0.5 day |
-| CR-18 | Domain allowlist + rate-limit for classifyEmail | 0.5 day |
-| CR-19 | IMAP host blocklist | 0.5 day |
-| CR-24 | maybePauseCampaigns batch-load | 0.5 day |
+| CR-06 | Bulk detect cache-lookup                                          | 0.5 day |
+| CR-07 | Bulk UPDATE in apply-classification                               | 0.5 day |
+| CR-11 | Wire canary load-test modes (with fixture + assertions)           | 1 day   |
+| CR-14 | Route canaries through send_reservation                           | 1 day   |
+| CR-15 | Snapshot windowing                                                | 0.5 day |
+| CR-16 | Wire sequence live indicator                                      | 0.5 day |
+| CR-17 | In-app auto-pause banner                                          | 0.5 day |
+| CR-18 | Domain allowlist + rate-limit for classifyEmail                   | 0.5 day |
+| CR-19 | IMAP host blocklist                                               | 0.5 day |
+| CR-24 | maybePauseCampaigns batch-load                                    | 0.5 day |
 
 **~8 days.** After Sprint 2, Deliverability Pro is operationally honest —
 provider pool self-heals, signal is trustworthy, external ops can subscribe.
 
 ### Later
+
 Medium findings not in Sprint 2 + all Low findings can wait for a Wave 9
 "Phase 11 polish" or backlog. None are blockers for GA.
 
 ### Do not ship without at least Sprint 1
+
 The webhook events documented in `docs/webhooks.md` and shown in the settings
 UI dropdown are a **public commitment** that we made and don't yet honor.
 That's a credibility issue even for free-tier users; also the deliverability

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   isSegGateway,
   mergeCanaryConfig,
+  pickInjectionPositions,
   SEG_GATEWAY_VALUES,
   type CanaryConfig,
 } from "@quiksend/core/deliverability";
@@ -65,8 +66,10 @@ export async function injectCanariesForEnrollment(input: InjectCanariesInput): P
     where: and(
       eq(tables.sequenceStep.sequenceId, input.sequenceId),
       eq(tables.sequenceStep.organizationId, input.organizationId),
+      eq(tables.sequenceStep.stepType, "auto_email"),
     ),
     columns: { stepIndex: true },
+    orderBy: (s, { asc }) => [asc(s.stepIndex)],
   });
   const stepIndices = steps.map((s) => s.stepIndex);
   if (stepIndices.length === 0) return 0;
@@ -82,7 +85,12 @@ export async function injectCanariesForEnrollment(input: InjectCanariesInput): P
     ];
     if (seedsForGateway.length === 0) continue;
 
-    const positions = pickRandomPositions(stepIndices, config.seedsPerCampaign);
+    const positions = pickInjectionPositions(
+      stepIndices,
+      config.seedsPerCampaign,
+      config.injectionStrategy,
+      config.everyNth,
+    );
     for (let i = 0; i < config.seedsPerCampaign; i++) {
       const rr = seedRoundRobin.get(gateway) ?? 0;
       const seed = seedsForGateway[rr % seedsForGateway.length];
@@ -94,6 +102,7 @@ export async function injectCanariesForEnrollment(input: InjectCanariesInput): P
       mailboxIndex++;
 
       const canaryToken = randomUUID();
+      const stepIndex = positions[i] ?? stepIndices[0]!;
       const [row] = await db
         .insert(tables.canarySend)
         .values({
@@ -102,6 +111,7 @@ export async function injectCanariesForEnrollment(input: InjectCanariesInput): P
           mailboxId,
           seedInboxId: seed.id,
           canaryToken,
+          stepIndex,
           subject: `Canary ${gateway}`,
         })
         .returning({ id: tables.canarySend.id });
@@ -109,28 +119,13 @@ export async function injectCanariesForEnrollment(input: InjectCanariesInput): P
       if (!row) continue;
       created++;
 
-      const delayMinutes = (positions[i] ?? 0) * 5;
+      const delayMinutes = stepIndex * 5;
       const startAfter = delayMinutes * 60;
       await enqueue("canary.send", { canarySendId: row.id }, { startAfter });
     }
   }
 
   return created;
-}
-
-function pickRandomPositions(stepIndices: number[], count: number): number[] {
-  const pool = [...stepIndices];
-  const out: number[] = [];
-  for (let i = 0; i < count; i++) {
-    if (pool.length === 0) {
-      out.push(stepIndices[i % stepIndices.length] ?? 0);
-      continue;
-    }
-    const idx = Math.floor(Math.random() * pool.length);
-    out.push(pool[idx] ?? 0);
-    pool.splice(idx, 1);
-  }
-  return out;
 }
 
 export function parseWorkspaceCanaryConfig(metadata: unknown): CanaryConfig | null {
