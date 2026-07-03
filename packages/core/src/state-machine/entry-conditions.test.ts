@@ -72,4 +72,13 @@ describe("evaluateEntryCondition", () => {
       proceed: true,
     });
   });
+
+  it("if_no_reply short-circuits over gateway predicate", () => {
+    const result = evaluateEntryCondition(
+      { kind: "if_no_reply", recipientGatewayIn: ["proofpoint"] },
+      { ...baseCtx, hasReplyOnThread: true, recipientGateway: "proofpoint" },
+    );
+    expect(result.proceed).toBe(false);
+    expect(result.skipReason).toContain("if_no_reply");
+  });
 });

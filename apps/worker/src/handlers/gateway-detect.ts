@@ -1,6 +1,10 @@
 import { logger } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
-import { detectEmailGateway, type EmailGateway } from "@quiksend/mail/gateway-detect";
+import {
+  detectEmailGateway,
+  extractDomain,
+  type EmailGateway,
+} from "@quiksend/mail/gateway-detect";
 import { enqueueWithRetries, registerHandler } from "@quiksend/queue";
 import { and, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 
@@ -8,13 +12,6 @@ const DNS_CONCURRENCY = 50;
 const CACHE_TTL_DAYS_HIGH = 30;
 const CACHE_TTL_DAYS_LOW = 7;
 const CACHE_TTL_HOURS_FAILURE = 24;
-
-function extractDomain(email: string): string | null {
-  const trimmed = email.trim().toLowerCase();
-  const at = trimmed.lastIndexOf("@");
-  if (at < 0 || at === trimmed.length - 1) return null;
-  return trimmed.slice(at + 1);
-}
 
 function ttlForConfidence(confidence: "high" | "medium" | "low", isFailure = false): Date {
   if (isFailure) {

@@ -1,4 +1,5 @@
 import type { EmailGateway } from "@quiksend/mail/gateway-detect";
+import { SEG_GATEWAYS as MAIL_SEG_GATEWAYS } from "@quiksend/mail/gateway-detect";
 
 /**
  * Snapshot of the mailbox fields used to decide safety. Keeps this module
@@ -35,19 +36,10 @@ export function isMailboxSafeForGateway(
 }
 
 /**
- * SEG gateways that trigger routing decisions. Excludes google_workspace,
- * microsoft_365, unknown, other.
+ * SEG gateways that trigger routing decisions. Canonical list lives in
+ * `@quiksend/mail/gateway-detect` and is re-exported here for deliverability code.
  */
-export const SEG_GATEWAYS: readonly EmailGateway[] = [
-  "proofpoint",
-  "mimecast",
-  "barracuda",
-  "cisco_ironport",
-  "trend_micro",
-  "fortinet",
-  "sophos",
-  "symantec",
-] as const;
+export const SEG_GATEWAYS: readonly EmailGateway[] = MAIL_SEG_GATEWAYS;
 
 export function isSegGateway(gateway: EmailGateway | null): boolean {
   return gateway !== null && (SEG_GATEWAYS as readonly EmailGateway[]).includes(gateway);

@@ -1,5 +1,3 @@
-import type { EmailGateway } from "@quiksend/mail/gateway-detect";
-
 export interface CanaryConfig {
   enabled?: boolean;
   seedsPerCampaign?: number;
@@ -40,13 +38,4 @@ export function deliverabilitySignal(pct: number | null, total: number): Deliver
   return "red";
 }
 
-export const SEG_GATEWAY_VALUES: readonly EmailGateway[] = [
-  "proofpoint",
-  "mimecast",
-  "barracuda",
-  "cisco_ironport",
-  "trend_micro",
-  "fortinet",
-  "sophos",
-  "symantec",
-] as const;
+export { SEG_GATEWAYS as SEG_GATEWAY_VALUES } from "./mailbox-safety.ts";

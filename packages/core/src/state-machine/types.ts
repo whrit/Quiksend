@@ -71,12 +71,6 @@ export type Effect =
   | { readonly kind: "create_compose_task"; readonly stepIndex: number }
   | { readonly kind: "create_task"; readonly stepIndex: number }
   | { readonly kind: "send_auto"; readonly stepIndex: number }
-  | { readonly kind: "send_canary"; readonly canarySendId: string }
-  | {
-      readonly kind: "emit_canary_bundle";
-      readonly sequenceId: string;
-      readonly canarySendIds: readonly string[];
-    }
   | { readonly kind: "advance_step" }
   | { readonly kind: "capture_anchor"; readonly messageId: string; readonly threadId: string }
   | { readonly kind: "emit_event"; readonly type: string }

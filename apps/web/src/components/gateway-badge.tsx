@@ -1,4 +1,5 @@
 import type { GatewayEvidence } from "@quiksend/mail/gateway-detect";
+import { SEG_GATEWAYS } from "@quiksend/core/deliverability";
 import { Badge } from "@/components/ui/badge";
 
 const GATEWAY_LABELS: Record<string, string> = {
@@ -69,13 +70,4 @@ export const GATEWAY_FILTER_OPTIONS = Object.entries(GATEWAY_LABELS).map(([value
   label,
 }));
 
-export const SEG_GATEWAY_VALUES = [
-  "proofpoint",
-  "mimecast",
-  "barracuda",
-  "cisco_ironport",
-  "trend_micro",
-  "fortinet",
-  "sophos",
-  "symantec",
-] as const;
+export const SEG_GATEWAY_VALUES = SEG_GATEWAYS;
