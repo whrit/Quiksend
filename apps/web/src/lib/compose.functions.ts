@@ -1,11 +1,13 @@
 import { env } from "@quiksend/config";
 import { buildUnsubscribeUrl, buildComplianceParts, mintUnsubscribeToken } from "@quiksend/mail";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { captureManualAnchorForEnrollment } from "./anchor.functions.ts";
-import { orgFn } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import { authMiddleware } from "./org-fn.ts";
 import { resolveMailboxAdapter } from "./mailboxes.functions.ts";
 
 const anchorSchema = z.object({
@@ -59,7 +61,8 @@ async function loadProspect(prospectId: string, organizationId: string) {
   };
 }
 
-export const searchProspects = orgFn({ method: "POST" })
+export const searchProspects = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({ query: z.string().max(200), limit: z.number().int().min(1).max(25).optional() })
@@ -96,7 +99,8 @@ export const searchProspects = orgFn({ method: "POST" })
     }));
   });
 
-export const sendComposedMessage = orgFn({ method: "POST" })
+export const sendComposedMessage = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => sendComposedMessageSchema.parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;

@@ -1,24 +1,25 @@
 import { auth } from "@quiksend/auth";
-import { db, tables } from "@quiksend/db";
-import { getRequestHeaders } from "@tanstack/react-start/server";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { parseKeyMetadata } from "./api/v1/middleware.ts";
-import { orgFn } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import { authMiddleware } from "./org-fn.ts";
 
 const createApiKeySchema = z.object({
   name: z.string().min(1).max(200),
   expiresIn: z.number().int().positive().optional(),
 });
 
-export const listApiKeys = orgFn({ method: "GET" })
+export const listApiKeys = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator(z.object({}))
   .handler(async ({ context }) => {
     const { organizationId } = context.orgContext;
-    const headers = getRequestHeaders();
     const result = await auth.api.listApiKeys({
       query: { organizationId, limit: 100 },
-      headers,
+      headers: context.authHeaders,
     });
     return (result.apiKeys ?? []).map((key) => ({
       id: key.id,
@@ -31,11 +32,11 @@ export const listApiKeys = orgFn({ method: "GET" })
     }));
   });
 
-export const createApiKey = orgFn({ method: "POST" })
+export const createApiKey = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(createApiKeySchema)
   .handler(async ({ data, context }) => {
     const { organizationId, userId } = context.orgContext;
-    const headers = getRequestHeaders();
 
     const created = await auth.api.createApiKey({
       body: {
@@ -45,7 +46,7 @@ export const createApiKey = orgFn({ method: "POST" })
         prefix: "qsk",
         metadata: JSON.stringify({ organizationId }),
       },
-      headers,
+      headers: context.authHeaders,
     });
 
     return {
@@ -57,15 +58,15 @@ export const createApiKey = orgFn({ method: "POST" })
     };
   });
 
-export const revokeApiKey = orgFn({ method: "POST" })
+export const revokeApiKey = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(z.object({ keyId: z.string().min(1) }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
-    const headers = getRequestHeaders();
 
     const existing = await auth.api.getApiKey({
       query: { id: data.keyId },
-      headers,
+      headers: context.authHeaders,
     });
 
     let keyOrgId: string | undefined;
@@ -76,13 +77,14 @@ export const revokeApiKey = orgFn({ method: "POST" })
 
     await auth.api.deleteApiKey({
       body: { keyId: data.keyId },
-      headers,
+      headers: context.authHeaders,
     });
 
     return { ok: true as const };
   });
 
-export const getApiUsageSummary = orgFn({ method: "GET" })
+export const getApiUsageSummary = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator(z.object({ apiKeyId: z.string().optional() }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;

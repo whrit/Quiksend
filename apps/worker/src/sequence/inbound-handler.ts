@@ -1,6 +1,7 @@
 import { logger } from "@quiksend/config";
 import { transition } from "@quiksend/core/state-machine";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { getPostHog } from "@quiksend/observability";
 import { and, eq } from "drizzle-orm";
 import { applyTransitionEffects } from "./effects.ts";

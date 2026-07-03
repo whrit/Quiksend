@@ -1,11 +1,13 @@
 import { z } from "zod";
 import { isAdminOrOwner } from "@quiksend/core";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { getNango, getProviderConfig } from "@quiksend/integrations";
 import type { CrmProvider, FieldMapping } from "@quiksend/integrations/providers";
 import { enqueue } from "@quiksend/queue";
 import { and, desc, eq } from "drizzle-orm";
-import { orgFn, TenancyError } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import { authMiddleware, TenancyError } from "./org-fn.ts";
 
 const providerSchema = z.enum(["salesforce", "hubspot"]);
 
@@ -50,17 +52,20 @@ function requireAdmin(ctx: { orgContext: { role: string } }): void {
   }
 }
 
-export const listCrmConnections = orgFn({ method: "GET" }).handler(async ({ context }) => {
-  const rows = await db
-    .select()
-    .from(tables.crmConnection)
-    .where(eq(tables.crmConnection.organizationId, context.orgContext.organizationId))
-    .orderBy(desc(tables.crmConnection.createdAt));
-  return rows.map(toDto);
-});
+export const listCrmConnections = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const rows = await db
+      .select()
+      .from(tables.crmConnection)
+      .where(eq(tables.crmConnection.organizationId, context.orgContext.organizationId))
+      .orderBy(desc(tables.crmConnection.createdAt));
+    return rows.map(toDto);
+  });
 
-export const createCrmConnectSession = orgFn({ method: "POST" })
-  .inputValidator(providerSchema)
+export const createCrmConnectSession = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(providerSchema)
   .handler(async ({ data: provider, context }) => {
     requireAdmin({ orgContext: context.orgContext });
     const nango = getNango();
@@ -80,8 +85,9 @@ export const createCrmConnectSession = orgFn({ method: "POST" })
     };
   });
 
-export const finalizeCrmConnection = orgFn({ method: "POST" })
-  .inputValidator(
+export const finalizeCrmConnection = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
     z.object({
       provider: providerSchema,
       nangoConnectionId: z.string().min(1),
@@ -124,8 +130,9 @@ export const finalizeCrmConnection = orgFn({ method: "POST" })
     return toDto(row);
   });
 
-export const updateFieldMapping = orgFn({ method: "POST" })
-  .inputValidator(
+export const updateFieldMapping = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
     z.object({
       connectionId: z.string().uuid(),
       mapping: fieldMappingSchema,
@@ -147,8 +154,9 @@ export const updateFieldMapping = orgFn({ method: "POST" })
     return toDto(row);
   });
 
-export const disconnectCrm = orgFn({ method: "POST" })
-  .inputValidator(z.object({ connectionId: z.string().uuid() }))
+export const disconnectCrm = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ connectionId: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
     const connection = await db.query.crmConnection.findFirst({
@@ -177,8 +185,9 @@ export const disconnectCrm = orgFn({ method: "POST" })
     return toDto(row);
   });
 
-export const triggerCrmSync = orgFn({ method: "POST" })
-  .inputValidator(
+export const triggerCrmSync = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
     z.object({
       connectionId: z.string().uuid(),
       model: z.enum(["Contact", "Account", "Company"]),

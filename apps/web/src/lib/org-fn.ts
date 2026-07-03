@@ -1,15 +1,27 @@
+import "@tanstack/react-start/server-only";
+
 import { auth } from "@quiksend/auth";
 import { asOrganizationId, asUserId, type MemberRole, type OrgContext } from "@quiksend/core";
-import { db, tables } from "@quiksend/db";
-import { createMiddleware, createServerFn } from "@tanstack/react-start";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
+import { createMiddleware } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { and, eq } from "drizzle-orm";
 
 /**
- * `orgFn` — THE tenancy chokepoint. Every data-touching server function
- * composes `authMiddleware` and receives a validated `OrgContext` in
- * `ctx.orgContext`. Downstream queries MUST filter by `ctx.orgContext.organizationId`;
- * the CI tenancy guard in `packages/db/src/schema/*` will catch missing filters.
+ * `authMiddleware` — THE tenancy chokepoint. Every data-touching server function
+ * composes it (via `createServerFn(...).middleware([authMiddleware])`) and receives
+ * a validated `OrgContext` in `ctx.orgContext`, plus the raw Better Auth headers
+ * in `ctx.authHeaders` for handlers that need to re-issue `auth.api.*` calls.
+ *
+ * Downstream queries MUST filter by `ctx.orgContext.organizationId`; the CI
+ * tenancy guard in `packages/db/src/schema/*` will catch missing filters.
+ *
+ * Why not wrap this in a helper like `orgFn(...)`? The TanStack Start Vite plugin's
+ * AST detector recognizes bare `createServerFn(...)` at module top-level as an RPC
+ * boundary and splits the client bundle accordingly. A wrapper hides that shape
+ * and leaks server-only imports (`@quiksend/db`, `@quiksend/config`, `@quiksend/auth`)
+ * into the browser bundle. Keep the `.middleware([authMiddleware])` chain explicit.
  *
  * The middleware:
  *   • pulls the Better Auth session from the incoming request headers
@@ -18,9 +30,8 @@ import { and, eq } from "drizzle-orm";
  *   • throws with a stable code (`UNAUTHORIZED`, `NO_ACTIVE_WORKSPACE`,
  *     `NOT_A_MEMBER`) so callers can translate to redirects/403s uniformly
  *
- * Role gating helpers live on the returned `OrgContext` (see
- * `@quiksend/core` `isAdminOrOwner`) so every admin-only mutation checks it
- * one way.
+ * Role gating helpers live on the returned `OrgContext` (see `@quiksend/core`
+ * `isAdminOrOwner`) so every admin-only mutation checks it one way.
  */
 
 export class TenancyError extends Error {
@@ -56,7 +67,7 @@ export const authMiddleware = createMiddleware({ type: "function" }).server(asyn
     organizationId: asOrganizationId(activeOrganizationId),
     role: normalizeRole(membership.role),
   };
-  return next({ context: { orgContext } });
+  return next({ context: { orgContext, authHeaders: headers } });
 });
 
 function normalizeRole(role: string): MemberRole {
@@ -64,7 +75,3 @@ function normalizeRole(role: string): MemberRole {
   // Better Auth allows extra roles per plugin config; treat unknowns as least-privileged.
   return "member";
 }
-
-/** Shortcut for `createServerFn({...}).middleware([authMiddleware])`. */
-export const orgFn = (options: { method: "GET" | "POST" }) =>
-  createServerFn(options).middleware([authMiddleware]);

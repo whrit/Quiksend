@@ -1,4 +1,5 @@
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { enqueue, enqueueWithRetries } from "@quiksend/queue";
 import type { EmailGateway } from "@quiksend/mail/gateway-detect";
 import { isAdminOrOwner } from "@quiksend/core";
@@ -6,7 +7,8 @@ import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "dri
 import { z } from "zod";
 import type { DedupePolicy, ValidCsvRow } from "./prospect-import.ts";
 import { normalizeDomain, normalizeEmail } from "./prospect-import.ts";
-import { orgFn } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import { authMiddleware } from "./org-fn.ts";
 import { createProspectInputSchema, prospectStatusSchema } from "./schemas/prospect.ts";
 import { withAnalyticsTiming } from "./timing.ts";
 
@@ -261,7 +263,8 @@ function notFound(): never {
   throw new Response("Not found", { status: 404 });
 }
 
-export const listProspects = orgFn({ method: "GET" })
+export const listProspects = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator(listProspectsInputSchema)
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -330,7 +333,8 @@ export const listProspects = orgFn({ method: "GET" })
     };
   });
 
-export const getProspect = orgFn({ method: "GET" })
+export const getProspect = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -358,7 +362,8 @@ export const getProspect = orgFn({ method: "GET" })
     };
   });
 
-export const createProspect = orgFn({ method: "POST" })
+export const createProspect = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(createProspectInputSchema)
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -423,7 +428,8 @@ export const createProspect = orgFn({ method: "POST" })
     return serializeProspect(created!);
   });
 
-export const updateProspect = orgFn({ method: "POST" })
+export const updateProspect = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(z.object({ id: z.string().uuid(), patch: prospectPatchSchema }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -444,7 +450,8 @@ export const updateProspect = orgFn({ method: "POST" })
     return serializeProspect(updated);
   });
 
-export const deleteProspect = orgFn({ method: "POST" })
+export const deleteProspect = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -465,7 +472,8 @@ export const deleteProspect = orgFn({ method: "POST" })
     return { ok: true as const };
   });
 
-export const bulkDeleteProspects = orgFn({ method: "POST" })
+export const bulkDeleteProspects = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(z.object({ ids: z.array(z.string().uuid()).min(1).max(500) }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -498,7 +506,8 @@ export const bulkDeleteProspects = orgFn({ method: "POST" })
     return { deleted: data.ids.length };
   });
 
-export const listCompanies = orgFn({ method: "GET" })
+export const listCompanies = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator(listCompaniesInputSchema)
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -545,7 +554,8 @@ export const listCompanies = orgFn({ method: "GET" })
     };
   });
 
-export const upsertCompany = orgFn({ method: "POST" })
+export const upsertCompany = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(upsertCompanyInputSchema)
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -602,7 +612,8 @@ export const upsertCompany = orgFn({ method: "POST" })
     return serializeCompany(created!);
   });
 
-export const createList = orgFn({ method: "POST" })
+export const createList = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(
     z.object({
       name: z.string().min(1).max(200),
@@ -625,7 +636,8 @@ export const createList = orgFn({ method: "POST" })
     return serializeList(created!);
   });
 
-export const listLists = orgFn({ method: "GET" })
+export const listLists = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator(z.object({}))
   .handler(async ({ context }) => {
     const { organizationId } = context.orgContext;
@@ -637,7 +649,8 @@ export const listLists = orgFn({ method: "GET" })
     return rows.map(serializeList);
   });
 
-export const addToList = orgFn({ method: "POST" })
+export const addToList = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(
     z.object({
       listId: z.string().uuid(),
@@ -675,7 +688,8 @@ export const addToList = orgFn({ method: "POST" })
     return { added: data.prospectIds.length };
   });
 
-export const removeFromList = orgFn({ method: "POST" })
+export const removeFromList = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(
     z.object({
       listId: z.string().uuid(),
@@ -804,7 +818,8 @@ async function importProspectRow(
   return "created";
 }
 
-export const startImport = orgFn({ method: "POST" })
+export const startImport = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(startImportInputSchema)
   .handler(async ({ data, context }) => {
     const { organizationId, userId } = context.orgContext;
@@ -877,7 +892,8 @@ export const startImport = orgFn({ method: "POST" })
     };
   });
 
-export const getImportBatch = orgFn({ method: "GET" })
+export const getImportBatch = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -927,7 +943,8 @@ async function enqueueCrmContactUpsertForProspect(
   }
 }
 
-export const getProspectEnrollments = orgFn({ method: "POST" })
+export const getProspectEnrollments = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(z.object({ prospectId: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -968,7 +985,8 @@ export const getProspectEnrollments = orgFn({ method: "POST" })
     });
   });
 
-export const getProspectMessages = orgFn({ method: "POST" })
+export const getProspectMessages = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(
     z.object({
       prospectId: z.string().uuid(),
@@ -1033,7 +1051,8 @@ export const getProspectMessages = orgFn({ method: "POST" })
     };
   });
 
-export const getProspectResearchProfile = orgFn({ method: "POST" })
+export const getProspectResearchProfile = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(z.object({ prospectId: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -1097,7 +1116,8 @@ async function queryGatewayMix(
   };
 }
 
-export const classifyEmail = orgFn({ method: "POST" })
+export const classifyEmail = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(z.object({ email: z.string().email() }))
   .handler(async ({ data, context }) => {
     if (!isAdminOrOwner(context.orgContext as Parameters<typeof isAdminOrOwner>[0])) {
@@ -1128,7 +1148,8 @@ export const classifyEmail = orgFn({ method: "POST" })
     return { gateway: "unknown" as const, evidence: [], cached: false };
   });
 
-export const reclassifyDomain = orgFn({ method: "POST" })
+export const reclassifyDomain = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(z.object({ emailDomain: z.string().min(1).max(255) }))
   .handler(async ({ data, context }) => {
     if (!isAdminOrOwner(context.orgContext as Parameters<typeof isAdminOrOwner>[0])) {
@@ -1149,7 +1170,8 @@ export const reclassifyDomain = orgFn({ method: "POST" })
     return { success: true as const };
   });
 
-export const getGatewayMixForOrg = orgFn({ method: "GET" })
+export const getGatewayMixForOrg = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator(z.object({}))
   .handler(async ({ context }) => {
     const { organizationId } = context.orgContext;
@@ -1158,7 +1180,8 @@ export const getGatewayMixForOrg = orgFn({ method: "GET" })
     );
   });
 
-export const getGatewayMixForList = orgFn({ method: "GET" })
+export const getGatewayMixForList = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator(z.object({ listId: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -1175,7 +1198,8 @@ export const getGatewayMixForList = orgFn({ method: "GET" })
     });
   });
 
-export const getGatewayMixForSequence = orgFn({ method: "GET" })
+export const getGatewayMixForSequence = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator(z.object({ sequenceId: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;

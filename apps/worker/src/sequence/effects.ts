@@ -1,7 +1,8 @@
 import { transition, type Effect, type EnrollmentState } from "@quiksend/core/state-machine";
 import { isSegGateway } from "@quiksend/core/deliverability";
 import { env } from "@quiksend/config";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import {
   buildComplianceParts,
   buildUnsubscribeUrl,

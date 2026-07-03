@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { client, db, tables } from "@quiksend/db";
+import { client, db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 
 async function cleanupDeliverabilityTables(): Promise<void> {

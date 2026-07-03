@@ -1,7 +1,9 @@
+import "@tanstack/react-start/server-only";
+
 import { computeSchedule } from "@quiksend/core/schedule";
 import type { MailboxSchedule, SendingWindow, StepKind, Weekday } from "@quiksend/core/schedule";
 import type { Effect, EnrollmentState } from "@quiksend/core/state-machine";
-import { tables } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import type * as schema from "@quiksend/db/schema";
 import { and, eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";

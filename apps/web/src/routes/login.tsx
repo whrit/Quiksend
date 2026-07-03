@@ -56,7 +56,13 @@ function LoginPage() {
           <CardDescription>Quiksend workspace access</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          <form
+            onSubmit={onSubmit}
+            method="post"
+            action="#"
+            noValidate
+            className="flex flex-col gap-3"
+          >
             {mode === "signup" && (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="name">Name</Label>

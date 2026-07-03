@@ -6,10 +6,18 @@ import {
   type DeliverabilityPolicy,
   type RoutingPolicy,
 } from "@quiksend/core/deliverability";
-import { db, tables } from "@quiksend/db";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
-import { orgFn } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import {
+  computeRoutingImpact,
+  loadOrgMetadata,
+  type RoutingImpactPreview,
+} from "./organization.server.ts";
+export type { RoutingImpactPreview };
+import { authMiddleware } from "./org-fn.ts";
 
 class OrganizationError extends Error {
   readonly code: "FORBIDDEN" | "NOT_FOUND";
@@ -26,23 +34,15 @@ function requireAdmin(ctx: { orgContext: { role: string } }): void {
   }
 }
 
-async function loadOrgMetadata(organizationId: string): Promise<string | null> {
-  const org = await db.query.organization.findFirst({
-    where: eq(tables.organization.id, organizationId),
-    columns: { metadata: true },
-  });
-  if (!org) throw new OrganizationError("NOT_FOUND", "Workspace not found");
-  return org.metadata;
-}
-
-export const getWorkspaceDeliverabilityPolicy = orgFn({ method: "GET" }).handler(
-  async ({ context }) => {
+export const getWorkspaceDeliverabilityPolicy = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
     const metadata = await loadOrgMetadata(context.orgContext.organizationId);
     return parseDeliverabilityPolicy(metadata);
-  },
-);
+  });
 
-export const setWorkspaceDeliverabilityPolicy = orgFn({ method: "POST" })
+export const setWorkspaceDeliverabilityPolicy = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -80,71 +80,11 @@ export const setWorkspaceDeliverabilityPolicy = orgFn({ method: "POST" })
     return parseDeliverabilityPolicy(nextMetadata);
   });
 
-export type RoutingImpactPreview = {
-  prospectsBehindSeg: number;
-  safeMailboxCount: number;
-  prospectsAtRiskOfSkip: number;
-  prospectsPerGateway: Array<{ gateway: string; count: number }>;
-};
-
-export async function computeRoutingImpact(organizationId: string): Promise<RoutingImpactPreview> {
-  const segGateways = [...SEG_GATEWAYS];
-
-  const segProspects = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(tables.prospect)
-    .where(
-      and(
-        eq(tables.prospect.organizationId, organizationId),
-        isNull(tables.prospect.deletedAt),
-        inArray(tables.prospect.emailGateway, segGateways),
-      ),
-    );
-
-  const prospectsBehindSeg = segProspects[0]?.count ?? 0;
-
-  const safeMailboxes = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(tables.mailbox)
-    .where(
-      and(
-        eq(tables.mailbox.organizationId, organizationId),
-        eq(tables.mailbox.status, "active"),
-        eq(tables.mailbox.enterpriseSafe, true),
-        eq(tables.mailbox.enterpriseSafeAutoDowngraded, false),
-      ),
-    );
-
-  const safeMailboxCount = safeMailboxes[0]?.count ?? 0;
-
-  const perGateway = await db
-    .select({
-      gateway: tables.prospect.emailGateway,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(tables.prospect)
-    .where(
-      and(
-        eq(tables.prospect.organizationId, organizationId),
-        isNull(tables.prospect.deletedAt),
-        inArray(tables.prospect.emailGateway, segGateways),
-      ),
-    )
-    .groupBy(tables.prospect.emailGateway);
-
-  return {
-    prospectsBehindSeg,
-    safeMailboxCount,
-    prospectsAtRiskOfSkip: safeMailboxCount === 0 ? prospectsBehindSeg : 0,
-    prospectsPerGateway: perGateway
-      .filter((row) => row.gateway != null)
-      .map((row) => ({ gateway: row.gateway!, count: row.count })),
-  };
-}
-
-export const previewRoutingImpact = orgFn({ method: "GET" }).handler(async ({ context }) => {
-  return computeRoutingImpact(context.orgContext.organizationId);
-});
+export const previewRoutingImpact = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    return computeRoutingImpact(context.orgContext.organizationId);
+  });
 
 export type SequenceDeliverabilityRisk = {
   segProspectCount: number;
@@ -152,7 +92,8 @@ export type SequenceDeliverabilityRisk = {
   showBanner: boolean;
 };
 
-export const getSequenceDeliverabilityRisk = orgFn({ method: "POST" })
+export const getSequenceDeliverabilityRisk = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ sequenceId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const organizationId = context.orgContext.organizationId;
@@ -194,7 +135,8 @@ export type EnrollmentSegWarning = {
   showWarning: boolean;
 };
 
-export const getEnrollmentSegWarning = orgFn({ method: "POST" })
+export const getEnrollmentSegWarning = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z.object({ prospectIds: z.array(z.string().uuid()).min(1) }).parse(data),
   )

@@ -2,7 +2,7 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
 import type { CrmSyncPayload } from "@quiksend/queue";
 import type { NormalizedContact } from "@quiksend/integrations";
-import { tables } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 
 type Db = PostgresJsDatabase<Record<string, never>>;
 

@@ -37,7 +37,8 @@ vi.mock("@quiksend/mail", async (importOriginal) => {
   };
 });
 
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 import { encryptSeedImapConfig } from "@quiksend/mail";
 import { runSeedPoolLegitMail } from "./seed-pool-legit-mail.ts";

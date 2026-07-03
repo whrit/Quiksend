@@ -3,7 +3,7 @@ import {
   isSegGateway,
   type DeliverabilityPolicy,
 } from "@quiksend/core/deliverability";
-import { tables } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import type { EmailGateway } from "@quiksend/mail/gateway-detect";
 import { and, eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";

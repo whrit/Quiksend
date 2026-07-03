@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { logger } from "@quiksend/config";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { getProviderConfig, verifyNangoWebhook } from "@quiksend/integrations";
 import type { CrmProvider } from "@quiksend/integrations/providers";
 import { enqueue } from "@quiksend/queue";

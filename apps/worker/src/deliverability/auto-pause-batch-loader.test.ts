@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { withTestOrgs } from "@quiksend/db/testing";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { eq } from "drizzle-orm";
 import { loadPauseContext } from "./auto-pause-batch-loader.ts";
 

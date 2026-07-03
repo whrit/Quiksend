@@ -1,13 +1,15 @@
 import { env } from "@quiksend/config";
 import { isAdminOrOwner } from "@quiksend/core";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { enqueue } from "@quiksend/queue";
 import type { EmailGateway } from "@quiksend/mail";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { encryptSeedImapConfig, validateImapHost, type SeedImapConfigPlain } from "@quiksend/mail";
 import { isDeliverabilityProEntitled } from "./canary-injection.ts";
-import { orgFn } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import { authMiddleware } from "./org-fn.ts";
 
 class SeedInboxError extends Error {
   readonly code: "NOT_FOUND" | "FORBIDDEN" | "VALIDATION" | "CONFIG";
@@ -104,33 +106,36 @@ const createSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 
-export const listSeedInboxes = orgFn({ method: "GET" }).handler(async ({ context }) => {
-  const { organizationId } = context.orgContext;
-  const org = await db.query.organization.findFirst({
-    where: eq(tables.organization.id, organizationId),
-    columns: { metadata: true },
+export const listSeedInboxes = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { organizationId } = context.orgContext;
+    const org = await db.query.organization.findFirst({
+      where: eq(tables.organization.id, organizationId),
+      columns: { metadata: true },
+    });
+    const pro = isDeliverabilityProEntitled(org?.metadata);
+
+    const userSeeds = await db.query.seedInbox.findMany({
+      where: eq(tables.seedInbox.organizationId, organizationId),
+      orderBy: (s, { desc }) => [desc(s.createdAt)],
+    });
+
+    const providerSeeds = pro
+      ? await db.query.seedInbox.findMany({
+          where: isNull(tables.seedInbox.organizationId),
+          orderBy: (s, { asc }) => [asc(s.gateway), asc(s.email)],
+        })
+      : [];
+
+    return [
+      ...userSeeds.map(toUserListItem),
+      ...summarizeProviderPools(providerSeeds),
+    ] satisfies SeedInboxListItem[];
   });
-  const pro = isDeliverabilityProEntitled(org?.metadata);
 
-  const userSeeds = await db.query.seedInbox.findMany({
-    where: eq(tables.seedInbox.organizationId, organizationId),
-    orderBy: (s, { desc }) => [desc(s.createdAt)],
-  });
-
-  const providerSeeds = pro
-    ? await db.query.seedInbox.findMany({
-        where: isNull(tables.seedInbox.organizationId),
-        orderBy: (s, { asc }) => [asc(s.gateway), asc(s.email)],
-      })
-    : [];
-
-  return [
-    ...userSeeds.map(toUserListItem),
-    ...summarizeProviderPools(providerSeeds),
-  ] satisfies SeedInboxListItem[];
-});
-
-export const createUserSeedInbox = orgFn({ method: "POST" })
+export const createUserSeedInbox = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => createSchema.parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin(context);
@@ -168,7 +173,8 @@ export const createUserSeedInbox = orgFn({ method: "POST" })
     return toPublic(row);
   });
 
-export const verifySeedInbox = orgFn({ method: "POST" })
+export const verifySeedInbox = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ seedInboxId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin(context);
@@ -184,7 +190,8 @@ export const verifySeedInbox = orgFn({ method: "POST" })
     return { ok: true };
   });
 
-export const deleteSeedInbox = orgFn({ method: "POST" })
+export const deleteSeedInbox = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ seedInboxId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin(context);
@@ -200,7 +207,8 @@ export const deleteSeedInbox = orgFn({ method: "POST" })
     return { ok: true };
   });
 
-export const toggleSeedInboxActive = orgFn({ method: "POST" })
+export const toggleSeedInboxActive = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z.object({ seedInboxId: z.string().uuid(), active: z.boolean() }).parse(data),
   )
@@ -221,18 +229,20 @@ export const toggleSeedInboxActive = orgFn({ method: "POST" })
     return toPublic(row);
   });
 
-export const isEntitledToProviderSeeds = orgFn({ method: "GET" }).handler(async ({ context }) => {
-  const org = await db.query.organization.findFirst({
-    where: eq(tables.organization.id, context.orgContext.organizationId),
-    columns: { metadata: true },
+export const isEntitledToProviderSeeds = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const org = await db.query.organization.findFirst({
+      where: eq(tables.organization.id, context.orgContext.organizationId),
+      columns: { metadata: true },
+    });
+    const parsed =
+      typeof org?.metadata === "string"
+        ? (JSON.parse(org.metadata) as Record<string, unknown>)
+        : (org?.metadata as Record<string, unknown> | null);
+    const until = (
+      parsed?.entitlements as { deliverability_pro?: { activeUntil?: string } } | undefined
+    )?.deliverability_pro?.activeUntil;
+    const entitled = isDeliverabilityProEntitled(org?.metadata);
+    return { entitled, expiresAt: until };
   });
-  const parsed =
-    typeof org?.metadata === "string"
-      ? (JSON.parse(org.metadata) as Record<string, unknown>)
-      : (org?.metadata as Record<string, unknown> | null);
-  const until = (
-    parsed?.entitlements as { deliverability_pro?: { activeUntil?: string } } | undefined
-  )?.deliverability_pro?.activeUntil;
-  const entitled = isDeliverabilityProEntitled(org?.metadata);
-  return { entitled, expiresAt: until };
-});

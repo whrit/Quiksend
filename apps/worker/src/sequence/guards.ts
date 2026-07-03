@@ -1,4 +1,5 @@
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { and, eq, or, sql } from "drizzle-orm";
 import type { EnrollmentContext } from "./context.ts";
 

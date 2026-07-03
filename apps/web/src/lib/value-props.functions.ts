@@ -1,7 +1,9 @@
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { orgFn } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import { authMiddleware } from "./org-fn.ts";
 
 class ValuePropError extends Error {
   readonly code: "NOT_FOUND" | "VALIDATION";
@@ -55,16 +57,19 @@ function toPublicValueProp(row: ValuePropRow): PublicValueProp {
   };
 }
 
-export const listValueProps = orgFn({ method: "GET" }).handler(async ({ context }) => {
-  const { organizationId } = context.orgContext;
-  const rows = await db.query.valueProp.findMany({
-    where: eq(tables.valueProp.organizationId, organizationId),
-    orderBy: desc(tables.valueProp.createdAt),
+export const listValueProps = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { organizationId } = context.orgContext;
+    const rows = await db.query.valueProp.findMany({
+      where: eq(tables.valueProp.organizationId, organizationId),
+      orderBy: desc(tables.valueProp.createdAt),
+    });
+    return rows.map(toPublicValueProp);
   });
-  return rows.map(toPublicValueProp);
-});
 
-export const getValueProp = orgFn({ method: "POST" })
+export const getValueProp = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const row = await db.query.valueProp.findFirst({
@@ -77,7 +82,8 @@ export const getValueProp = orgFn({ method: "POST" })
     return toPublicValueProp(row);
   });
 
-export const createValueProp = orgFn({ method: "POST" })
+export const createValueProp = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => createValuePropSchema.parse(data))
   .handler(async ({ data, context }) => {
     const [row] = await db
@@ -94,7 +100,8 @@ export const createValueProp = orgFn({ method: "POST" })
     return toPublicValueProp(row);
   });
 
-export const updateValueProp = orgFn({ method: "POST" })
+export const updateValueProp = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => updateValuePropSchema.parse(data))
   .handler(async ({ data, context }) => {
     const [row] = await db
@@ -111,7 +118,8 @@ export const updateValueProp = orgFn({ method: "POST" })
     return toPublicValueProp(row);
   });
 
-export const deleteValueProp = orgFn({ method: "POST" })
+export const deleteValueProp = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const deleted = await db

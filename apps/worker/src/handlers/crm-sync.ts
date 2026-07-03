@@ -1,5 +1,6 @@
 import { logger } from "@quiksend/config";
-import { client, db, tables } from "@quiksend/db";
+import { client, db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import {
   fetchChangedHubspotAccounts,
   fetchChangedHubspotContacts,

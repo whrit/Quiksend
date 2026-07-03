@@ -1,6 +1,9 @@
+import "@tanstack/react-start/server-only";
+
 import { auth } from "@quiksend/auth";
 import { env } from "@quiksend/config";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { and, eq, sql } from "drizzle-orm";
 import { countRecentApiKeyUsage, recordApiKeyUsage } from "./helpers.ts";
 

@@ -1,7 +1,8 @@
 import { isInsideWindow, nextOpenSlot } from "@quiksend/core/schedule";
 import { isSegGateway } from "@quiksend/core/deliverability";
 import { env } from "@quiksend/config";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import type { EmailGateway } from "@quiksend/mail/gateway-detect";
 import { extractRecipientDomain } from "@quiksend/mail";
 import { and, asc, eq, gte, inArray, sql, desc } from "drizzle-orm";

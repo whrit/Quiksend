@@ -1,6 +1,7 @@
 import { computeSchedule } from "@quiksend/core/schedule";
 import type { MailboxSchedule, SendingWindow, StepKind, Weekday } from "@quiksend/core/schedule";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";

@@ -1,6 +1,9 @@
+import "@tanstack/react-start/server-only";
+
 import { randomBytes } from "node:crypto";
 import { env } from "@quiksend/config";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import type { WebhookEventType } from "@quiksend/db/schema";
 import { enqueue } from "@quiksend/queue";
 import { and, eq, sql } from "drizzle-orm";

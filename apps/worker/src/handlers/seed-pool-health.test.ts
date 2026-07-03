@@ -35,7 +35,8 @@ vi.mock("imapflow", () => {
   return { ImapFlow };
 });
 
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 import { encryptSeedImapConfig } from "@quiksend/mail";
 import { runSeedPoolHealthCheck } from "./seed-pool-health.ts";

@@ -1,3 +1,5 @@
+import "@tanstack/react-start/server-only";
+
 import { randomUUID } from "node:crypto";
 import {
   isSegGateway,
@@ -7,7 +9,8 @@ import {
   type CanaryConfig,
 } from "@quiksend/core/deliverability";
 import type { EmailGateway } from "@quiksend/mail";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { enqueue } from "@quiksend/queue";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 

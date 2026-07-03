@@ -1,9 +1,11 @@
 import { computeSchedule } from "@quiksend/core/schedule";
 import type { MailboxSchedule, SendingWindow, StepKind, Weekday } from "@quiksend/core/schedule";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { orgFn } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import { authMiddleware } from "./org-fn.ts";
 
 type SequenceSettings = {
   timezone: string;
@@ -69,7 +71,8 @@ function computeNextRunAt(
   return schedule.find((s) => s.index === stepIndex)?.scheduledAt ?? null;
 }
 
-export const enrollWithExistingAnchor = orgFn({ method: "POST" })
+export const enrollWithExistingAnchor = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({

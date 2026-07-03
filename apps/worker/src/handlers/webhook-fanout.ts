@@ -1,4 +1,5 @@
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import type { WebhookEventType } from "@quiksend/db/schema";
 import { enqueue } from "@quiksend/queue";
 import { and, eq } from "drizzle-orm";

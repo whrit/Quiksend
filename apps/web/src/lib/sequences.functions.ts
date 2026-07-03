@@ -5,10 +5,12 @@ import {
   type EnrollmentSnapshot,
   type EnrollmentState,
 } from "@quiksend/core/state-machine";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { and, asc, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { orgFn } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import { authMiddleware } from "./org-fn.ts";
 import { applyWebEffects } from "./effect-executor.ts";
 import {
   injectCanariesForEnrollment,
@@ -325,7 +327,8 @@ function buildEnrollmentSnapshot(
   };
 }
 
-export const listSequences = orgFn({ method: "GET" })
+export const listSequences = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -383,7 +386,8 @@ export const listSequences = orgFn({ method: "GET" })
     }));
   });
 
-export const getSequence = orgFn({ method: "GET" })
+export const getSequence = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -414,7 +418,8 @@ export const getSequence = orgFn({ method: "GET" })
     };
   });
 
-export const createSequence = orgFn({ method: "POST" })
+export const createSequence = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -445,7 +450,8 @@ export const createSequence = orgFn({ method: "POST" })
     return serializeSequence(row, { stepCount: 0 });
   });
 
-export const updateSequence = orgFn({ method: "POST" })
+export const updateSequence = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -507,7 +513,8 @@ export const updateSequence = orgFn({ method: "POST" })
     return serializeSequence(row, { stepCount: steps.length });
   });
 
-export const reorderSteps = orgFn({ method: "POST" })
+export const reorderSteps = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -557,7 +564,8 @@ export const reorderSteps = orgFn({ method: "POST" })
     return updated.map(serializeStep);
   });
 
-export const upsertStep = orgFn({ method: "POST" })
+export const upsertStep = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -624,7 +632,8 @@ export const upsertStep = orgFn({ method: "POST" })
     return serializeStep(row);
   });
 
-export const deleteStep = orgFn({ method: "POST" })
+export const deleteStep = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -663,7 +672,8 @@ export const deleteStep = orgFn({ method: "POST" })
     return { ok: true as const };
   });
 
-export const activateSequence = orgFn({ method: "POST" })
+export const activateSequence = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -717,7 +727,8 @@ export const activateSequence = orgFn({ method: "POST" })
     return serializeSequence(row, { stepCount: steps.length });
   });
 
-export const archiveSequence = orgFn({ method: "POST" })
+export const archiveSequence = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -736,7 +747,8 @@ export const archiveSequence = orgFn({ method: "POST" })
     return serializeSequence(row, { stepCount: steps.length });
   });
 
-export const enrollProspects = orgFn({ method: "POST" })
+export const enrollProspects = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -869,7 +881,8 @@ export const enrollProspects = orgFn({ method: "POST" })
     };
   });
 
-export const previewSchedule = orgFn({ method: "POST" })
+export const previewSchedule = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -956,25 +969,29 @@ async function transitionEnrollment(
   return { enrollment: serializeEnrollment(updated), effects: result.effects };
 }
 
-export const pauseEnrollment = orgFn({ method: "POST" })
+export const pauseEnrollment = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) =>
     transitionEnrollment(data.id, context.orgContext.organizationId, { kind: "pause" }),
   );
 
-export const resumeEnrollment = orgFn({ method: "POST" })
+export const resumeEnrollment = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) =>
     transitionEnrollment(data.id, context.orgContext.organizationId, { kind: "resume" }),
   );
 
-export const stopEnrollment = orgFn({ method: "POST" })
+export const stopEnrollment = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) =>
     transitionEnrollment(data.id, context.orgContext.organizationId, { kind: "stop" }),
   );
 
-export const listEnrollments = orgFn({ method: "GET" })
+export const listEnrollments = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ sequenceId: z.string().uuid() }).parse(data ?? {}))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;

@@ -1,7 +1,8 @@
 import { transition } from "@quiksend/core/state-machine";
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 import { createFakeAdapter } from "@quiksend/mail";
 import { applyTransitionEffects } from "./effects.ts";
