@@ -1,4 +1,5 @@
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";

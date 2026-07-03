@@ -1,4 +1,5 @@
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { verifyUnsubscribeToken } from "@quiksend/mail";
 import { enqueue } from "@quiksend/queue";
 import { createFileRoute } from "@tanstack/react-router";

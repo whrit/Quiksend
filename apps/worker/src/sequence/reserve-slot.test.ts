@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 import { reserveSendSlotInTx } from "./reserve-slot.ts";
 

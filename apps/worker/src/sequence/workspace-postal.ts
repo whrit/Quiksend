@@ -1,5 +1,6 @@
 import { logger } from "@quiksend/config";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { eq } from "drizzle-orm";
 
 const DEFAULT_POSTAL_ADDRESS = "1 Main St, City";

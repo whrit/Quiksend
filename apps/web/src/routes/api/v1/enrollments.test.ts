@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { auth } from "@quiksend/auth";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 import { describe, expect, it } from "vitest";
 import { resolveApiKey } from "../../../lib/api/v1/middleware.ts";

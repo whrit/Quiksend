@@ -1,5 +1,6 @@
 import { logger } from "@quiksend/config";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { enqueueWithRetries, registerHandler } from "@quiksend/queue";
 import { and, eq, isNull, sql } from "drizzle-orm";
 

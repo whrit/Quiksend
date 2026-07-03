@@ -1,19 +1,27 @@
-import { env } from "@quiksend/config";
 import { isAdminOrOwner } from "@quiksend/core";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { getNango } from "@quiksend/integrations";
 import {
   buildComplianceParts,
   checkDomainAuth,
-  createAdapterForMailbox,
-  decryptSmtpConfig,
   encryptSmtpConfig,
-  type MailboxAdapter,
   type SmtpConfigPlain,
 } from "@quiksend/mail";
+import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { orgFn } from "./org-fn.ts";
+import {
+  decryptSmtpConfigForMailbox,
+  requireMailboxEncryptionKey,
+  resolveMailboxAdapter,
+} from "./mailboxes.server.ts";
+import { authMiddleware } from "./org-fn.ts";
+
+// Re-exported so existing callers (`compose.functions.ts`, `inbox.functions.ts`,
+// worker fixtures, tests) keep the same import path. Actual value lives in the
+// server-only `mailboxes.server.ts`; type erases at build time.
+export { resolveMailboxAdapter };
 
 class MailboxError extends Error {
   readonly code: "NOT_FOUND" | "FORBIDDEN" | "VALIDATION" | "CONFIG";
@@ -22,6 +30,22 @@ class MailboxError extends Error {
     this.name = "MailboxError";
     this.code = code;
   }
+}
+
+function requireAdmin(ctx: { orgContext: { role: string } }): void {
+  if (!isAdminOrOwner(ctx.orgContext as never)) {
+    throw new MailboxError("FORBIDDEN", "Admin or owner role required");
+  }
+}
+
+function domainFromAddress(address: string): string {
+  const domain = address.split("@")[1];
+  if (!domain) throw new MailboxError("VALIDATION", "Invalid mailbox address");
+  return domain.toLowerCase();
+}
+
+function decryptMailboxSmtp(smtpConfig: unknown): SmtpConfigPlain {
+  return decryptSmtpConfigForMailbox(smtpConfig);
 }
 
 const sendWindowSchema = z.object({
@@ -60,56 +84,6 @@ const updateMailboxSchema = z.object({
     })
     .strict(),
 });
-
-function requireEncryptionKey(): string {
-  const key = env.MAILBOX_ENCRYPTION_KEY;
-  if (!key) {
-    throw new MailboxError(
-      "CONFIG",
-      "MAILBOX_ENCRYPTION_KEY is required to store SMTP credentials",
-    );
-  }
-  return key;
-}
-
-function requireAdmin(ctx: { orgContext: { role: string } }): void {
-  if (!isAdminOrOwner(ctx.orgContext as never)) {
-    throw new MailboxError("FORBIDDEN", "Admin or owner role required");
-  }
-}
-
-function domainFromAddress(address: string): string {
-  const domain = address.split("@")[1];
-  if (!domain) throw new MailboxError("VALIDATION", "Invalid mailbox address");
-  return domain.toLowerCase();
-}
-
-function decryptMailboxSmtp(smtpConfig: unknown): SmtpConfigPlain {
-  if (typeof smtpConfig !== "string") {
-    throw new MailboxError("CONFIG", "Mailbox SMTP config is missing or invalid");
-  }
-  return decryptSmtpConfig(smtpConfig, requireEncryptionKey());
-}
-
-/** Resolves a send adapter for any mailbox provider (SMTP, Gmail, Microsoft). */
-export function resolveMailboxAdapter(mailbox: MailboxRow): MailboxAdapter {
-  if (mailbox.provider === "smtp") {
-    return createAdapterForMailbox({
-      provider: mailbox.provider,
-      nangoConnectionId: mailbox.nangoConnectionId,
-      smtpConfig: decryptMailboxSmtp(mailbox.smtpConfig),
-      address: mailbox.address,
-      fromName: mailbox.fromName,
-    });
-  }
-  return createAdapterForMailbox({
-    provider: mailbox.provider,
-    nangoConnectionId: mailbox.nangoConnectionId,
-    smtpConfig: null,
-    address: mailbox.address,
-    fromName: mailbox.fromName,
-  });
-}
 
 type MailboxRow = typeof tables.mailbox.$inferSelect;
 
@@ -178,16 +152,19 @@ function toPublicMailbox(row: MailboxRow): PublicMailbox {
   };
 }
 
-export const listMailboxes = orgFn({ method: "GET" }).handler(async ({ context }) => {
-  const { organizationId } = context.orgContext;
-  const rows = await db.query.mailbox.findMany({
-    where: eq(tables.mailbox.organizationId, organizationId),
-    orderBy: desc(tables.mailbox.createdAt),
+export const listMailboxes = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { organizationId } = context.orgContext;
+    const rows = await db.query.mailbox.findMany({
+      where: eq(tables.mailbox.organizationId, organizationId),
+      orderBy: desc(tables.mailbox.createdAt),
+    });
+    return rows.map(toPublicMailbox);
   });
-  return rows.map(toPublicMailbox);
-});
 
-export const getMailbox = orgFn({ method: "POST" })
+export const getMailbox = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const row = await db.query.mailbox.findFirst({
@@ -200,11 +177,12 @@ export const getMailbox = orgFn({ method: "POST" })
     return toPublicMailbox(row);
   });
 
-export const createSmtpMailbox = orgFn({ method: "POST" })
+export const createSmtpMailbox = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => createSmtpMailboxSchema.parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
-    const key = requireEncryptionKey();
+    const key = requireMailboxEncryptionKey();
     const smtpPlain: SmtpConfigPlain = {
       host: data.host,
       port: data.port,
@@ -230,7 +208,8 @@ export const createSmtpMailbox = orgFn({ method: "POST" })
     return toPublicMailbox(row);
   });
 
-export const updateMailbox = orgFn({ method: "POST" })
+export const updateMailbox = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => updateMailboxSchema.parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
@@ -257,7 +236,7 @@ export const updateMailbox = orgFn({ method: "POST" })
         secure: patch.secure ?? current.secure,
         auth: patch.auth === null ? undefined : (patch.auth ?? current.auth),
       };
-      smtpConfig = encryptSmtpConfig(next, requireEncryptionKey());
+      smtpConfig = encryptSmtpConfig(next, requireMailboxEncryptionKey());
     }
 
     const { host: _h, port: _p, secure: _s, auth: _a, ...mailboxPatch } = patch;
@@ -276,7 +255,8 @@ export const updateMailbox = orgFn({ method: "POST" })
     return toPublicMailbox(row);
   });
 
-export const deleteMailbox = orgFn({ method: "POST" })
+export const deleteMailbox = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
@@ -293,7 +273,8 @@ export const deleteMailbox = orgFn({ method: "POST" })
     return { ok: true as const };
   });
 
-export const checkMailboxHealth = orgFn({ method: "POST" })
+export const checkMailboxHealth = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const mailbox = await db.query.mailbox.findFirst({
@@ -341,7 +322,8 @@ export const checkMailboxHealth = orgFn({ method: "POST" })
     };
   });
 
-export const testMailboxSend = orgFn({ method: "POST" })
+export const testMailboxSend = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -388,26 +370,29 @@ const oauthMailboxSchema = z.object({
   nangoConnectionId: z.string().min(1),
 });
 
-export const createGmailConnectSession = orgFn({ method: "POST" }).handler(async ({ context }) => {
-  requireAdmin({ orgContext: context.orgContext });
-  const nango = getNango();
-  const session = await nango.createConnectSession({
-    end_user: {
-      id: context.orgContext.userId,
-    },
-    allowed_integrations: ["google-mail"],
-    organization: {
-      id: context.orgContext.organizationId,
-    },
+export const createGmailConnectSession = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    requireAdmin({ orgContext: context.orgContext });
+    const nango = getNango();
+    const session = await nango.createConnectSession({
+      end_user: {
+        id: context.orgContext.userId,
+      },
+      allowed_integrations: ["google-mail"],
+      organization: {
+        id: context.orgContext.organizationId,
+      },
+    });
+    return {
+      sessionToken: session.data.token,
+      connectUrl: session.data.connect_link,
+    };
   });
-  return {
-    sessionToken: session.data.token,
-    connectUrl: session.data.connect_link,
-  };
-});
 
-export const createMicrosoftConnectSession = orgFn({ method: "POST" }).handler(
-  async ({ context }) => {
+export const createMicrosoftConnectSession = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
     requireAdmin({ orgContext: context.orgContext });
     const nango = getNango();
     const session = await nango.createConnectSession({
@@ -423,10 +408,10 @@ export const createMicrosoftConnectSession = orgFn({ method: "POST" }).handler(
       sessionToken: session.data.token,
       connectUrl: session.data.connect_link,
     };
-  },
-);
+  });
 
-export const finalizeGmailMailbox = orgFn({ method: "POST" })
+export const finalizeGmailMailbox = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => oauthMailboxSchema.parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
@@ -462,7 +447,8 @@ export const finalizeGmailMailbox = orgFn({ method: "POST" })
     return toPublicMailbox(updated);
   });
 
-export const finalizeMicrosoftMailbox = orgFn({ method: "POST" })
+export const finalizeMicrosoftMailbox = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => oauthMailboxSchema.parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
@@ -498,7 +484,8 @@ export const finalizeMicrosoftMailbox = orgFn({ method: "POST" })
     return toPublicMailbox(updated);
   });
 
-export const setMailboxEnterpriseSafe = orgFn({ method: "POST" })
+export const setMailboxEnterpriseSafe = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({

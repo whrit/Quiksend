@@ -14,7 +14,12 @@ export default defineConfig({
   },
   plugins: [
     tailwindcss(),
-    tanstackStart(),
+    tanstackStart({
+      // Tests colocated with route files (e.g. `apps/web/src/routes/api/v1/*.test.ts`)
+      // are not routes. The router's `routeFileIgnorePrefix: "-"` doesn't cover them,
+      // so filter every `.test.ts`/`.test.tsx` file under `src/routes/` here.
+      router: { routeFileIgnorePattern: "\\.test\\.[tj]sx?$" },
+    }),
     nitro(),
     // react's plugin must come after start's plugin
     viteReact(),

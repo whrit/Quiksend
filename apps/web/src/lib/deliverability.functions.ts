@@ -7,12 +7,14 @@ import {
   type CanaryConfig,
   type DeliverabilitySignal,
 } from "@quiksend/core/deliverability";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import type { EmailGateway } from "@quiksend/mail";
 import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { isDeliverabilityProEntitled, parseWorkspaceCanaryConfig } from "./canary-injection.ts";
-import { orgFn } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import { authMiddleware } from "./org-fn.ts";
 
 export type { DeliverabilitySignal };
 
@@ -38,7 +40,8 @@ const canaryConfigSchema = z.object({
   pauseThresholdPct: z.number().int().min(1).max(100).optional(),
 });
 
-export const getDeliverabilityGrid = orgFn({ method: "POST" })
+export const getDeliverabilityGrid = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z.object({ windowDays: z.number().int().min(7).max(30) }).parse(data),
   )
@@ -92,7 +95,8 @@ export const getDeliverabilityGrid = orgFn({ method: "POST" })
     };
   });
 
-export const getCanaryHistory = orgFn({ method: "POST" })
+export const getCanaryHistory = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -145,15 +149,18 @@ export const getCanaryHistory = orgFn({ method: "POST" })
     };
   });
 
-export const getWorkspaceCanaryConfig = orgFn({ method: "GET" }).handler(async ({ context }) => {
-  const org = await db.query.organization.findFirst({
-    where: eq(tables.organization.id, context.orgContext.organizationId),
-    columns: { metadata: true },
+export const getWorkspaceCanaryConfig = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const org = await db.query.organization.findFirst({
+      where: eq(tables.organization.id, context.orgContext.organizationId),
+      columns: { metadata: true },
+    });
+    return mergeCanaryConfig(parseWorkspaceCanaryConfig(org?.metadata));
   });
-  return mergeCanaryConfig(parseWorkspaceCanaryConfig(org?.metadata));
-});
 
-export const setWorkspaceCanaryConfig = orgFn({ method: "POST" })
+export const setWorkspaceCanaryConfig = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => canaryConfigSchema.parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin(context);
@@ -177,8 +184,9 @@ export const setWorkspaceCanaryConfig = orgFn({ method: "POST" })
     return mergeCanaryConfig(next.canary_defaults as CanaryConfig);
   });
 
-export const getProviderManagedSeedGateways = orgFn({ method: "GET" }).handler(
-  async ({ context }) => {
+export const getProviderManagedSeedGateways = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
     const org = await db.query.organization.findFirst({
       where: eq(tables.organization.id, context.orgContext.organizationId),
       columns: { metadata: true },
@@ -201,10 +209,10 @@ export const getProviderManagedSeedGateways = orgFn({ method: "GET" }).handler(
       seedCount: counts.get(gateway) ?? 0,
       availableForWorkspace: entitled && (counts.get(gateway) ?? 0) > 0,
     }));
-  },
-);
+  });
 
-export const getSequenceDeliverability = orgFn({ method: "POST" })
+export const getSequenceDeliverability = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ sequenceId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;

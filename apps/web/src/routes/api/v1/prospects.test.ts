@@ -1,5 +1,6 @@
 import { auth } from "@quiksend/auth";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 import { and, eq, isNull } from "drizzle-orm";
 import { describe, expect, it } from "vitest";

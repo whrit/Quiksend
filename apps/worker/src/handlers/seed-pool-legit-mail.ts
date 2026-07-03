@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { env, logger } from "@quiksend/config";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { buildMime, createSmtpTransport, sendMime } from "@quiksend/mail";
 import { getBoss, registerHandler } from "@quiksend/queue";
 import { and, eq, gte, isNull, sql } from "drizzle-orm";

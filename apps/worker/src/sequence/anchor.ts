@@ -1,5 +1,6 @@
 import { transition } from "@quiksend/core/state-machine";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { and, asc, eq } from "drizzle-orm";
 import { computeNextRunAt } from "./context.ts";
 import { applyTransitionEffects } from "./effects.ts";

@@ -1,5 +1,6 @@
 import { env, logger } from "@quiksend/config";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { decryptSeedImapConfig, buildMime, createSmtpTransport, sendMime } from "@quiksend/mail";
 import type { SeedImapConfigPlain } from "@quiksend/mail";
 import { getBoss, registerHandler } from "@quiksend/queue";

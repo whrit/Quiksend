@@ -1,3 +1,5 @@
+import "@tanstack/react-start/server-only";
+
 import { env } from "@quiksend/config";
 import { getNango } from "@quiksend/integrations";
 import { createAdapterForMailbox, decryptSmtpConfig } from "@quiksend/mail";

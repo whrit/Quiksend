@@ -1,10 +1,13 @@
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
-import { orgFn } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import { authMiddleware } from "./org-fn.ts";
 import { withAnalyticsTiming } from "./timing.ts";
 
-export const getSequenceFunnel = orgFn({ method: "GET" })
+export const getSequenceFunnel = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ sequenceId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -29,7 +32,8 @@ export const getSequenceFunnel = orgFn({ method: "GET" })
     });
   });
 
-export const getSequenceStepRates = orgFn({ method: "GET" })
+export const getSequenceStepRates = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ sequenceId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -116,7 +120,8 @@ function chiSquarePValue(observed: number[][], nPerVariant: number): number | nu
   return chi2 >= 3.841 ? 0.05 : chi2 >= 2.706 ? 0.1 : 0.5;
 }
 
-export const getSequenceABCompare = orgFn({ method: "GET" })
+export const getSequenceABCompare = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ sequenceId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -190,7 +195,8 @@ export const getSequenceABCompare = orgFn({ method: "GET" })
     });
   });
 
-export const getMailboxVolume = orgFn({ method: "GET" })
+export const getMailboxVolume = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -228,55 +234,57 @@ export const getMailboxVolume = orgFn({ method: "GET" })
     });
   });
 
-export const getWorkspaceOverview = orgFn({ method: "GET" }).handler(async ({ context }) => {
-  const { organizationId } = context.orgContext;
-  return withAnalyticsTiming("getWorkspaceOverview", organizationId, async () => {
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+export const getWorkspaceOverview = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { organizationId } = context.orgContext;
+    return withAnalyticsTiming("getWorkspaceOverview", organizationId, async () => {
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    const [seqRow] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(tables.sequence)
-      .where(
-        and(
-          eq(tables.sequence.organizationId, organizationId),
-          eq(tables.sequence.status, "active"),
-          sql`${tables.sequence.deletedAt} is null`,
-        ),
-      );
+      const [seqRow] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(tables.sequence)
+        .where(
+          and(
+            eq(tables.sequence.organizationId, organizationId),
+            eq(tables.sequence.status, "active"),
+            sql`${tables.sequence.deletedAt} is null`,
+          ),
+        );
 
-    const [enrollRow] = await db
-      .select({
-        active: sql<number>`count(*) filter (where ${tables.enrollment.state} in ('active', 'waiting', 'waiting_manual', 'paused'))::int`,
-      })
-      .from(tables.enrollment)
-      .where(eq(tables.enrollment.organizationId, organizationId));
+      const [enrollRow] = await db
+        .select({
+          active: sql<number>`count(*) filter (where ${tables.enrollment.state} in ('active', 'waiting', 'waiting_manual', 'paused'))::int`,
+        })
+        .from(tables.enrollment)
+        .where(eq(tables.enrollment.organizationId, organizationId));
 
-    const [replyRow] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(tables.event)
-      .where(
-        and(
-          eq(tables.event.organizationId, organizationId),
-          eq(tables.event.type, "reply.received"),
-          gte(tables.event.createdAt, weekAgo),
-        ),
-      );
+      const [replyRow] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(tables.event)
+        .where(
+          and(
+            eq(tables.event.organizationId, organizationId),
+            eq(tables.event.type, "reply.received"),
+            gte(tables.event.createdAt, weekAgo),
+          ),
+        );
 
-    const [bounceRow] = await db
-      .select({
-        sent: sql<number>`count(*) filter (where ${tables.message.status} = 'sent')::int`,
-        bounced: sql<number>`count(*) filter (where ${tables.message.bounceType} is not null or ${tables.message.status} = 'bounced')::int`,
-      })
-      .from(tables.message)
-      .where(
-        and(
-          eq(tables.message.organizationId, organizationId),
-          gte(tables.message.createdAt, thirtyDaysAgo),
-        ),
-      );
+      const [bounceRow] = await db
+        .select({
+          sent: sql<number>`count(*) filter (where ${tables.message.status} = 'sent')::int`,
+          bounced: sql<number>`count(*) filter (where ${tables.message.bounceType} is not null or ${tables.message.status} = 'bounced')::int`,
+        })
+        .from(tables.message)
+        .where(
+          and(
+            eq(tables.message.organizationId, organizationId),
+            gte(tables.message.createdAt, thirtyDaysAgo),
+          ),
+        );
 
-    const dailyTrend = await db.execute<{ day: string; replies: number; sent: number }>(sql`
+      const dailyTrend = await db.execute<{ day: string; replies: number; sent: number }>(sql`
     SELECT
       date_trunc('day', ev.created_at)::text AS day,
       COUNT(*) FILTER (WHERE ev.type = 'reply.received')::int AS replies,
@@ -288,24 +296,25 @@ export const getWorkspaceOverview = orgFn({ method: "GET" }).handler(async ({ co
     ORDER BY 1
   `);
 
-    const sent = bounceRow?.sent ?? 0;
-    const bounced = bounceRow?.bounced ?? 0;
+      const sent = bounceRow?.sent ?? 0;
+      const bounced = bounceRow?.bounced ?? 0;
 
-    return {
-      activeSequences: seqRow?.count ?? 0,
-      activeEnrollments: enrollRow?.active ?? 0,
-      repliesThisWeek: replyRow?.count ?? 0,
-      bounceRate: sent > 0 ? bounced / sent : 0,
-      dailyTrend: dailyTrend.map((d) => ({
-        day: d.day,
-        replies: d.replies,
-        sent: d.sent,
-      })),
-    };
+      return {
+        activeSequences: seqRow?.count ?? 0,
+        activeEnrollments: enrollRow?.active ?? 0,
+        repliesThisWeek: replyRow?.count ?? 0,
+        bounceRate: sent > 0 ? bounced / sent : 0,
+        dailyTrend: dailyTrend.map((d) => ({
+          day: d.day,
+          replies: d.replies,
+          sent: d.sent,
+        })),
+      };
+    });
   });
-});
 
-export const getSequenceEventTimeline = orgFn({ method: "GET" })
+export const getSequenceEventTimeline = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -334,7 +343,8 @@ export const getSequenceEventTimeline = orgFn({ method: "GET" })
     });
   });
 
-export const getProspectWritebackLogs = orgFn({ method: "GET" })
+export const getProspectWritebackLogs = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ prospectId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -383,7 +393,8 @@ export const getProspectWritebackLogs = orgFn({ method: "GET" })
     });
   });
 
-export const getMailboxHealthSummary = orgFn({ method: "GET" })
+export const getMailboxHealthSummary = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ mailboxId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;

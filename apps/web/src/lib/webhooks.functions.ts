@@ -1,15 +1,15 @@
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { SUPPORTED_WEBHOOK_EVENTS } from "@quiksend/db/schema";
-import { enqueue } from "@quiksend/queue";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import {
-  fanoutWebhookEvent,
   generateWebhookSecret,
   insertDomainEventAndFanout,
   isAllowedWebhookUrl,
 } from "./api/v1/helpers.ts";
-import { orgFn } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import { authMiddleware } from "./org-fn.ts";
 
 const webhookEventSchema = z.enum(SUPPORTED_WEBHOOK_EVENTS);
 
@@ -51,7 +51,8 @@ function serializeDelivery(row: typeof tables.webhookDelivery.$inferSelect) {
   };
 }
 
-export const listWebhookEndpoints = orgFn({ method: "GET" })
+export const listWebhookEndpoints = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator(z.object({}))
   .handler(async ({ context }) => {
     const { organizationId } = context.orgContext;
@@ -62,7 +63,8 @@ export const listWebhookEndpoints = orgFn({ method: "GET" })
     return rows.map(serializeEndpoint);
   });
 
-export const createWebhookEndpoint = orgFn({ method: "POST" })
+export const createWebhookEndpoint = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(createWebhookSchema)
   .handler(async ({ data, context }) => {
     const { organizationId, userId } = context.orgContext;
@@ -85,7 +87,8 @@ export const createWebhookEndpoint = orgFn({ method: "POST" })
     return serializeEndpoint(created!);
   });
 
-export const updateWebhookEndpoint = orgFn({ method: "POST" })
+export const updateWebhookEndpoint = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(
     z.object({
       id: z.string().uuid(),
@@ -113,7 +116,8 @@ export const updateWebhookEndpoint = orgFn({ method: "POST" })
     return serializeEndpoint(updated);
   });
 
-export const deleteWebhookEndpoint = orgFn({ method: "POST" })
+export const deleteWebhookEndpoint = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -131,7 +135,8 @@ export const deleteWebhookEndpoint = orgFn({ method: "POST" })
     return { ok: true as const };
   });
 
-export const listWebhookDeliveries = orgFn({ method: "GET" })
+export const listWebhookDeliveries = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
   .validator(
     z.object({
       endpointId: z.string().uuid(),
@@ -161,7 +166,8 @@ export const listWebhookDeliveries = orgFn({ method: "GET" })
     return rows.map(serializeDelivery);
   });
 
-export const triggerTestWebhookEvent = orgFn({ method: "POST" })
+export const triggerTestWebhookEvent = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator(
     z.object({
       eventType: webhookEventSchema,
@@ -183,24 +189,7 @@ export const triggerTestWebhookEvent = orgFn({ method: "POST" })
     return result;
   });
 
-export { fanoutWebhookEvent, insertDomainEventAndFanout };
-
-export async function enqueueCrmWritebackForProspect(
-  organizationId: string,
-  prospectId: string,
-): Promise<void> {
-  const prospect = await db.query.prospect.findFirst({
-    where: and(
-      eq(tables.prospect.id, prospectId),
-      eq(tables.prospect.organizationId, organizationId),
-    ),
-  });
-  if (!prospect?.crmConnectionId) return;
-
-  await enqueue("crm.writeback", {
-    connectionId: prospect.crmConnectionId,
-    eventType: "status",
-    entityId: prospectId,
-    idempotencyKey: `unsubscribe:${prospectId}`,
-  });
-}
+// Note: `fanoutWebhookEvent` + `insertDomainEventAndFanout` live in
+// `./api/v1/helpers.ts` (server-only). Consumers on the server import them
+// directly from there; re-exporting them here would drag the server-only
+// module into any client route that imports this file.

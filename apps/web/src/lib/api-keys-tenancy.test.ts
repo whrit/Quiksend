@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 
 function orgScopedKeyFilter(orgId: string) {

@@ -38,6 +38,24 @@ export default defineConfig({
       },
     },
     {
+      // Server-only marker files (TanStack Start's execution-model pattern):
+      // `import "@tanstack/react-start/server-only"` is a side-effect module that
+      // instructs the Vite plugin to mock this module on the client. Not a lint
+      // smell — it's the documented way to gate a file to server context.
+      files: [
+        "apps/web/src/**/*.server.ts",
+        "apps/web/src/lib/canary-injection.ts",
+        "apps/web/src/lib/effect-executor.ts",
+        "apps/web/src/lib/mailbox-adapter.ts",
+        "apps/web/src/lib/org-fn.ts",
+        "apps/web/src/lib/protected-guard.ts",
+        "apps/web/src/lib/timing.ts",
+        "apps/web/src/lib/api/v1/helpers.ts",
+        "apps/web/src/lib/api/v1/middleware.ts",
+      ],
+      rules: { "import/no-unassigned-import": "off" },
+    },
+    {
       // Tests
       files: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts"],
       plugins: ["vitest"],

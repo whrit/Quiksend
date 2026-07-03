@@ -8,12 +8,14 @@ import {
   type StepContext,
   type ThreadMessage,
 } from "@quiksend/ai";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import type { GenerationPromptPayload, ResearchFact } from "@quiksend/db/schema";
 import { enqueue } from "@quiksend/queue";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { orgFn } from "./org-fn.ts";
+import { createServerFn } from "@tanstack/react-start";
+import { authMiddleware } from "./org-fn.ts";
 import { deleteValueProp, listValueProps, type PublicValueProp } from "./value-props.functions.ts";
 
 class AiError extends Error {
@@ -148,7 +150,8 @@ async function ensureResearch(
   }
 }
 
-export const getProspectAiReview = orgFn({ method: "POST" })
+export const getProspectAiReview = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ prospectId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -216,7 +219,8 @@ export const getProspectAiReview = orgFn({ method: "POST" })
     };
   });
 
-export const generateEmailForProspect = orgFn({ method: "POST" })
+export const generateEmailForProspect = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -323,7 +327,8 @@ export const generateEmailForProspect = orgFn({ method: "POST" })
     return toPublicGeneration(row, humanized.warnings);
   });
 
-export const approveGeneration = orgFn({ method: "POST" })
+export const approveGeneration = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -364,7 +369,8 @@ export const approveGeneration = orgFn({ method: "POST" })
     return toPublicGeneration(row);
   });
 
-export const discardGeneration = orgFn({ method: "POST" })
+export const discardGeneration = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ generationId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
@@ -382,7 +388,8 @@ export const discardGeneration = orgFn({ method: "POST" })
     return toPublicGeneration(row);
   });
 
-export const triggerResearch = orgFn({ method: "POST" })
+export const triggerResearch = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) =>
     z
       .object({
@@ -417,7 +424,8 @@ const upsertValuePropSchema = z.object({
 
 export { listValueProps, deleteValueProp, type PublicValueProp };
 
-export const upsertValueProp = orgFn({ method: "POST" })
+export const upsertValueProp = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: unknown) => upsertValuePropSchema.parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId, userId } = context.orgContext;

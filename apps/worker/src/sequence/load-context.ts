@@ -1,4 +1,5 @@
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { and, asc, eq } from "drizzle-orm";
 import { parseDeliverabilityPolicy } from "@quiksend/core/deliverability";
 import type { EnrollmentContext, SequenceSettings, StepContext } from "./context.ts";

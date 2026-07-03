@@ -1,7 +1,8 @@
 import { evaluateAutoPause, mergeCanaryConfig } from "@quiksend/core/deliverability";
 import { Semaphore } from "@quiksend/core/utils/semaphore";
 import { env, logger } from "@quiksend/config";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import type { EmailGateway } from "@quiksend/mail";
 import { buildMime, createSmtpTransport, sendMime } from "@quiksend/mail";
 import { getBoss } from "@quiksend/queue";

@@ -1,6 +1,7 @@
 import { env, logger } from "@quiksend/config";
 import { classifyInboundSentiment } from "@quiksend/ai";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { getNango } from "@quiksend/integrations";
 import { detectAutoReply, matchInbound, parseBounce, type OutboundAnchor } from "@quiksend/mail";
 import { decryptSmtpConfig } from "@quiksend/mail";

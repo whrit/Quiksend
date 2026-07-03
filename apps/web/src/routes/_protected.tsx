@@ -3,13 +3,11 @@ import { Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { authClient } from "@/lib/auth-client";
-import { getSession } from "@/lib/auth.functions";
-import { evaluateProtectedAccess } from "@/lib/protected-guard.ts";
+import { getProtectedContext } from "@/lib/auth.functions";
 
 export const Route = createFileRoute("/_protected")({
   beforeLoad: async () => {
-    const session = await getSession();
-    const access = await evaluateProtectedAccess(session);
+    const access = await getProtectedContext();
     if (!access.ok) {
       if (access.reason === "unauthenticated") {
         throw redirect({ to: "/login" });

@@ -1,3 +1,5 @@
+import "@tanstack/react-start/server-only";
+
 import { logger } from "@quiksend/config";
 
 const SLOW_QUERY_MS = 2000;

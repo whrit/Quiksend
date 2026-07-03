@@ -1,5 +1,6 @@
 import type { Effect } from "@quiksend/core/state-machine";
-import { db, tables } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
