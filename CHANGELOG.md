@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.2.0](https://github.com/whrit/Quiksend/compare/v2.1.1...v2.2.0) (2026-07-03)
+
+
+### Features
+
+* **wave7-phi:** Phase 11C — Canary deliverability (code) ([#50](https://github.com/whrit/Quiksend/issues/50)) ([606fef5](https://github.com/whrit/Quiksend/commit/606fef520ee2b654984ae813bdd96142ce6cdf19))
+* **wave7-tau:** Phase 11A — SEG detection + segmentation ([#48](https://github.com/whrit/Quiksend/issues/48)) ([778c62d](https://github.com/whrit/Quiksend/commit/778c62d268eaf13a9dc6230ab773750ffa16f3f4))
+* **wave7-upsilon:** Phase 11B — Routing + content sanitizer ([#49](https://github.com/whrit/Quiksend/issues/49)) ([10db2f9](https://github.com/whrit/Quiksend/commit/10db2f9cbc1c9169acd2ed47a296968c9d52110e))
+
+
+### Documentation
+
+* **phase-11:** spec enterprise deliverability (SEG detection + routing + canary) ([e43e612](https://github.com/whrit/Quiksend/commit/e43e612fe4c786ece9cf132006bf7bcd0ff6fd85))
+* **wave7-omega-ops:** Phase 11C — Provider seed pool operational runbook ([#51](https://github.com/whrit/Quiksend/issues/51)) ([4d72533](https://github.com/whrit/Quiksend/commit/4d725334d9a9053dbb9cdeabffa67947a7e4585b))
+
 ## [2.1.1](https://github.com/whrit/Quiksend/compare/v2.1.0...v2.1.1) (2026-07-02)
 
 
