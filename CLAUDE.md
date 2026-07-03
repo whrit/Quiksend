@@ -6,10 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Quiksend is an open-source, self-hostable sales engagement platform (AI-personalized email
 sequences with Salesforce/HubSpot ops) — an alternative to Outreach.io / Salesforge.ai. It's a
-pnpm + Turborepo monorepo, built in numbered phases. Phases 0–1 are done (tooling, shared config,
-DB, CI, plus Better Auth + multi-tenant workspaces + a TanStack Start app shell). Product features
-(sequences, prospects, sending, inbox) land in Phase 2+. The phase plan lives in
-`docs/implementations/phases/`.
+pnpm + Turborepo monorepo, built in numbered phases. Phases 0–11 are shipped and released as
+`v2.2.0`; Waves 5–7 hardened the engine, closed the review report, and added enterprise
+deliverability (SEG detection + routing + canary). The phase plan lives in
+`docs/implementations/phases/` — Phases 2–10 in one document, Phase 11 (enterprise deliverability)
+in a companion.
 
 ## Commands
 
@@ -78,10 +79,15 @@ relative paths across package boundaries.
   which injects `{ userId, organizationId, role }` and is THE tenancy chokepoint. UI lives in
   `src/components` (shadcn/ui in `components/ui`) — intentionally **not** a separate `packages/ui`
   until a second app needs it.
+- **`packages/ai`** — model provider abstraction (Anthropic + OpenAI), research pipeline (fetch +
+  summarize with `research_profile` cache), grounded generation (`generateEmail`), humanizer,
+  inbound sentiment classification (`packages/ai/src/classify`). Value-prop retrieval uses
+  `pgvector` cosine similarity.
 - **`apps/worker`** — long-running background process. Boots pg-boss, registers job handlers,
   handles SIGINT/SIGTERM. Real handlers (`sequence.tick`, `sequence.step`, `mailbox.poll`,
-  `crm.sync`, `crm.writeback`, `webhook.deliver`, `ai.research`) land per phase; `hello.ping` runs
-  in dev as a smoke test.
+  `crm.sync`, `crm.writeback`, `webhook.deliver`, `ai.research`, and the Phase 11 handlers
+  `gateway.detect_*`, `canary.check`, `canary.send`, `seed_inbox.verify`, `deliverability.snapshot`)
+  land per phase; `hello.ping` runs in dev as a smoke test.
 
 The auth-schema loop, when you change auth plugins/options: `pnpm auth:generate` (rewrites
 `packages/db/src/schema/auth.ts`) → `pnpm db:generate` (new migration for the delta) → `pnpm db:migrate`.

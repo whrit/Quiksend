@@ -4,10 +4,19 @@ Quiksend delivers HMAC-signed JSON payloads to HTTPS endpoints you register via 
 
 ## Event types
 
+**Enrollment lifecycle**
+
 - `message.sent`
 - `enrollment.completed` / `enrollment.replied` / `enrollment.bounced`
 - `enrollment.paused` / `enrollment.resumed` / `enrollment.stopped` / `enrollment.failed`
 - `prospect.unsubscribed`
+
+**Enterprise deliverability (Phase 11)** — see [deliverability.md](./deliverability.md)
+
+- `enrollment.no_safe_mailbox_for_gateway` — routing policy `enforce` skipped a SEG-destined send
+- `deliverability.canary.arrived` — a canary send arrived at its seed inbox (payload includes `folder: 'inbox' | 'spam' | 'quarantine'`)
+- `deliverability.canary.silent_drop` — a canary was sent > 24h ago and never arrived
+- `gateway.detected` — a prospect's gateway classification changed (initial or reclassification)
 
 ## Delivery headers
 

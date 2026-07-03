@@ -35,14 +35,16 @@ requires all of the following in addition to `DATABASE_URL`:
 
 **Optional but recommended:**
 
-| Variable                               | Purpose                                           |
-| -------------------------------------- | ------------------------------------------------- |
-| `SENTRY_DSN` / `SENTRY_ENVIRONMENT`    | Error tracking (web + worker)                     |
-| `POSTHOG_KEY` / `POSTHOG_HOST`         | Product analytics                                 |
-| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | AI features                                       |
-| `SMTP_HOST` / `SMTP_PORT`              | Default SMTP relay when not using OAuth mailboxes |
-| `DATABASE_POOLER_MODE=transaction`     | Use with PgBouncer / Neon pooled endpoints        |
-| `NANGO_PUBLIC_URL`                     | Public base URL Nango redirects to after connect  |
+| Variable                               | Purpose                                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `SENTRY_DSN` / `SENTRY_ENVIRONMENT`    | Error tracking (web + worker)                                                                                      |
+| `POSTHOG_KEY` / `POSTHOG_HOST`         | Product analytics                                                                                                  |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | AI features                                                                                                        |
+| `SMTP_HOST` / `SMTP_PORT`              | Default SMTP relay when not using OAuth mailboxes                                                                  |
+| `DATABASE_POOLER_MODE=transaction`     | Use with PgBouncer / Neon pooled endpoints                                                                         |
+| `NANGO_PUBLIC_URL`                     | Public base URL Nango redirects to after connect                                                                   |
+| `SEG_DAILY_CAP_PER_MAILBOX`            | Extra per-mailbox daily cap for SEG-destined sends (default 50) — see [deliverability.md](./deliverability.md)     |
+| `SYSTEM_SEED_ENCRYPTION_KEY`           | **Quiksend Systems only** — decrypts provider-managed seed pool for Deliverability Pro. Leave UNSET for self-host. |
 
 Webhook throughput tuning: `WEBHOOK_SWEEP_INTERVAL_MS`, `WEBHOOK_SWEEP_BATCH_SIZE`,
 `WEBHOOK_DELIVER_CONCURRENCY` — see [troubleshooting](./troubleshooting.md#webhook-delivery-backlog).
@@ -117,15 +119,19 @@ stored encrypted in `mailbox.smtp_config` (jsonb) — a full Postgres dump prese
 
 Short fixes below; full runbooks with SQL in [troubleshooting.md](./troubleshooting.md).
 
-| Symptom                      | Quick fix                                                                  |
-| ---------------------------- | -------------------------------------------------------------------------- |
-| Mailbox shows `error` status | Settings → Mailboxes — delete and reconnect OAuth, or fix SMTP credentials |
-| Worker OOM / restarts        | `NODE_OPTIONS=--max-old-space-size=2048` on worker container               |
-| `remaining connection slots` | PgBouncer + `DATABASE_POOLER_MODE=transaction`; scale down worker replicas |
-| Slow `/prospects` search     | Confirm `pg_trgm` installed — `pnpm db:migrate`                            |
+| Symptom                           | Quick fix                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Mailbox shows `error` status      | Settings → Mailboxes — delete and reconnect OAuth, or fix SMTP credentials                        |
+| Worker OOM / restarts             | `NODE_OPTIONS=--max-old-space-size=2048` on worker container                                      |
+| `remaining connection slots`      | PgBouncer + `DATABASE_POOLER_MODE=transaction`; scale down worker replicas                        |
+| Slow `/prospects` search          | Confirm `pg_trgm` installed — `pnpm db:migrate`                                                   |
+| Prospect gateway shows `unknown`  | Force reclassify via UI (Settings → Deliverability) or wait for daily sweep                       |
+| Sequence auto-paused unexpectedly | Check Deliverability grid; canary threshold breach — see [deliverability.md](./deliverability.md) |
+| Seed inbox `verified_at` NULL     | Re-run verification: Settings → Deliverability → Seed inboxes → Verify                            |
 
 ## Getting help
 
 - GitHub issues: https://github.com/whrit/Quiksend/issues
 - Architecture: [architecture.md](./architecture.md)
 - Nango: [nango-setup.md](./nango-setup.md)
+- Enterprise deliverability: [deliverability.md](./deliverability.md)
