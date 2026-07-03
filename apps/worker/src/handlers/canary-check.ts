@@ -1,4 +1,5 @@
 import { evaluateAutoPause, mergeCanaryConfig } from "@quiksend/core/deliverability";
+import { Semaphore } from "@quiksend/core/utils/semaphore";
 import { env, logger } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
 import type { EmailGateway } from "@quiksend/mail";
@@ -6,8 +7,14 @@ import { buildMime, createSmtpTransport, sendMime } from "@quiksend/mail";
 import { getBoss } from "@quiksend/queue";
 import { and, eq, gt, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { decryptSeedImapConfig } from "@quiksend/mail";
-import { classifyArrivalFolder, searchCanaryMessages } from "../deliverability/seed-imap.ts";
+import {
+  classifyArrivalFolder,
+  folderToStatus,
+  searchCanaryMessages,
+} from "../deliverability/seed-imap.ts";
 import { refreshDeliverabilitySnapshots } from "./deliverability-snapshot.ts";
+
+const IMAP_CONCURRENCY = 20;
 
 type ArrivalStatus =
   | "pending"
@@ -41,10 +48,11 @@ export async function runCanaryCheck(): Promise<void> {
     );
 
   const bySeed = groupBy(dueCanaries, (c) => c.seedInboxId);
+  const semaphore = new Semaphore(IMAP_CONCURRENCY);
   await Promise.all(
-    Object.entries(bySeed).map(async ([seedId, canaries]) => {
-      await pollSeed(seedId, canaries);
-    }),
+    Object.entries(bySeed).map(([seedId, canaries]) =>
+      semaphore.acquire(() => pollSeed(seedId, canaries)),
+    ),
   );
 
   await db
@@ -105,27 +113,16 @@ async function applyCanaryMatches(
     if (!match) continue;
 
     const folder = classifyArrivalFolder(match.folder);
-    const arrivalStatus = folderToStatus(folder);
+    const arrivalStatus: ArrivalStatus = folderToStatus(folder, { isBounce: match.isBounce });
     await db
       .update(tables.canarySend)
       .set({
         arrivalStatus,
-        arrivalFolder: folder,
+        arrivalFolder: match.isBounce ? "bounce" : folder,
         arrivedAt: new Date(),
         arrivalGatewayHeaders: match.headers,
       })
       .where(eq(tables.canarySend.id, canary.id));
-  }
-}
-
-function folderToStatus(folder: ReturnType<typeof classifyArrivalFolder>): ArrivalStatus {
-  switch (folder) {
-    case "spam":
-      return "arrived_spam";
-    case "quarantine":
-      return "arrived_quarantine";
-    default:
-      return "arrived_inbox";
   }
 }
 

@@ -44,6 +44,8 @@ export const gatewayClassification = pgTable(
   ],
 );
 
+export const gatewayClassificationRelations = relations(gatewayClassification, () => ({}));
+
 // ============================================================
 // Phase 11C — Canary deliverability (from PHI)
 // ============================================================
@@ -71,7 +73,11 @@ export const seedInbox = pgTable(
   },
   (table) => [
     index("seed_inbox_org_idx").on(table.organizationId),
+    index("seed_inbox_org_active_idx").on(table.organizationId, table.active),
     index("seed_inbox_gateway_active_idx").on(table.gateway, table.active),
+    index("seed_inbox_provider_gateway_active_idx")
+      .on(table.gateway, table.active)
+      .where(sql`${table.organizationId} IS NULL`),
     uniqueIndex("seed_inbox_email_uidx").on(table.email),
   ],
 );
@@ -96,6 +102,7 @@ export const canarySend = pgTable(
       .notNull()
       .references(() => seedInbox.id, { onDelete: "cascade" }),
     canaryToken: uuid("canary_token").notNull(),
+    stepIndex: integer("step_index"),
     subject: text("subject").notNull(),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     expectedArrivalAt: timestamp("expected_arrival_at", { withTimezone: true }),
@@ -112,6 +119,10 @@ export const canarySend = pgTable(
       .on(table.arrivalStatus, table.expectedArrivalAt)
       .where(sql`${table.arrivalStatus} = 'pending'`),
     index("canary_send_seed_inbox_idx").on(table.seedInboxId),
+    index("canary_send_pending_sent_at_idx")
+      .on(table.sentAt)
+      .where(sql`${table.arrivalStatus} = 'pending' AND ${table.sentAt} IS NOT NULL`),
+    index("canary_send_sequence_mailbox_idx").on(table.sequenceId, table.mailboxId),
   ],
 );
 
@@ -126,6 +137,7 @@ export const deliverabilitySnapshot = pgTable(
       .notNull()
       .references(() => mailbox.id, { onDelete: "cascade" }),
     gateway: gatewayTypeEnum("gateway").notNull(),
+    windowDays: integer("window_days").default(7).notNull(),
     windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
     windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
     canaryTotal: integer("canary_total").default(0).notNull(),
@@ -141,6 +153,7 @@ export const deliverabilitySnapshot = pgTable(
       table.organizationId,
       table.mailboxId,
       table.gateway,
+      table.windowDays,
       table.windowStart,
     ),
     index("deliverability_snapshot_org_window_idx").on(table.organizationId, table.windowStart),

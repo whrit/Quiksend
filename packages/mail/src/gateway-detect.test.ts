@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { detectEmailGateway, matchMxFingerprints, pickMxGateway } from "./gateway-detect.ts";
+import {
+  detectEmailGateway,
+  matchMxFingerprints,
+  pickMxGateway,
+  validateClassificationDomain,
+} from "./gateway-detect.ts";
 import { resolveMxRecords } from "./dns.ts";
 
 vi.mock("./dns.ts", async (importOriginal) => {
@@ -23,13 +28,13 @@ describe("detectEmailGateway", () => {
 
   const segCases: Array<{ domain: string; mx: string; gateway: string }> = [
     { domain: "acme.com", mx: "mx1.pphosted.com", gateway: "proofpoint" },
-    { domain: "mime.example", mx: "us-smtp-inbound-1.mimecast.com", gateway: "mimecast" },
-    { domain: "barra.example", mx: "mx.barracudanetworks.com", gateway: "barracuda" },
-    { domain: "cisco.example", mx: "mx.iphmx.com", gateway: "cisco_ironport" },
-    { domain: "trend.example", mx: "tmes.trendmicro.com", gateway: "trend_micro" },
-    { domain: "forti.example", mx: "mx.fortimail.com", gateway: "fortinet" },
-    { domain: "sophos.example", mx: "mx.mail.sophos.com", gateway: "sophos" },
-    { domain: "sym.example", mx: "cluster1.messagelabs.com", gateway: "symantec" },
+    { domain: "mime-acme.com", mx: "us-smtp-inbound-1.mimecast.com", gateway: "mimecast" },
+    { domain: "barra-acme.com", mx: "mx.barracudanetworks.com", gateway: "barracuda" },
+    { domain: "cisco-acme.com", mx: "mx.iphmx.com", gateway: "cisco_ironport" },
+    { domain: "trend-acme.com", mx: "tmes.trendmicro.com", gateway: "trend_micro" },
+    { domain: "forti-acme.com", mx: "mx.fortimail.com", gateway: "fortinet" },
+    { domain: "sophos-acme.com", mx: "mx.mail.sophos.com", gateway: "sophos" },
+    { domain: "sym-acme.com", mx: "cluster1.messagelabs.com", gateway: "symantec" },
   ];
 
   it.each(segCases)("detects $gateway from MX $mx", async ({ domain, mx, gateway }) => {
@@ -107,6 +112,34 @@ describe("detectEmailGateway", () => {
     const result = await detectEmailGateway("user@nomx.com");
     expect(result.gateway).toBe("unknown");
     expect(result.evidence.some((e) => e.detail.includes("No MX records"))).toBe(true);
+  });
+
+  it.each([
+    "user@localhost",
+    "user@192.168.1.1",
+    "user@host.local",
+    "user@corp.internal",
+    "user@acme.test",
+    "user@demo.example",
+    "user@bad.invalid",
+  ])("blocks DNS lookup for %s", async (email) => {
+    const result = await detectEmailGateway(email);
+    expect(result.gateway).toBe("unknown");
+    expect(result.evidence).toContainEqual({
+      kind: "heuristic",
+      detail: "blocked domain shape",
+    });
+    expect(resolveMxRecordsMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("validateClassificationDomain", () => {
+  it("accepts valid multi-label domains", () => {
+    expect(validateClassificationDomain("mail.example.com")).toEqual({ ok: true });
+  });
+
+  it("rejects RFC 6761 special-use suffixes", () => {
+    expect(validateClassificationDomain("host.local").ok).toBe(false);
   });
 });
 

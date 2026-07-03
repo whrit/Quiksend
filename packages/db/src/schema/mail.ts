@@ -66,6 +66,8 @@ export const mailbox = pgTable(
     enterpriseSafeAutoDowngraded: boolean("enterprise_safe_auto_downgraded")
       .notNull()
       .default(false),
+    // CR-35 (PERF-014): enterprise_safe routing filter has no dedicated composite index;
+    // scan-all-active-mailboxes is fine at <20 mailboxes/workspace.
     status: text("status").default("active").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

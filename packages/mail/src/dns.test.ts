@@ -1,12 +1,31 @@
 import * as dns from "node:dns/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { checkDomainAuth } from "./dns.ts";
+import { checkDomainAuth, resolveTxtRecords } from "./dns.ts";
 
 vi.mock("node:dns/promises", () => ({
   resolveTxt: vi.fn<(host: string) => Promise<string[][]>>(),
+  resolveMx: vi.fn<() => Promise<unknown>>(),
 }));
 
 const resolveTxt = vi.mocked(dns.resolveTxt);
+
+describe("resolveTxtRecords", () => {
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("returns empty array on TXT lookup timeout", async () => {
+    resolveTxt.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve([["v=spf1 ~all"]]), 50);
+        }),
+    );
+
+    const result = await resolveTxtRecords("example.com", 10);
+    expect(result).toEqual([]);
+  });
+});
 
 describe("checkDomainAuth", () => {
   afterEach(() => {

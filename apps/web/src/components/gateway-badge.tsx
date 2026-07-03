@@ -1,4 +1,5 @@
 import type { GatewayEvidence } from "@quiksend/mail/gateway-detect";
+import { SEG_GATEWAYS } from "@quiksend/core/deliverability";
 import { Badge } from "@/components/ui/badge";
 
 const GATEWAY_LABELS: Record<string, string> = {
@@ -69,16 +70,4 @@ export const GATEWAY_FILTER_OPTIONS = Object.entries(GATEWAY_LABELS).map(([value
   label,
 }));
 
-// SEG gateway allowlist — duplicated for UI badges/filters. Canonical list:
-// `@quiksend/core/deliverability` (`SEG_GATEWAY_VALUES`); mail package exports `SEG_GATEWAYS`.
-// PHI2 Wave 8 dedup will collapse copies — update core first.
-export const SEG_GATEWAY_VALUES = [
-  "proofpoint",
-  "mimecast",
-  "barracuda",
-  "cisco_ironport",
-  "trend_micro",
-  "fortinet",
-  "sophos",
-  "symantec",
-] as const;
+export const SEG_GATEWAY_VALUES = SEG_GATEWAYS;

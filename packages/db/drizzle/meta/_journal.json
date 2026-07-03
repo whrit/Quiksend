@@ -134,6 +134,20 @@
       "when": 1783033857860,
       "tag": "0018_phase11c_canary",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783040000000,
+      "tag": "0020_wave8_rho_perf_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1783041000000,
+      "tag": "0021_wave8_omicron_canary_step_index",
+      "breakpoints": true
     }
   ]
 }
