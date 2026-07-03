@@ -23,6 +23,9 @@ export default defineConfig({
     // Their formatting drifts between waves and CI shouldn't fail on prose whitespace.
     "WAVE_CONTEXT.md",
     "wave*/**/*.md",
+    // Review reports — human-written findings from parallel reviewer agents.
+    "phase11-review/**/*.md",
+    "review/**/*.md",
   ],
 
   // We use Tailwind + shadcn heavily — oxfmt can sort classes (replaces

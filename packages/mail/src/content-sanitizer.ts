@@ -16,6 +16,13 @@ export interface SanitizeForSegOptions {
 
 const MAX_INLINE_IMAGE_BYTES = 100 * 1024;
 
+function stripHtmlTags(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function trackingHost(): string {
   if (env.TRACKING_PIXEL_DOMAIN) return env.TRACKING_PIXEL_DOMAIN.toLowerCase();
   const base = env.BETTER_AUTH_URL ?? "http://localhost:3000";
@@ -43,65 +50,15 @@ function isExternalImageSrc(src: string): boolean {
   return false;
 }
 
-async function fetchInlineBase64(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (!response.ok) return null;
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.byteLength > MAX_INLINE_IMAGE_BYTES) return null;
-    const contentType = response.headers.get("content-type") ?? "image/png";
-    return `data:${contentType.split(";")[0]};base64,${buffer.toString("base64")}`;
-  } catch {
-    return null;
-  }
+function shouldPreferPlainText(text: string, html: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return false;
+  const strippedHtmlLen = stripHtmlTags(html).length;
+  if (strippedHtmlLen === 0) return true;
+  return trimmed.length >= strippedHtmlLen * 0.5;
 }
 
-async function stripOrInlineExternalImages(html: string): Promise<string> {
-  const imgRe = /<img\b([^>]*)\bsrc\s*=\s*["']([^"']+)["']([^>]*)>/gi;
-  const matches = [...html.matchAll(imgRe)];
-  if (matches.length === 0) return html;
-
-  let result = html;
-  for (const match of matches) {
-    const full = match[0];
-    const src = match[2] ?? "";
-    if (!isExternalImageSrc(src)) continue;
-
-    const inlined = await fetchInlineBase64(src.startsWith("//") ? `https:${src}` : src);
-    if (inlined) {
-      const replaced = full.replace(src, inlined);
-      result = result.replace(full, replaced);
-    } else {
-      result = result.replace(full, "");
-    }
-  }
-  return result;
-}
-
-/** Conservative HTML sanitizer for SEG-destined sends. */
-export async function sanitizeForSegAsync(
-  mime: BuiltMime,
-  options: SanitizeForSegOptions,
-): Promise<BuiltMime> {
-  let html = mime.html;
-  let text = mime.text;
-
-  if (options.stripTrackingPixel) {
-    html = stripTrackingPixels(html, options.trackingDomain ?? trackingHost());
-  }
-
-  if (options.stripExternalImages) {
-    html = await stripOrInlineExternalImages(html);
-  }
-
-  if (options.preferPlainText && text.trim().length > 0) {
-    return { html: "", text };
-  }
-
-  return { html, text };
-}
-
-/** Sync variant — skips network inlining (strips external images instead). */
+/** Sync HTML sanitizer for SEG-destined sends. */
 export function sanitizeForSeg(mime: BuiltMime, options: SanitizeForSegOptions): BuiltMime {
   let html = mime.html;
   let text = mime.text;
@@ -113,15 +70,15 @@ export function sanitizeForSeg(mime: BuiltMime, options: SanitizeForSegOptions):
   if (options.stripExternalImages) {
     const imgRe = /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*\/?>/gi;
     html = html.replace(imgRe, (tag, src: string) => {
-      if (!isExternalImageSrc(src)) return tag;
-      if (src.startsWith("data:") && Buffer.byteLength(src, "utf8") <= MAX_INLINE_IMAGE_BYTES) {
-        return tag;
+      if (src.startsWith("data:")) {
+        return Buffer.byteLength(src, "utf8") <= MAX_INLINE_IMAGE_BYTES ? tag : "";
       }
+      if (!isExternalImageSrc(src)) return tag;
       return "";
     });
   }
 
-  if (options.preferPlainText && text.trim().length > 0) {
+  if (options.preferPlainText && shouldPreferPlainText(text, html)) {
     return { html: "", text };
   }
 

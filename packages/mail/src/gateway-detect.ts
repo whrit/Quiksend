@@ -65,7 +65,7 @@ interface CompiledFingerprint {
   confidence: GatewayConfidence;
 }
 
-const SEG_GATEWAYS = new Set<EmailGateway>([
+const SEG_GATEWAYS_LIST: readonly EmailGateway[] = [
   "proofpoint",
   "mimecast",
   "barracuda",
@@ -74,7 +74,9 @@ const SEG_GATEWAYS = new Set<EmailGateway>([
   "fortinet",
   "sophos",
   "symantec",
-]);
+] as const;
+
+const SEG_GATEWAYS = new Set<EmailGateway>(SEG_GATEWAYS_LIST);
 
 const DMARC_SEG_HINTS: Array<{ pattern: RegExp; gateway: EmailGateway; detail: string }> = [
   {
@@ -348,4 +350,10 @@ export function compileFingerprintsForTest(
   }));
 }
 
-export { MX_FINGERPRINTS, SEG_GATEWAYS, matchMxFingerprints, pickMxGateway, extractDomain };
+export {
+  MX_FINGERPRINTS,
+  SEG_GATEWAYS_LIST as SEG_GATEWAYS,
+  matchMxFingerprints,
+  pickMxGateway,
+  extractDomain,
+};

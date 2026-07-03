@@ -44,6 +44,8 @@ export const gatewayClassification = pgTable(
   ],
 );
 
+export const gatewayClassificationRelations = relations(gatewayClassification, () => ({}));
+
 // ============================================================
 // Phase 11C — Canary deliverability (from PHI)
 // ============================================================
