@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.3.0](https://github.com/whrit/Quiksend/compare/v2.2.1...v2.3.0) (2026-07-03)
+
+
+### Features
+
+* **wave8-sigma:** webhook fanout + UI wiring + docs alignment ([#56](https://github.com/whrit/Quiksend/issues/56)) ([c74b91f](https://github.com/whrit/Quiksend/commit/c74b91ffb1ad65dd5cdcb51926e34de6e569f17e))
+
+
+### Bug Fixes
+
+* **wave8-omicron:** canary signal reliability ([#54](https://github.com/whrit/Quiksend/issues/54)) ([70cc465](https://github.com/whrit/Quiksend/commit/70cc4650823e9a29b57b47822f7d75baef01d61e))
+* **wave8-phi2:** provider ops crons + testing gaps + architecture cleanup ([#57](https://github.com/whrit/Quiksend/issues/57)) ([e3387cd](https://github.com/whrit/Quiksend/commit/e3387cd7c99d0ac35207fd529cff3eb073148547))
+* **wave8-rho:** performance + gateway cache + DNS security ([#55](https://github.com/whrit/Quiksend/issues/55)) ([92ba868](https://github.com/whrit/Quiksend/commit/92ba868d38294a539971593cc9646d641c87d1cc))
+
 ## [2.2.1](https://github.com/whrit/Quiksend/compare/v2.2.0...v2.2.1) (2026-07-03)
 
 
