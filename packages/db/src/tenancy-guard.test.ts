@@ -49,6 +49,10 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "event",
   // Phase 7:
   "suppression",
+  // Phase 11C:
+  "seedInbox",
+  "canarySend",
+  "deliverabilitySnapshot",
 ];
 
 const SCAN_ROOTS = ["apps/web/src", "apps/worker/src", "packages"];

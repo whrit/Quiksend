@@ -15,6 +15,10 @@ import { registerCrmWritebackHandler } from "./handlers/crm-writeback.ts";
 import { registerMailboxPollHandler, registerMailboxPollTick } from "./handlers/mailbox-poll.ts";
 import { registerNangoWebhookSweep } from "./handlers/nango-webhook-sweep.ts";
 import { registerSequenceHandlers } from "./sequence/register.ts";
+import { registerCanaryCheckHandler } from "./handlers/canary-check.ts";
+import { registerCanarySendHandler } from "./handlers/canary-send-handler.ts";
+import { registerDeliverabilitySnapshotHandler } from "./handlers/deliverability-snapshot.ts";
+import { registerSeedInboxVerifyHandler } from "./handlers/seed-inbox-verify.ts";
 
 /**
  * Worker entrypoint. Boots pg-boss, registers job handlers, and idles waiting
@@ -61,6 +65,10 @@ async function main(): Promise<void> {
   await registerGatewaySweepCron();
   await registerSequenceHandlers();
   await registerMailboxPollHandler();
+  await registerSeedInboxVerifyHandler();
+  await registerCanarySendHandler();
+  await registerCanaryCheckHandler();
+  await registerDeliverabilitySnapshotHandler();
   await registerMailboxPollTick();
   await registerNangoWebhookSweep();
 

@@ -66,4 +66,17 @@ describe("buildMime", () => {
     expect(out.raw).toContain(`--${boundary}`);
     expect(out.raw).toContain(`--${boundary}--`);
   });
+
+  it("adds X-Quiksend-Canary-Id when canaryToken is provided", () => {
+    const token = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+    const out = buildMime({ ...baseInput, canaryToken: token });
+    expect(out.headers["X-Quiksend-Canary-Id"]).toBe(token);
+    expect(out.raw).toContain(`X-Quiksend-Canary-Id: ${token}`);
+  });
+
+  it("omits X-Quiksend-Canary-Id when canaryToken is absent", () => {
+    const out = buildMime(baseInput);
+    expect(out.headers["X-Quiksend-Canary-Id"]).toBeUndefined();
+    expect(out.raw).not.toContain("X-Quiksend-Canary-Id");
+  });
 });

@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -12,216 +12,317 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  getWorkspaceDeliverabilityPolicy,
-  previewRoutingImpact,
-  setWorkspaceDeliverabilityPolicy,
-  type RoutingImpactPreview,
-} from "@/lib/organization.functions.ts";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  getWorkspaceCanaryConfig,
+  setWorkspaceCanaryConfig,
+} from "@/lib/deliverability.functions.ts";
+import {
+  createUserSeedInbox,
+  deleteSeedInbox,
+  isEntitledToProviderSeeds,
+  listSeedInboxes,
+  toggleSeedInboxActive,
+  verifySeedInbox,
+  type PublicSeedInbox,
+} from "@/lib/seed-inbox.functions.ts";
 
 export const Route = createFileRoute("/_protected/settings/deliverability")({
   component: DeliverabilitySettingsPage,
 });
 
-type RoutingPolicy = "off" | "warn" | "enforce";
+function DeliverabilityRoutingSection() {
+  return (
+    <section className="rounded-lg border p-4">
+      <h2 className="text-lg font-semibold">SEG routing</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Enterprise-safe mailbox routing is configured per mailbox. Visit mailbox settings to declare
+        M365-aged senders for SEG-protected recipients.
+      </p>
+      <Link
+        to="/settings/mailboxes"
+        className={buttonVariants({ variant: "outline", size: "sm", className: "mt-3" })}
+      >
+        Manage mailboxes
+      </Link>
+    </section>
+  );
+}
 
-function RoutingSection() {
-  const [policy, setPolicy] = useState<RoutingPolicy>("off");
-  const [initialPolicy, setInitialPolicy] = useState<RoutingPolicy>("off");
-  const [sanitizer, setSanitizer] = useState(true);
-  const [preview, setPreview] = useState<RoutingImpactPreview | null>(null);
+function SeedInboxesSection() {
+  const [seeds, setSeeds] = useState<PublicSeedInbox[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pro, setPro] = useState({ entitled: false });
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState({
+    email: "",
+    imapHost: "localhost",
+    imapPort: 1143,
+    imapUsername: "",
+    imapPassword: "",
+    useSsl: false,
+    gateway: "proofpoint",
+    provider: "m365" as const,
+    notes: "",
+  });
 
-  const loadPreview = useCallback(async () => {
+  const reload = useCallback(async () => {
+    setLoading(true);
     try {
-      setPreview(await previewRoutingImpact());
+      const [list, entitlement] = await Promise.all([
+        listSeedInboxes(),
+        isEntitledToProviderSeeds(),
+      ]);
+      setSeeds(list);
+      setPro(entitlement);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load preview");
+      toast.error(err instanceof Error ? err.message : "Failed to load seed inboxes");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void (async () => {
-      setLoading(true);
-      try {
-        const current = await getWorkspaceDeliverabilityPolicy();
-        setPolicy(current.routingPolicy);
-        setInitialPolicy(current.routingPolicy);
-        setSanitizer(current.contentSanitizerEnabled ?? current.routingPolicy !== "off");
-        await loadPreview();
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to load policy");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [loadPreview]);
+    void reload();
+  }, [reload]);
+
+  async function handleCreate() {
+    try {
+      await createUserSeedInbox({ data: form });
+      toast.success("Seed inbox created — verification queued");
+      setModalOpen(false);
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create seed inbox");
+    }
+  }
+
+  return (
+    <section className="rounded-lg border p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Seed inboxes</h2>
+        <Button size="sm" onClick={() => setModalOpen(true)}>
+          <Plus className="mr-1 h-4 w-4" />
+          Add seed inbox
+        </Button>
+      </div>
+      {!pro.entitled && (
+        <p className="mt-2 rounded-md bg-muted px-3 py-2 text-sm">
+          Add 4 more SEGs (Proofpoint, Mimecast, Barracuda, Cisco) to your canary coverage with
+          Deliverability Pro.
+        </p>
+      )}
+      {loading ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <Table className="mt-4">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Email</TableHead>
+              <TableHead>Gateway</TableHead>
+              <TableHead>Provider</TableHead>
+              <TableHead>Verified</TableHead>
+              <TableHead>Active</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {seeds.map((seed) => (
+              <TableRow key={seed.id}>
+                <TableCell>{seed.email}</TableCell>
+                <TableCell>{seed.gateway}</TableCell>
+                <TableCell>{seed.providerManaged ? "(Quiksend-managed)" : seed.provider}</TableCell>
+                <TableCell>
+                  {seed.verifiedAt ? `✅ ${seed.verifiedAt.slice(0, 10)}` : "—"}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={seed.active ? "default" : "secondary"}>
+                    {seed.active ? "Active" : "Inactive"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="space-x-2 text-right">
+                  {!seed.providerManaged && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          void verifySeedInbox({ data: { seedInboxId: seed.id } }).then(() =>
+                            toast.success("Re-verification queued"),
+                          )
+                        }
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          void toggleSeedInboxActive({
+                            data: { seedInboxId: seed.id, active: !seed.active },
+                          }).then(reload)
+                        }
+                      >
+                        {seed.active ? "Pause" : "Activate"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          void deleteSeedInbox({ data: { seedInboxId: seed.id } }).then(reload)
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add seed inbox</DialogTitle>
+            <DialogDescription>
+              IMAP credentials are encrypted at rest. Mailpit local IMAP: localhost:1143.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div>
+              <Label>Email</Label>
+              <Input
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>IMAP host</Label>
+                <Input
+                  value={form.imapHost}
+                  onChange={(e) => setForm((f) => ({ ...f, imapHost: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Port</Label>
+                <Input
+                  type="number"
+                  value={form.imapPort}
+                  onChange={(e) => setForm((f) => ({ ...f, imapPort: Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Username</Label>
+              <Input
+                value={form.imapUsername}
+                onChange={(e) => setForm((f) => ({ ...f, imapUsername: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Password</Label>
+              <Input
+                type="password"
+                value={form.imapPassword}
+                onChange={(e) => setForm((f) => ({ ...f, imapPassword: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => void handleCreate()}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </section>
+  );
+}
+
+function CanaryConfigSection() {
+  const [config, setConfig] = useState({
+    enabled: true,
+    seedsPerCampaign: 3,
+    pauseThresholdPct: 80,
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void getWorkspaceCanaryConfig().then(setConfig);
+  }, []);
 
   async function save() {
     setSaving(true);
     try {
-      const updated = await setWorkspaceDeliverabilityPolicy({
-        data: {
-          routingPolicy: policy,
-          contentSanitizerEnabled: sanitizer,
-        },
-      });
-      setPolicy(updated.routingPolicy);
-      setInitialPolicy(updated.routingPolicy);
-      toast.success("Deliverability settings saved");
-      await loadPreview();
+      const next = await setWorkspaceCanaryConfig({ data: config });
+      setConfig(next);
+      toast.success("Canary settings saved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
-      setConfirmOpen(false);
     }
-  }
-
-  function handleSaveClick() {
-    if (initialPolicy === "off" && policy === "enforce") {
-      setConfirmOpen(true);
-      return;
-    }
-    void save();
-  }
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-medium">Routing policy</h2>
-        <p className="text-sm text-muted-foreground">
-          Control how Quiksend routes sends to prospects behind SEGs (Proofpoint, Mimecast, etc.).
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        {(
-          [
-            ["off", "Off (default)", "Send regardless; warnings only in UI"],
-            ["warn", "Warn only", "Send but emit deliverability events when at risk"],
-            ["enforce", "Enforce (auto-skip)", "Pause enrollments when no safe mailbox exists"],
-          ] as const
-        ).map(([value, title, description]) => (
-          <label
-            key={value}
-            className="flex cursor-pointer items-start gap-3 rounded-md border p-3 hover:bg-muted/40"
-          >
-            <input
-              type="radio"
-              name="routingPolicy"
-              className="mt-1"
-              checked={policy === value}
-              onChange={() => {
-                setPolicy(value);
-                void loadPreview();
-              }}
-            />
-            <span>
-              <span className="font-medium">{title}</span>
-              <span className="block text-sm text-muted-foreground">{description}</span>
-            </span>
-          </label>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="sanitizer"
-          checked={sanitizer}
-          onCheckedChange={(checked) => setSanitizer(checked === true)}
-        />
-        <Label htmlFor="sanitizer">
-          Strip tracking pixels and external images for SEG-destined sends
-        </Label>
-      </div>
-
-      {preview && (
-        <div className="rounded-md bg-muted/50 p-4 text-sm">
-          <p>
-            <strong>{preview.prospectsBehindSeg}</strong> prospects behind SEGs
-          </p>
-          <p>
-            <strong>{preview.safeMailboxCount}</strong> enterprise-safe mailbox
-            {preview.safeMailboxCount === 1 ? "" : "es"}
-          </p>
-          {preview.prospectsAtRiskOfSkip > 0 && policy === "enforce" && (
-            <p className="mt-2 text-destructive">
-              Enabling enforce would skip up to {preview.prospectsAtRiskOfSkip} enrollments until
-              you add a safe mailbox.
-            </p>
-          )}
-          {preview.prospectsPerGateway.length > 0 && (
-            <ul className="mt-2 list-inside list-disc text-muted-foreground">
-              {preview.prospectsPerGateway.map((row) => (
-                <li key={row.gateway}>
-                  {row.gateway}: {row.count}
-                </li>
-              ))}
-            </ul>
-          )}
+    <section className="rounded-lg border p-4">
+      <h2 className="text-lg font-semibold">Canary policy</h2>
+      <div className="mt-4 grid max-w-md gap-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={config.enabled}
+            onChange={(e) => setConfig((c) => ({ ...c, enabled: e.target.checked }))}
+          />
+          Enable canary injection on enrollment
+        </label>
+        <div>
+          <Label>Seeds per campaign</Label>
+          <Input
+            type="number"
+            value={config.seedsPerCampaign}
+            onChange={(e) => setConfig((c) => ({ ...c, seedsPerCampaign: Number(e.target.value) }))}
+          />
         </div>
-      )}
-
-      <Button disabled={saving} onClick={handleSaveClick}>
-        {saving ? "Saving…" : "Save deliverability settings"}
-      </Button>
-
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Enable routing enforcement?</DialogTitle>
-            <DialogDescription>
-              Enforce mode pauses SEG-destined enrollments when no enterprise-safe mailbox exists.
-              {preview && preview.safeMailboxCount === 0 && (
-                <>
-                  {" "}
-                  You currently have <strong>0</strong> safe mailboxes — up to{" "}
-                  {preview.prospectsAtRiskOfSkip} enrollments may pause immediately.
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={() => void save()} disabled={saving}>
-              Enable enforce
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+        <div>
+          <Label>Auto-pause threshold (%)</Label>
+          <Input
+            type="number"
+            value={config.pauseThresholdPct}
+            onChange={(e) =>
+              setConfig((c) => ({ ...c, pauseThresholdPct: Number(e.target.value) }))
+            }
+          />
+        </div>
+        <Button size="sm" disabled={saving} onClick={() => void save()}>
+          Save canary policy
+        </Button>
+      </div>
+    </section>
   );
 }
 
 function DeliverabilitySettingsPage() {
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Deliverability</h1>
-        <p className="text-sm text-muted-foreground">
-          Workspace-level routing and content sanitization for SEG-protected recipients.
-        </p>
-      </div>
-
-      {/* === Phase 11B Routing section === */}
-      <RoutingSection />
-      {/* === End Phase 11B === */}
-
+    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+      <h1 className="text-2xl font-semibold">Deliverability settings</h1>
+      <DeliverabilityRoutingSection />
       {/* === Phase 11C Canary section (PHI extends here) === */}
+      <SeedInboxesSection />
+      <CanaryConfigSection />
+      {/* === End Phase 11C === */}
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { Route as ProtectedComposeRouteImport } from './routes/_protected/compos
 import { Route as ProtectedSequencesIndexRouteImport } from './routes/_protected/sequences/index'
 import { Route as ProtectedProspectsIndexRouteImport } from './routes/_protected/prospects/index'
 import { Route as ProtectedInboxIndexRouteImport } from './routes/_protected/inbox/index'
+import { Route as ProtectedDeliverabilityIndexRouteImport } from './routes/_protected/deliverability/index'
 import { Route as ProtectedAnalyticsIndexRouteImport } from './routes/_protected/analytics/index'
 import { Route as ApiV1WebhooksRouteImport } from './routes/api/v1/webhooks'
 import { Route as ApiV1UnsubscribeRouteImport } from './routes/api/v1/unsubscribe'
@@ -94,6 +95,12 @@ const ProtectedInboxIndexRoute = ProtectedInboxIndexRouteImport.update({
   path: '/inbox/',
   getParentRoute: () => ProtectedRoute,
 } as any)
+const ProtectedDeliverabilityIndexRoute =
+  ProtectedDeliverabilityIndexRouteImport.update({
+    id: '/deliverability/',
+    path: '/deliverability/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
 const ProtectedAnalyticsIndexRoute = ProtectedAnalyticsIndexRouteImport.update({
   id: '/analytics/',
   path: '/analytics/',
@@ -288,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRouteWithChildren
   '/analytics/': typeof ProtectedAnalyticsIndexRoute
+  '/deliverability/': typeof ProtectedDeliverabilityIndexRoute
   '/inbox/': typeof ProtectedInboxIndexRoute
   '/prospects/': typeof ProtectedProspectsIndexRoute
   '/sequences/': typeof ProtectedSequencesIndexRoute
@@ -329,6 +337,7 @@ export interface FileRoutesByTo {
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRouteWithChildren
   '/analytics': typeof ProtectedAnalyticsIndexRoute
+  '/deliverability': typeof ProtectedDeliverabilityIndexRoute
   '/inbox': typeof ProtectedInboxIndexRoute
   '/prospects': typeof ProtectedProspectsIndexRoute
   '/sequences': typeof ProtectedSequencesIndexRoute
@@ -372,6 +381,7 @@ export interface FileRoutesById {
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRouteWithChildren
   '/_protected/analytics/': typeof ProtectedAnalyticsIndexRoute
+  '/_protected/deliverability/': typeof ProtectedDeliverabilityIndexRoute
   '/_protected/inbox/': typeof ProtectedInboxIndexRoute
   '/_protected/prospects/': typeof ProtectedProspectsIndexRoute
   '/_protected/sequences/': typeof ProtectedSequencesIndexRoute
@@ -415,6 +425,7 @@ export interface FileRouteTypes {
     | '/api/v1/unsubscribe'
     | '/api/v1/webhooks'
     | '/analytics/'
+    | '/deliverability/'
     | '/inbox/'
     | '/prospects/'
     | '/sequences/'
@@ -456,6 +467,7 @@ export interface FileRouteTypes {
     | '/api/v1/unsubscribe'
     | '/api/v1/webhooks'
     | '/analytics'
+    | '/deliverability'
     | '/inbox'
     | '/prospects'
     | '/sequences'
@@ -498,6 +510,7 @@ export interface FileRouteTypes {
     | '/api/v1/unsubscribe'
     | '/api/v1/webhooks'
     | '/_protected/analytics/'
+    | '/_protected/deliverability/'
     | '/_protected/inbox/'
     | '/_protected/prospects/'
     | '/_protected/sequences/'
@@ -600,6 +613,13 @@ declare module '@tanstack/react-router' {
       path: '/inbox'
       fullPath: '/inbox/'
       preLoaderRoute: typeof ProtectedInboxIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/deliverability/': {
+      id: '/_protected/deliverability/'
+      path: '/deliverability'
+      fullPath: '/deliverability/'
+      preLoaderRoute: typeof ProtectedDeliverabilityIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
     '/_protected/analytics/': {
@@ -842,6 +862,7 @@ interface ProtectedRouteChildren {
   ProtectedSettingsDeliverabilityRoute: typeof ProtectedSettingsDeliverabilityRoute
   ProtectedSettingsSuppressionRoute: typeof ProtectedSettingsSuppressionRoute
   ProtectedAnalyticsIndexRoute: typeof ProtectedAnalyticsIndexRoute
+  ProtectedDeliverabilityIndexRoute: typeof ProtectedDeliverabilityIndexRoute
   ProtectedInboxIndexRoute: typeof ProtectedInboxIndexRoute
   ProtectedProspectsIndexRoute: typeof ProtectedProspectsIndexRoute
   ProtectedSequencesIndexRoute: typeof ProtectedSequencesIndexRoute
@@ -869,6 +890,7 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedSettingsDeliverabilityRoute: ProtectedSettingsDeliverabilityRoute,
   ProtectedSettingsSuppressionRoute: ProtectedSettingsSuppressionRoute,
   ProtectedAnalyticsIndexRoute: ProtectedAnalyticsIndexRoute,
+  ProtectedDeliverabilityIndexRoute: ProtectedDeliverabilityIndexRoute,
   ProtectedInboxIndexRoute: ProtectedInboxIndexRoute,
   ProtectedProspectsIndexRoute: ProtectedProspectsIndexRoute,
   ProtectedSequencesIndexRoute: ProtectedSequencesIndexRoute,

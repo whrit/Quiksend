@@ -27,6 +27,8 @@ export interface BuildMimeInput {
   /** Override for tests. In production the default (uuid + @quiksend.local) is fine. */
   readonly messageIdDomain?: string;
   readonly messageId?: string;
+  /** When set, adds X-Quiksend-Canary-Id header for deliverability canary sends. */
+  readonly canaryToken?: string;
 }
 
 export interface BuildMimeOutput {
@@ -61,6 +63,9 @@ export function buildMime(input: BuildMimeInput): BuildMimeOutput {
   if (threading) {
     headers["In-Reply-To"] = threading.inReplyTo;
     headers.References = threading.references;
+  }
+  if (input.canaryToken) {
+    headers["X-Quiksend-Canary-Id"] = input.canaryToken;
   }
 
   const boundary = `----=_QuikSendBoundary_${randomUUID()}`;

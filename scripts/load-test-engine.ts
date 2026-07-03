@@ -49,7 +49,9 @@ type TestMode =
   | "permanent-failure"
   | "outer-rollback"
   | "suppression-during-run"
-  | "seg-routing";
+  | "seg-routing"
+  | "canary-happy-path"
+  | "canary-auto-pause";
 
 interface Args {
   workspaces: number;
@@ -88,6 +90,13 @@ function parseArgs(): Args {
     out.enrollments = 100;
     out.workers = 2;
     out.duration = 60;
+  }
+
+  if (out.testMode.startsWith("canary-")) {
+    out.workspaces = 1;
+    out.enrollments = 10;
+    out.workers = 1;
+    out.duration = Math.min(out.duration, 60);
   }
 
   if (out.testMode !== "happy-path" && out.testMode !== "seg-routing") {

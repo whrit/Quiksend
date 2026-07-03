@@ -159,6 +159,30 @@ export type GatewaySweepStalePayload = Record<string, never>;
  * a payload interface by job name at the type level; runtime code uses
  * `JobSchemas[name]` for validation.
  */
+// ── seed_inbox.verify — IMAP credential verification (Phase 11C) ───────────────
+export const seedInboxVerifySchema = z.object({
+  seedInboxId: z.string().uuid(),
+});
+export interface SeedInboxVerifyPayload {
+  seedInboxId: string;
+}
+
+// ── canary.send — materialize a pending canary send (Phase 11C) ───────────────
+export const canarySendJobSchema = z.object({
+  canarySendId: z.string().uuid(),
+});
+export interface CanarySendJobPayload {
+  canarySendId: string;
+}
+
+// ── canary.check — poll seed inboxes for canary arrival (Phase 11C) ───────────
+export const canaryCheckSchema = z.object({});
+export type CanaryCheckPayload = Record<string, never>;
+
+// ── deliverability.snapshot — rollup grid aggregates (Phase 11C) ──────────────
+export const deliverabilitySnapshotSchema = z.object({});
+export type DeliverabilitySnapshotPayload = Record<string, never>;
+
 export interface JobPayloadMap {
   "hello.ping": HelloPingPayload;
   "sequence.tick": SequenceTickPayload;
@@ -173,6 +197,10 @@ export interface JobPayloadMap {
   "gateway.detect_bulk": GatewayDetectBulkPayload;
   "gateway.apply_classification": GatewayApplyClassificationPayload;
   "gateway.sweep_stale": GatewaySweepStalePayload;
+  "seed_inbox.verify": SeedInboxVerifyPayload;
+  "canary.send": CanarySendJobPayload;
+  "canary.check": CanaryCheckPayload;
+  "deliverability.snapshot": DeliverabilitySnapshotPayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -191,6 +219,15 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "gateway.detect_bulk": gatewayDetectBulkSchema,
   "gateway.apply_classification": gatewayApplyClassificationSchema,
   "gateway.sweep_stale": gatewaySweepStaleSchema,
+  "seed_inbox.verify": seedInboxVerifySchema,
+  "canary.send": canarySendJobSchema,
+  "canary.check": canaryCheckSchema,
+  "deliverability.snapshot": deliverabilitySnapshotSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];
+/**
+ * Mapping from job name → concrete payload type. Consumers use this to look up
+ * a payload interface by job name at the type level; runtime code uses
+ * `JobSchemas[name]` for validation.
+ */

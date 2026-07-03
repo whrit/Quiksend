@@ -10,6 +10,11 @@ import { and, asc, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { orgFn } from "./org-fn.ts";
 import { applyWebEffects } from "./effect-executor.ts";
+import {
+  injectCanariesForEnrollment,
+  isDeliverabilityProEntitled,
+  parseWorkspaceCanaryConfig,
+} from "./canary-injection.ts";
 import { validateTemplate } from "./sequence-templates.ts";
 
 class SequenceError extends Error {
@@ -841,7 +846,27 @@ export const enrollProspects = orgFn({ method: "POST" })
       }
     }
 
-    return { enrolled: enrolled.length, skipped: skipped.length, skippedIds: skipped };
+    const org = await db.query.organization.findFirst({
+      where: eq(tables.organization.id, organizationId),
+      columns: { metadata: true },
+    });
+
+    const canariesCreated = await injectCanariesForEnrollment({
+      organizationId,
+      sequenceId: seq.id,
+      enrolledProspectIds: enrolled,
+      mailboxIds: mailboxes.map((m) => m.id),
+      sequenceCanaryConfig: seq.canaryConfig,
+      workspaceCanaryConfig: parseWorkspaceCanaryConfig(org?.metadata),
+      isProEntitled: isDeliverabilityProEntitled(org?.metadata),
+    });
+
+    return {
+      enrolled: enrolled.length,
+      skipped: skipped.length,
+      skippedIds: skipped,
+      canariesCreated,
+    };
   });
 
 export const previewSchedule = orgFn({ method: "POST" })

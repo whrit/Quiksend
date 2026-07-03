@@ -42,6 +42,7 @@ export const sequence = pgTable(
     name: text("name").notNull(),
     status: sequenceStatusEnum("status").default("draft").notNull(),
     settings: jsonb("settings").default(defaultSequenceSettings).notNull(),
+    canaryConfig: jsonb("canary_config"),
     createdByUserId: text("created_by_user_id")
       .notNull()
       .references(() => user.id),

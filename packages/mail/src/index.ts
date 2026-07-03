@@ -28,6 +28,11 @@ export {
   type SanitizeForSegOptions,
 } from "./content-sanitizer.ts";
 export { decryptSmtpConfig, encryptSmtpConfig, type SmtpConfigPlain } from "./crypto.ts";
+export {
+  decryptSeedImapConfig,
+  encryptSeedImapConfig,
+  type SeedImapConfigPlain,
+} from "./seed-crypto.ts";
 export { checkDomainAuth, type DomainAuthResult } from "./dns.ts";
 export {
   buildUnsubscribeUrl,
@@ -37,5 +42,6 @@ export {
   type UnsubscribeTokenPayload,
 } from "./unsubscribe.ts";
 export { createAdapterForMailbox, createFakeAdapter } from "./adapters/index.ts";
+export { createSmtpTransport, sendMime } from "./adapters/smtp.ts";
 export type { EmailGateway, GatewayEvidence } from "./gateway-detect.ts";
 export { detectEmailGateway } from "./gateway-detect.ts";
