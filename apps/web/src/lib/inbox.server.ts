@@ -110,7 +110,7 @@ export async function listInboxThreadsForOrg(
         coalesce(m.received_at, m.sent_at, m.created_at) desc
     )
     select * from latest
-    ${cursor ? sql`where last_at < ${cursor}` : sql``}
+    ${cursor ? sql`where last_at < ${cursor.toISOString()}` : sql``}
     order by last_at desc
     limit ${limit}
   `);
