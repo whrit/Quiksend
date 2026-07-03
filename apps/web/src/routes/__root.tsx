@@ -40,11 +40,17 @@ function RootComponent() {
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en">
+    // `suppressHydrationWarning` — browser extensions (Grammarly, 1Password,
+    // LastPass, dark-mode injectors) commonly patch attributes onto `<html>`
+    // and `<body>` BEFORE React hydrates. React can't reconcile those and
+    // logs a noisy hydration mismatch. This flag tells React the mismatch is
+    // expected and not our fault — scoped to just these two elements so real
+    // hydration bugs in app content still surface loudly.
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         {children}
         <Toaster richColors position="top-right" />
         <Scripts />

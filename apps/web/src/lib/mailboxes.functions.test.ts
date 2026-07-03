@@ -40,7 +40,7 @@ vi.mock("@quiksend/config", () => ({
 
 import { createAdapterForMailbox } from "@quiksend/mail";
 import { buildThreadingHeaders } from "@quiksend/mail/threading";
-import { resolveMailboxAdapter } from "./mailboxes.functions.ts";
+import { resolveMailboxAdapter } from "./mailboxes.server.ts";
 
 describe("resolveMailboxAdapter", () => {
   beforeEach(() => {

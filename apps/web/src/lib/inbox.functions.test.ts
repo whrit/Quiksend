@@ -8,7 +8,7 @@ const mockSend = vi.fn<MailboxAdapter["send"]>(async () => ({
   sentAt: new Date("2026-01-02T12:00:00Z"),
 }));
 
-vi.mock("./mailboxes.functions.ts", () => ({
+vi.mock("./mailboxes.server.ts", () => ({
   resolveMailboxAdapter: vi.fn<() => MailboxAdapter>(() => ({
     provider: "gmail",
     send: mockSend,
@@ -17,7 +17,7 @@ vi.mock("./mailboxes.functions.ts", () => ({
   })),
 }));
 
-import { resolveMailboxAdapter } from "./mailboxes.functions.ts";
+import { resolveMailboxAdapter } from "./mailboxes.server.ts";
 import { buildThreadingHeaders } from "@quiksend/mail/threading";
 
 describe("inbox reply send via adapter", () => {

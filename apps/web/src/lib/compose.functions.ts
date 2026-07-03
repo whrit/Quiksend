@@ -8,7 +8,7 @@ import { z } from "zod";
 import { captureManualAnchorForEnrollment } from "./anchor.functions.ts";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
-import { resolveMailboxAdapter } from "./mailboxes.functions.ts";
+import { resolveMailboxAdapter } from "./mailboxes.server.ts";
 
 const anchorSchema = z.object({
   messageId: z.string().min(1),
