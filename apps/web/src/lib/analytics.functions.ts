@@ -291,7 +291,7 @@ export const getWorkspaceOverview = createServerFn({ method: "GET" })
       COUNT(*) FILTER (WHERE ev.type = 'message.sent')::int AS sent
     FROM event ev
     WHERE ev.organization_id = ${organizationId}
-      AND ev.created_at >= ${thirtyDaysAgo}
+      AND ev.created_at >= ${thirtyDaysAgo.toISOString()}
     GROUP BY 1
     ORDER BY 1
   `);
