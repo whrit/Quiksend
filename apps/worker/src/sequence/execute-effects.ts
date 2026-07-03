@@ -5,6 +5,7 @@ import { enqueue } from "@quiksend/queue";
 import { and, desc, eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type * as schema from "@quiksend/db/schema";
+import { fanoutWebhookEvent } from "../handlers/webhook-fanout.ts";
 import type { EnrollmentContext } from "./context.ts";
 
 type DbTx = PostgresJsDatabase<typeof schema>;
@@ -24,6 +25,9 @@ const DELIVERABILITY_EVENTS = new Set([
   "mailbox.enterprise_safe_toggled",
   "workspace.deliverability_policy_changed",
 ]);
+
+/** Phase 11 webhook types — fan out after persisting the analytics event row. */
+const WEBHOOK_FANOUT_EVENTS = new Set(["enrollment.no_safe_mailbox_for_gateway"]);
 
 function normalizeAnalyticsType(engineType: string): string {
   if (engineType === "enrollment.replied") return "reply.received";
@@ -171,18 +175,33 @@ export async function handleEmitEvent(
   const { entityType, entityId } = await resolveEntityId(tx, ctx.organizationId, engineType, ctx);
   const analyticsType = normalizeAnalyticsType(engineType);
 
+  const eventPayload = {
+    enrollmentId: ctx.enrollmentId,
+    prospectId: ctx.prospect.id,
+    sequenceId: ctx.sequence.id,
+    engineType,
+  };
+
   await tx.insert(tables.event).values({
     organizationId: ctx.organizationId,
     type: analyticsType,
     entityType,
     entityId,
-    payload: {
-      enrollmentId: ctx.enrollmentId,
-      prospectId: ctx.prospect.id,
-      sequenceId: ctx.sequence.id,
-      engineType,
-    },
+    payload: eventPayload,
   });
+
+  if (WEBHOOK_FANOUT_EVENTS.has(engineType)) {
+    await fanoutWebhookEvent({
+      organizationId: ctx.organizationId,
+      eventType: engineType,
+      payload: {
+        enrollmentId: ctx.enrollmentId,
+        mailboxId: ctx.mailbox.id,
+        recipientGateway: ctx.prospect.emailGateway,
+        reason: "no_safe_mailbox_for_gateway",
+      },
+    });
+  }
 
   const jobEventType = writebackJobEventType(engineType);
   if (!jobEventType) return;

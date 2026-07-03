@@ -69,6 +69,9 @@ export const GATEWAY_FILTER_OPTIONS = Object.entries(GATEWAY_LABELS).map(([value
   label,
 }));
 
+// SEG gateway allowlist — duplicated for UI badges/filters. Canonical list:
+// `@quiksend/core/deliverability` (`SEG_GATEWAY_VALUES`); mail package exports `SEG_GATEWAYS`.
+// PHI2 Wave 8 dedup will collapse copies — update core first.
 export const SEG_GATEWAY_VALUES = [
   "proofpoint",
   "mimecast",

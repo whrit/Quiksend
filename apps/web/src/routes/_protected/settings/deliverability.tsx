@@ -33,7 +33,7 @@ import {
   listSeedInboxes,
   toggleSeedInboxActive,
   verifySeedInbox,
-  type PublicSeedInbox,
+  type SeedInboxListItem,
 } from "@/lib/seed-inbox.functions.ts";
 
 export const Route = createFileRoute("/_protected/settings/deliverability")({
@@ -59,7 +59,7 @@ function DeliverabilityRoutingSection() {
 }
 
 function SeedInboxesSection() {
-  const [seeds, setSeeds] = useState<PublicSeedInbox[]>([]);
+  const [seeds, setSeeds] = useState<SeedInboxListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [pro, setPro] = useState({ entitled: false });
   const [modalOpen, setModalOpen] = useState(false);
@@ -138,58 +138,70 @@ function SeedInboxesSection() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {seeds.map((seed) => (
-              <TableRow key={seed.id}>
-                <TableCell>{seed.email}</TableCell>
-                <TableCell>{seed.gateway}</TableCell>
-                <TableCell>{seed.providerManaged ? "(Quiksend-managed)" : seed.provider}</TableCell>
-                <TableCell>
-                  {seed.verifiedAt ? `✅ ${seed.verifiedAt.slice(0, 10)}` : "—"}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={seed.active ? "default" : "secondary"}>
-                    {seed.active ? "Active" : "Inactive"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="space-x-2 text-right">
-                  {!seed.providerManaged && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          void verifySeedInbox({ data: { seedInboxId: seed.id } }).then(() =>
-                            toast.success("Re-verification queued"),
-                          )
-                        }
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          void toggleSeedInboxActive({
-                            data: { seedInboxId: seed.id, active: !seed.active },
-                          }).then(reload)
-                        }
-                      >
-                        {seed.active ? "Pause" : "Activate"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          void deleteSeedInbox({ data: { seedInboxId: seed.id } }).then(reload)
-                        }
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+            {seeds.map((seed) =>
+              seed.kind === "provider_pool_summary" ? (
+                <TableRow key={`pool-${seed.gateway}`}>
+                  <TableCell>
+                    {seed.gateway.replace(/_/g, " ")} pool ({seed.count} seed
+                    {seed.count === 1 ? "" : "s"})
+                  </TableCell>
+                  <TableCell>{seed.gateway}</TableCell>
+                  <TableCell>(Quiksend-managed)</TableCell>
+                  <TableCell>—</TableCell>
+                  <TableCell>
+                    <Badge variant="default">Active</Badge>
+                  </TableCell>
+                  <TableCell />
+                </TableRow>
+              ) : (
+                <TableRow key={seed.id}>
+                  <TableCell>{seed.email}</TableCell>
+                  <TableCell>{seed.gateway}</TableCell>
+                  <TableCell>{seed.provider}</TableCell>
+                  <TableCell>
+                    {seed.verifiedAt ? `✅ ${seed.verifiedAt.slice(0, 10)}` : "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={seed.active ? "default" : "secondary"}>
+                      {seed.active ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="space-x-2 text-right">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        void verifySeedInbox({ data: { seedInboxId: seed.id } }).then(() =>
+                          toast.success("Re-verification queued"),
+                        )
+                      }
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        void toggleSeedInboxActive({
+                          data: { seedInboxId: seed.id, active: !seed.active },
+                        }).then(reload)
+                      }
+                    >
+                      {seed.active ? "Pause" : "Activate"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        void deleteSeedInbox({ data: { seedInboxId: seed.id } }).then(reload)
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ),
+            )}
           </TableBody>
         </Table>
       )}

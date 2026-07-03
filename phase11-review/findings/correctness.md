@@ -1,6 +1,7 @@
 # Correctness Review Findings
 
 ## Summary
+
 - Files reviewed: ~28 (routing, gateway detect, canary injection/send/check, auto-pause, state machine, reserve-slot, entry-conditions, content sanitizer, gateway cache, deliverability snapshot, tests)
 - Critical: 0, High: 2, Medium: 5, Low: 2
 - Overall: needs-fixes

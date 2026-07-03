@@ -410,8 +410,9 @@ docker compose logs worker --tail 500 | grep -i "canary\|imap\|seed_inbox"
    - Firewall between worker and IMAP host
 2. **Provider-managed seed problem?** Provider-managed seeds (`organization_id IS NULL`)
    are Quiksend Systems territory. If a Pro-tier customer sees insufficient data,
-   file a support ticket; the seed pool health check cron should have alerted us
-   already.
+   file a support ticket. Automated seed pool health checks are on the Wave 9 roadmap —
+   until then, ops runs the manual weekly procedure in
+   [seed-pool-setup.md](../internal-runbooks/seed-pool-setup.md#ongoing-operations).
 3. **Toggle inactive** if a seed is compromised or reputation-damaged. Its
    canaries stop firing; other seeds for the same SEG continue.
 

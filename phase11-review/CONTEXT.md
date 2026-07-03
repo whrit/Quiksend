@@ -60,7 +60,7 @@ Six review dimensions, one agent per dimension, running in parallel:
 - **Correctness**: Routing decision table (5 columns × 7 rows per spec) — all branches implemented? Anchor-threading exception carved out correctly? Content sanitizer preserves valid MIME? Auto-pause threshold logic edge cases? Silent-drop 24h sweep correctly excludes pending canaries?
 - **Architecture**: Wave-5 CR-009 (mail → integrations decoupling) preserved? `packages/mail/gateway-detect.ts` clean of DB imports? `packages/core/deliverability/*` genuinely pure? Cross-package type imports use `import type`?
 - **Performance**: MX lookup rate limiting effective? Canary polling connection pool reasonable? Grid query aggregation efficient? All hot tables have appropriate indexes? pg_trgm not regressed?
-- **Testing**: 15 new test files claimed — actually cover what they claim? Any P1 invariants un-tested (silent-drop detection, auto-pause fires, routing decision matrix)? Load-test canary modes were deferred — noted?
+- **Testing**: Phase 11 added **9 new test files** plus **4 extended** existing suites (12 meaningful touchpoints per git). Any P1 invariants un-tested (silent-drop webhook fanout, auto-pause fires, routing decision matrix)? Load-test canary modes were deferred — noted?
 - **Completeness**: Every ticket 11A.1-11A.11, 11B.1-11B.10, 11C.1-11C.14, 11C.15-11C.19 has code that fulfills it? `SUPPORTED_WEBHOOK_EVENTS` includes all 4 Phase 11 events? Fanout wired for those events in the worker? UI actually shows deliverability grid? Docs claims match code?
 
 ## Format each dimension's output

@@ -26,13 +26,14 @@ Available on every workspace by default. No configuration required.
 
 ### How classification works
 
-When a prospect is created (manual, CSV import, CRM sync, public API):
+When a prospect is created via **manual create** or **CSV import**:
 
 1. `apps/worker/src/handlers/gateway-detect.ts` enqueues `gateway.detect_single` (or
    `gateway.detect_bulk` for imports).
 2. The handler consults `gateway_classification` — a shared domain-level cache
    across all workspaces (MX records are public, so caching per-domain is safe and
-   saves redundant DNS lookups).
+   saves redundant DNS lookups). This table intentionally has no Drizzle `relations()`
+   block — it is not org-scoped and links only to public DNS data, not workspace rows.
 3. Cache miss → run the detection cascade in `packages/mail/src/gateway-detect.ts`:
    - `resolveMx(domain)` → match against `packages/mail/src/gateway-fingerprints.json`
      (20+ patterns covering Proofpoint, Mimecast, Barracuda, Cisco, Trend Micro,
@@ -121,7 +122,8 @@ destined for SEG-classified recipients are:
 - Stripped of tracking pixel (`<img>` matching Quiksend's tracking domain)
 - Stripped of external images (or inlined as base64 when < 100 KB)
 - Preferred plain-text (`multipart/alternative` with text/plain first, HTML part
-  dropped when text-only is complete)
+  dropped when the plain-text body is complete enough for SEG recipients — see
+  `packages/mail/src/content-sanitizer.ts` for the completeness heuristic)
 
 ### SEG throttle and per-domain gap
 
@@ -224,13 +226,21 @@ confirmation required (avoids flapping).
 The following event types are emitted and can be subscribed to via
 **Settings → Webhooks** (see [webhooks.md](./webhooks.md) for HMAC verification):
 
-| Event                                    | When it fires                                                                         |
-| ---------------------------------------- | ------------------------------------------------------------------------------------- |
-| `enrollment.no_safe_mailbox_for_gateway` | Routing policy `enforce` skipped a SEG-destined send                                  |
-| `enrollment.paused`                      | Includes canary-triggered auto-pauses (check payload for `reason`)                    |
-| `deliverability.canary.silent_drop`      | A canary was sent > 24h ago and never arrived                                         |
-| `deliverability.canary.arrived`          | A canary arrived (either inbox / spam / quarantine) — useful for real-time monitoring |
-| `gateway.detected`                       | A prospect's gateway classification changed (initial or reclassification)             |
+| Event                                    | When it fires                                                                          |
+| ---------------------------------------- | -------------------------------------------------------------------------------------- |
+| `enrollment.no_safe_mailbox_for_gateway` | Routing policy `enforce` skipped a SEG-destined send                                   |
+| `deliverability.canary.silent_drop`      | A canary was sent > 24h ago and never arrived, or a sequence was auto-paused by canary |
+| `deliverability.canary.arrived`          | A canary arrived (either inbox / spam / quarantine) — useful for real-time monitoring  |
+| `gateway.detected`                       | A prospect's gateway classification changed (initial or reclassification)              |
+
+## Deferred to Phase 12
+
+The following deliverability features are planned but **not** required for Phase 11 GA:
+
+- **Success metrics dashboard** — workspace-level deliverability KPIs beyond the grid
+- **Per-workspace feature flags** — gradual rollout toggles for canary/routing sub-features
+
+Subscribe to the webhook events above for external monitoring until those ship.
 
 ## Where to look in the code
 

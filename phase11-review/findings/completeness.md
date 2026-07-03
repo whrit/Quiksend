@@ -14,48 +14,48 @@ Phase 11A (detection), 11B (routing), and most of 11C (canary code + UI) are **s
 
 ## Phase 11 ticket verification
 
-| Ticket | Status | Evidence |
-| ------ | ------ | -------- |
-| **11A.1** Migration | ✅ | `0015_phase11_foundation.sql:8-11` prospect cols + `prospect_org_gateway_idx`; `0016_phase11a_gateway_classification.sql:1-14` table + `gateway_classification_confidence` enum |
-| **11A.2** `gateway-detect.ts` | ✅ | `packages/mail/src/gateway-detect.ts:222-297` MX → DMARC → SPF → unknown cascade |
-| **11A.3** Fingerprints JSON | ✅ | `packages/mail/src/gateway-fingerprints.json`; loaded at `gateway-detect.ts:120-131` |
-| **11A.4** 4 worker handlers | ✅ | `apps/worker/src/handlers/gateway-detect.ts:105-231`; cron at `:229-231` |
-| **11A.5** 5 server-fns | ✅ | `apps/web/src/lib/prospects.functions.ts:1100-1175` |
-| **11A.6** Create/import wiring | ✅ | `prospects.functions.ts:421`; `import-prospects.ts:256` |
-| **11A.7** Entry conditions | ✅ | `entry-conditions.ts:23-60`; sequence editor `edit.tsx:699-708` |
-| **11A.8** Prospect badges + filter + chart | ✅ | `gateway-badge.tsx`; `prospects/index.tsx:194-504` |
-| **11A.9** Sequence step editor multi-selects | ✅ | `sequences/$id/edit.tsx:136-708` |
-| **11A.10** Dashboard card + sequence outlook | ✅ | `dashboard.tsx:53-78`; `sequences/$id/index.tsx:99-120` |
-| **11A.11** 200-prospect integration test | ✅ | `gateway-detect.test.ts:99-132` |
-| **11B.1** `recipient_domain` migration | ✅ | `0017_phase11b_routing.sql:1-2`; `enterprise_safe` cols sensibly in `0015` foundation |
-| **11B.2** `mailbox-router.ts` | ✅ | Full decision table `mailbox-router.ts:75-122` + tests |
-| **11B.3** `content-sanitizer.ts` | ✅ | `packages/mail/src/content-sanitizer.ts` + `content-sanitizer.test.ts` |
-| **11B.4** SEG sub-cap + 5-min gap | ✅ | `reserve-slot.ts` + `reserve-slot.test.ts:40` |
-| **11B.5** 4 server-fns | ✅ | `mailboxes.functions.ts:501`; `organization.functions.ts:38-147` |
-| **11B.6** Mailbox toggle + modal | ✅ | `settings/mailboxes/index.tsx:71-313` |
-| **11B.7** Deliverability settings page | ✅ | `settings/deliverability.tsx:317-327` |
-| **11B.8** Sequence banner + enroll warning | ✅ | `sequences/$id/index.tsx:72-97`; `enroll.tsx:211-220` |
-| **11B.9** `no_safe_mailbox` state machine | ✅ | `transition.ts:112-116`; `effects.ts:276` |
-| **11B.10** SEG routing integration test | ✅ | `seg-routing.integration.test.ts:34-153` (20 prospects, enforce, 0 safe) |
-| **11C.1** Canary migration | ✅ | `0018_phase11c_canary.sql` — 3 tables + `sequence.canary_config` |
-| **11C.2** Seed inbox CRUD + encryption | ✅ | `seed-inbox.functions.ts` |
-| **11C.3** `seed_inbox.verify` handler | ✅ | `handlers/seed-inbox-verify.ts:11-29` |
-| **11C.4** Canary injection on enroll | ✅ | `canary-injection.ts`; hooked from `sequences.functions.ts:17` |
-| **11C.5** `X-Quiksend-Canary-Id` header | ✅ | `mime.ts:68`; `mime.test.ts:70-80` |
-| **11C.6** `effects.ts` canary handling | ✅ | `effects.ts:483-486` (`handleSendCanary`) |
-| **11C.7** `canary-check.ts` 5-min cron | ✅ | `canary-check.ts:20-27` |
-| **11C.8** Auto-pause pure evaluator | ✅ | `auto-pause.ts` + `auto-pause.test.ts` |
-| **11C.9** Snapshot refresh 15-min cron | ✅ | `deliverability-snapshot.ts:8-10` |
-| **11C.10** Grid/history/config server-fns | ✅ | `deliverability.functions.ts:41-259` |
-| **11C.11** Seed inbox settings UI | ✅ | `settings/deliverability.tsx` `SeedInboxesSection` |
-| **11C.12** Deliverability grid page | ✅ | `deliverability/index.tsx` |
-| **11C.13** Sequence live indicator | ⚠️ Partial | Server-fn `getSequenceDeliverability` at `deliverability.functions.ts:205-258` exists; **not called** from `sequences/$id/index.tsx` |
-| **11C.14** Auto-pause notifications | ⚠️ Partial | Email at `canary-check.ts:242-306`; **no in-app toast/banner** on sequence page |
-| **11C.15** Domain acquisition runbook | ✅ | `internal-runbooks/seed-pool-setup.md` |
-| **11C.16** Per-SEG subscription runbook | ✅ | `seed-pool-setup.md:230-384` (Proofpoint, Mimecast, Barracuda, Cisco) |
-| **11C.17** Provider seed bootstrap | ✅ | `scripts/seed-pool-bootstrap.ts`; `SYSTEM_SEED_ENCRYPTION_KEY` in `env.schema.ts:55` |
-| **11C.18** Seed pool health check cron | ❌ | Documented only — no handler in `apps/worker/src/handlers/*` |
-| **11C.19** Legit-usage generator cron | ❌ | Documented only — no handler in `apps/worker/src/handlers/*` |
+| Ticket                                       | Status     | Evidence                                                                                                                                                                        |
+| -------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **11A.1** Migration                          | ✅         | `0015_phase11_foundation.sql:8-11` prospect cols + `prospect_org_gateway_idx`; `0016_phase11a_gateway_classification.sql:1-14` table + `gateway_classification_confidence` enum |
+| **11A.2** `gateway-detect.ts`                | ✅         | `packages/mail/src/gateway-detect.ts:222-297` MX → DMARC → SPF → unknown cascade                                                                                                |
+| **11A.3** Fingerprints JSON                  | ✅         | `packages/mail/src/gateway-fingerprints.json`; loaded at `gateway-detect.ts:120-131`                                                                                            |
+| **11A.4** 4 worker handlers                  | ✅         | `apps/worker/src/handlers/gateway-detect.ts:105-231`; cron at `:229-231`                                                                                                        |
+| **11A.5** 5 server-fns                       | ✅         | `apps/web/src/lib/prospects.functions.ts:1100-1175`                                                                                                                             |
+| **11A.6** Create/import wiring               | ✅         | `prospects.functions.ts:421`; `import-prospects.ts:256`                                                                                                                         |
+| **11A.7** Entry conditions                   | ✅         | `entry-conditions.ts:23-60`; sequence editor `edit.tsx:699-708`                                                                                                                 |
+| **11A.8** Prospect badges + filter + chart   | ✅         | `gateway-badge.tsx`; `prospects/index.tsx:194-504`                                                                                                                              |
+| **11A.9** Sequence step editor multi-selects | ✅         | `sequences/$id/edit.tsx:136-708`                                                                                                                                                |
+| **11A.10** Dashboard card + sequence outlook | ✅         | `dashboard.tsx:53-78`; `sequences/$id/index.tsx:99-120`                                                                                                                         |
+| **11A.11** 200-prospect integration test     | ✅         | `gateway-detect.test.ts:99-132`                                                                                                                                                 |
+| **11B.1** `recipient_domain` migration       | ✅         | `0017_phase11b_routing.sql:1-2`; `enterprise_safe` cols sensibly in `0015` foundation                                                                                           |
+| **11B.2** `mailbox-router.ts`                | ✅         | Full decision table `mailbox-router.ts:75-122` + tests                                                                                                                          |
+| **11B.3** `content-sanitizer.ts`             | ✅         | `packages/mail/src/content-sanitizer.ts` + `content-sanitizer.test.ts`                                                                                                          |
+| **11B.4** SEG sub-cap + 5-min gap            | ✅         | `reserve-slot.ts` + `reserve-slot.test.ts:40`                                                                                                                                   |
+| **11B.5** 4 server-fns                       | ✅         | `mailboxes.functions.ts:501`; `organization.functions.ts:38-147`                                                                                                                |
+| **11B.6** Mailbox toggle + modal             | ✅         | `settings/mailboxes/index.tsx:71-313`                                                                                                                                           |
+| **11B.7** Deliverability settings page       | ✅         | `settings/deliverability.tsx:317-327`                                                                                                                                           |
+| **11B.8** Sequence banner + enroll warning   | ✅         | `sequences/$id/index.tsx:72-97`; `enroll.tsx:211-220`                                                                                                                           |
+| **11B.9** `no_safe_mailbox` state machine    | ✅         | `transition.ts:112-116`; `effects.ts:276`                                                                                                                                       |
+| **11B.10** SEG routing integration test      | ✅         | `seg-routing.integration.test.ts:34-153` (20 prospects, enforce, 0 safe)                                                                                                        |
+| **11C.1** Canary migration                   | ✅         | `0018_phase11c_canary.sql` — 3 tables + `sequence.canary_config`                                                                                                                |
+| **11C.2** Seed inbox CRUD + encryption       | ✅         | `seed-inbox.functions.ts`                                                                                                                                                       |
+| **11C.3** `seed_inbox.verify` handler        | ✅         | `handlers/seed-inbox-verify.ts:11-29`                                                                                                                                           |
+| **11C.4** Canary injection on enroll         | ✅         | `canary-injection.ts`; hooked from `sequences.functions.ts:17`                                                                                                                  |
+| **11C.5** `X-Quiksend-Canary-Id` header      | ✅         | `mime.ts:68`; `mime.test.ts:70-80`                                                                                                                                              |
+| **11C.6** `effects.ts` canary handling       | ✅         | `effects.ts:483-486` (`handleSendCanary`)                                                                                                                                       |
+| **11C.7** `canary-check.ts` 5-min cron       | ✅         | `canary-check.ts:20-27`                                                                                                                                                         |
+| **11C.8** Auto-pause pure evaluator          | ✅         | `auto-pause.ts` + `auto-pause.test.ts`                                                                                                                                          |
+| **11C.9** Snapshot refresh 15-min cron       | ✅         | `deliverability-snapshot.ts:8-10`                                                                                                                                               |
+| **11C.10** Grid/history/config server-fns    | ✅         | `deliverability.functions.ts:41-259`                                                                                                                                            |
+| **11C.11** Seed inbox settings UI            | ✅         | `settings/deliverability.tsx` `SeedInboxesSection`                                                                                                                              |
+| **11C.12** Deliverability grid page          | ✅         | `deliverability/index.tsx`                                                                                                                                                      |
+| **11C.13** Sequence live indicator           | ⚠️ Partial | Server-fn `getSequenceDeliverability` at `deliverability.functions.ts:205-258` exists; **not called** from `sequences/$id/index.tsx`                                            |
+| **11C.14** Auto-pause notifications          | ⚠️ Partial | Email at `canary-check.ts:242-306`; **no in-app toast/banner** on sequence page                                                                                                 |
+| **11C.15** Domain acquisition runbook        | ✅         | `internal-runbooks/seed-pool-setup.md`                                                                                                                                          |
+| **11C.16** Per-SEG subscription runbook      | ✅         | `seed-pool-setup.md:230-384` (Proofpoint, Mimecast, Barracuda, Cisco)                                                                                                           |
+| **11C.17** Provider seed bootstrap           | ✅         | `scripts/seed-pool-bootstrap.ts`; `SYSTEM_SEED_ENCRYPTION_KEY` in `env.schema.ts:55`                                                                                            |
+| **11C.18** Seed pool health check cron       | ❌         | Documented only — no handler in `apps/worker/src/handlers/*`                                                                                                                    |
+| **11C.19** Legit-usage generator cron        | ❌         | Documented only — no handler in `apps/worker/src/handlers/*`                                                                                                                    |
 
 **Migration split (spec vs shipped):** Spec consolidated plan implied one migration; actual split across `0015` (foundation enums + col extensions), `0016` (gateway cache), `0017` (routing), `0018` (canary) is sensible and complete — nothing missing.
 
@@ -219,24 +219,24 @@ Phase 11A (detection), 11B (routing), and most of 11C (canary code + UI) are **s
 
 ## Deferred / honesty checks (P2)
 
-| Item | Status |
-| ---- | ------ |
-| **Phase 11D LinkedIn adapter** | ✅ Clean — no send adapter leaked; only pre-existing `linkedin_url` CRM/prospect fields |
+| Item                                                  | Status                                                                                                   |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Phase 11D LinkedIn adapter**                        | ✅ Clean — no send adapter leaked; only pre-existing `linkedin_url` CRM/prospect fields                  |
 | **Canary `--test-mode=canary-*` in user-facing docs** | ✅ `docs/deliverability.md` does not promise these modes; gap is spec + script union only (COMP-P11-008) |
-| **11B.1 `enterprise_safe` in 11B migration** | ✅ Acceptable — cols in `0015` foundation; `0017` adds routing-specific `recipient_domain` |
+| **11B.1 `enterprise_safe` in 11B migration**          | ✅ Acceptable — cols in `0015` foundation; `0017` adds routing-specific `recipient_domain`               |
 
 ---
 
 ## Open questions (spec § Open Questions) — resolution status
 
-| # | Question | Resolved in shipped code? |
-| - | -------- | ------------------------- |
-| 1 | DoH fallback for MX | **Deferred** — not implemented; matches recommendation |
-| 2 | Sequence-level canary threshold in UI | **Partial** — workspace + sequence `canary_config` in DB; sequence-level UI override not exposed (admin-only per recommendation) |
-| 3 | Grid transport: poll vs SSE | **Resolved** — 30s polling in `deliverability/index.tsx` |
-| 4 | Which SEGs to add to provider pool | **Open** — runbook TBD domains; post-launch decision |
-| 5 | Sanitizer opt-out granularity | **Resolved** — workspace-level via `setWorkspaceDeliverabilityPolicy` |
-| 6 | Auto-pause resume behavior | **Resolved** — stays paused; manual resume (docs + code align) |
+| #   | Question                              | Resolved in shipped code?                                                                                                        |
+| --- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | DoH fallback for MX                   | **Deferred** — not implemented; matches recommendation                                                                           |
+| 2   | Sequence-level canary threshold in UI | **Partial** — workspace + sequence `canary_config` in DB; sequence-level UI override not exposed (admin-only per recommendation) |
+| 3   | Grid transport: poll vs SSE           | **Resolved** — 30s polling in `deliverability/index.tsx`                                                                         |
+| 4   | Which SEGs to add to provider pool    | **Open** — runbook TBD domains; post-launch decision                                                                             |
+| 5   | Sanitizer opt-out granularity         | **Resolved** — workspace-level via `setWorkspaceDeliverabilityPolicy`                                                            |
+| 6   | Auto-pause resume behavior            | **Resolved** — stays paused; manual resume (docs + code align)                                                                   |
 
 ---
 
