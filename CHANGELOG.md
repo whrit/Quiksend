@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.2](https://github.com/whrit/Quiksend/compare/v2.3.1...v2.3.2) (2026-07-03)
+
+
+### Bug Fixes
+
+* **web:** silence dev-mode import-protection warnings + Grammarly hydration mismatch ([#61](https://github.com/whrit/Quiksend/issues/61)) ([8094b6e](https://github.com/whrit/Quiksend/commit/8094b6e298369913135449f289f11112bc91c2f5))
+
 ## [2.3.1](https://github.com/whrit/Quiksend/compare/v2.3.0...v2.3.1) (2026-07-03)
 
 
