@@ -67,7 +67,7 @@ Every one of these is a "must have a test" from the Phase 11 spec:
 ### P1 continued — HTTP API tenancy (already-established pattern)
 
 10. **Deliverability HTTP API tests** — if Phase 11 added any new API routes, verify tenancy tests exist (org A cross-org read returns 404)
-    - Actually: Phase 11 explicitly did NOT add new REST endpoints (per api.md update). If tests exist, verify they DO test the constraint that no deliverability data is accessible via /api/v1/*
+    - Actually: Phase 11 explicitly did NOT add new REST endpoints (per api.md update). If tests exist, verify they DO test the constraint that no deliverability data is accessible via /api/v1/\*
     - If not tested: confirm no data leaks through webhooks (payload construction sanitized)
 
 ### P2 — quality of new tests

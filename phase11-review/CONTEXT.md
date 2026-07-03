@@ -6,6 +6,7 @@
 **HEAD commit**: `6a4f33f` (v2.2.1 — Phase 11 shipped + docs catchup)
 
 **Phase 11 commits in review scope**:
+
 - `41adbc4` chore(wave7): orchestration + WAVE_CONTEXT
 - `11ff9cd` feat: Foundation (enums + col additions + type stubs)
 - `778c62d` feat(wave7-tau): Phase 11A — SEG detection + segmentation
@@ -25,6 +26,7 @@ Full spec is authoritative for what SHOULD be shipped:
 `docs/implementations/phases/Quiksend-Implementation-Plan-Phase-11.md`
 
 Review dimensions verify code against:
+
 1. Phase 11 spec acceptance criteria
 2. Wave 5/6 review report standards (`review/CONSOLIDATED.md`) — nothing regressed
 3. `CLAUDE.md` conventions (multi-tenancy chokepoint, `.ts` extensions, `orgFn`, etc.)
@@ -33,14 +35,14 @@ Review dimensions verify code against:
 
 Six review dimensions, one agent per dimension, running in parallel:
 
-| Dim | Focus | Owner |
-|---|---|---|
-| **Security** | SEG detection (DNS injection?), IMAP credential encryption, provider vs user seed keys split, canary polling auth, webhook event scope, tenant isolation on new tables | reviewer-security |
-| **Correctness** | Routing decision table exhaustiveness, canary injection scheduling, auto-pause evaluator, state machine event flow, gateway classification cache TTL/invalidation, anchor-threading exception | reviewer-correctness |
-| **Architecture** | Foundation layering respected? `packages/mail` still decoupled from `integrations`? Effect executor extension patterns? Entry-conditions purity? shared helper reuse? No orphaned modules? | reviewer-architecture |
-| **Performance** | MX lookup batching + DNS semaphore, canary polling load, `deliverability_snapshot` rollup query, indexes on new tables, N+1 on grid queries | reviewer-performance |
-| **Testing** | Phase 11 test coverage: what's tested, what's not, gaps in critical paths (canary happy path, silent drop detection, auto-pause logic, routing decision table, seed inbox credential encryption/decryption round-trip) | reviewer-testing |
-| **Completeness** | Phase 11 spec acceptance criteria vs shipped code. All 40 tickets truly complete? PR body claims vs code reality? deliverability.md docs match code? webhook events registered AND fanout wired? | reviewer-completeness |
+| Dim              | Focus                                                                                                                                                                                                                  | Owner                 |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| **Security**     | SEG detection (DNS injection?), IMAP credential encryption, provider vs user seed keys split, canary polling auth, webhook event scope, tenant isolation on new tables                                                 | reviewer-security     |
+| **Correctness**  | Routing decision table exhaustiveness, canary injection scheduling, auto-pause evaluator, state machine event flow, gateway classification cache TTL/invalidation, anchor-threading exception                          | reviewer-correctness  |
+| **Architecture** | Foundation layering respected? `packages/mail` still decoupled from `integrations`? Effect executor extension patterns? Entry-conditions purity? shared helper reuse? No orphaned modules?                             | reviewer-architecture |
+| **Performance**  | MX lookup batching + DNS semaphore, canary polling load, `deliverability_snapshot` rollup query, indexes on new tables, N+1 on grid queries                                                                            | reviewer-performance  |
+| **Testing**      | Phase 11 test coverage: what's tested, what's not, gaps in critical paths (canary happy path, silent drop detection, auto-pause logic, routing decision table, seed inbox credential encryption/decryption round-trip) | reviewer-testing      |
+| **Completeness** | Phase 11 spec acceptance criteria vs shipped code. All 40 tickets truly complete? PR body claims vs code reality? deliverability.md docs match code? webhook events registered AND fanout wired?                       | reviewer-completeness |
 
 ## Reviewer rules (identical to V0 review)
 
@@ -69,6 +71,7 @@ Write to `phase11-review/findings/<dimension>.md`:
 # {Dimension} Review Findings
 
 ## Summary
+
 - Files reviewed: ~N
 - Critical: 0, High: 0, Medium: 0, Low: 0
 - Overall: {ok | needs-fixes | broken}
@@ -87,5 +90,6 @@ Write to `phase11-review/findings/<dimension>.md`:
 ...
 
 ## Positive observations
+
 - Things that are handled well.
 ```

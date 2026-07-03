@@ -17,6 +17,12 @@ and CRM context, so reps stay in control while automation handles follow-up.
 
 ## Get started
 
+> **New to Node / Docker / self-hosting a dev environment?** Follow the full
+> [Getting started guide](docs/getting-started.md) — beginner-friendly, ~20 minutes
+> from git clone to sending your first email locally.
+
+**Already comfortable?** Quick path:
+
 ### Prerequisites
 
 - **Node** 24.18+ (see `.nvmrc`) and **pnpm** 11.9+ (`corepack enable`)

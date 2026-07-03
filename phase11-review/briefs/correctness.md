@@ -82,11 +82,12 @@ findings to `phase11-review/findings/correctness.md` following the format in
     - This is Foundation-shipped; verify no drift in downstream callers
 
 12. **Deliverability snapshot refresh**
-   - `deliverability-snapshot.ts` — the 15-min rollup. Verify:
-     - Window boundaries correct (rolling last 7/14/30 days? Or fixed windows?)
-     - No off-by-one on end timestamps
-     - Aggregation math: `arrivedInbox / canaryTotal` = `deliverabilityPct`
-     - Snapshot table INSERT vs UPDATE strategy (should be UPSERT on `(org_id, mailbox_id, gateway, window_start)`)
+
+- `deliverability-snapshot.ts` — the 15-min rollup. Verify:
+  - Window boundaries correct (rolling last 7/14/30 days? Or fixed windows?)
+  - No off-by-one on end timestamps
+  - Aggregation math: `arrivedInbox / canaryTotal` = `deliverabilityPct`
+  - Snapshot table INSERT vs UPDATE strategy (should be UPSERT on `(org_id, mailbox_id, gateway, window_start)`)
 
 ## Do
 
