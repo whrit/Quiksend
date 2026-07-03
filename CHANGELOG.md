@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.1](https://github.com/whrit/Quiksend/compare/v2.3.0...v2.3.1) (2026-07-03)
+
+
+### Bug Fixes
+
+* **web:** stop server code leaking into client bundle (env crash + password-in-URL + notFound) ([#59](https://github.com/whrit/Quiksend/issues/59)) ([d8c066b](https://github.com/whrit/Quiksend/commit/d8c066b7ced0d8e536bda8b4e71e94f2adfa98cc))
+
 ## [2.3.0](https://github.com/whrit/Quiksend/compare/v2.2.1...v2.3.0) (2026-07-03)
 
 
