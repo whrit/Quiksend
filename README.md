@@ -70,6 +70,7 @@ and GHCR images.
 ## Features
 
 - Manual-first sequences → automated follow-up (Gmail, Microsoft 365, SMTP)
+- **Enterprise deliverability** — SEG detection (Proofpoint / Mimecast / Barracuda / Cisco), routing around consumer ESPs, real-time canary drop detection. See [docs/deliverability.md](docs/deliverability.md).
 - AI research + generation grounded in web and CRM context
 - Salesforce + HubSpot bi-directional sync via Nango
 - Unified inbox with sentiment classification

@@ -22,6 +22,11 @@ export const SUPPORTED_WEBHOOK_EVENTS = [
   "enrollment.stopped",
   "enrollment.failed",
   "prospect.unsubscribed",
+  // Phase 11 — enterprise deliverability (see docs/deliverability.md)
+  "enrollment.no_safe_mailbox_for_gateway",
+  "deliverability.canary.arrived",
+  "deliverability.canary.silent_drop",
+  "gateway.detected",
 ] as const;
 
 export type WebhookEventType = (typeof SUPPORTED_WEBHOOK_EVENTS)[number];

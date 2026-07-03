@@ -42,3 +42,7 @@ All responses use `{ data: ... }` or `{ error: { code, message } }`.
 ## Unsubscribe
 
 One-click unsubscribe links resolve to `GET /api/v1/unsubscribe?token=...` (HTML confirmation, no API key required).
+
+## Deliverability data
+
+Phase 11 (enterprise deliverability) does not expose new public REST endpoints. Gateway classifications, seed inbox management, and the deliverability grid are UI + server-fn only. Deliverability signals reach external systems via **webhooks** — subscribe to `enrollment.no_safe_mailbox_for_gateway`, `deliverability.canary.arrived`, `deliverability.canary.silent_drop`, and `gateway.detected` at **Settings → Webhooks** or the `/api/v1/webhooks` endpoint. See [webhooks.md](./webhooks.md) and [deliverability.md](./deliverability.md).
