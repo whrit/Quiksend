@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.3](https://github.com/whrit/Quiksend/compare/v2.3.2...v2.3.3) (2026-07-03)
+
+
+### Bug Fixes
+
+* **web:** serialize JS Date to ISO string in raw SQL interpolations ([#63](https://github.com/whrit/Quiksend/issues/63)) ([3f89e6d](https://github.com/whrit/Quiksend/commit/3f89e6ddadf28b8bef087ead584804aebf8b9ef7))
+
 ## [2.3.2](https://github.com/whrit/Quiksend/compare/v2.3.1...v2.3.2) (2026-07-03)
 
 
