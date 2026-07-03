@@ -46,6 +46,7 @@ export interface EnrollmentContext {
     readonly lastName: string | null;
     readonly title: string | null;
     readonly status: string;
+    readonly emailGateway: import("@quiksend/mail/gateway-detect").EmailGateway | null;
   };
   readonly company: {
     readonly name: string | null;
@@ -66,6 +67,7 @@ export interface EnrollmentContext {
   readonly stopOnReply: boolean;
   readonly senderFirstName: string | null;
   readonly senderSignature: string | null;
+  readonly deliverabilityPolicy: import("@quiksend/core/deliverability").DeliverabilityPolicy;
 }
 
 type SendWindowJson = {

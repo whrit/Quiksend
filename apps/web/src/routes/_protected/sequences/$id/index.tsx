@@ -1,38 +1,46 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getSequenceDeliverability } from "@/lib/deliverability.functions.ts";
+import { AlertTriangle } from "lucide-react";
+import { useState } from "react";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SEG_GATEWAY_VALUES } from "@/components/gateway-badge.tsx";
+import { getSequenceDeliverabilityRisk } from "@/lib/organization.functions.ts";
+import { getGatewayMixForSequence } from "@/lib/prospects.functions.ts";
 import { getSequence } from "@/lib/sequences.functions.ts";
 
 export const Route = createFileRoute("/_protected/sequences/$id/")({
   loader: async ({ params }) => {
-    const sequence = await getSequence({ data: { id: params.id } });
-    return { sequence };
+    const [sequence, gatewayMix, sequenceRisk] = await Promise.all([
+      getSequence({ data: { id: params.id } }),
+      getGatewayMixForSequence({ data: { sequenceId: params.id } }),
+      getSequenceDeliverabilityRisk({ data: { sequenceId: params.id } }),
+    ]);
+    return { sequence, gatewayMix, sequenceRisk };
   },
   component: SequenceDetailPage,
 });
 
 function SequenceDetailPage() {
-  const { sequence } = Route.useLoaderData();
-  const [live, setLive] = useState<Awaited<ReturnType<typeof getSequenceDeliverability>> | null>(
-    null,
-  );
+  const { sequence, gatewayMix, sequenceRisk } = Route.useLoaderData();
+  const [dismissed, setDismissed] = useState(false);
 
-  useEffect(() => {
-    const load = () =>
-      void getSequenceDeliverability({ data: { sequenceId: sequence.id } }).then(setLive);
-    load();
-    const id = setInterval(load, 30_000);
-    return () => clearInterval(id);
-  }, [sequence.id]);
+  const segProspects = gatewayMix.mix
+    .filter((row) =>
+      SEG_GATEWAY_VALUES.includes(row.gateway as (typeof SEG_GATEWAY_VALUES)[number]),
+    )
+    .reduce((sum, row) => sum + row.count, 0);
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+    <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
-        <Link to="/sequences" className={buttonVariants({ variant: "ghost", size: "sm" })}>
-          ← Sequences
+        <Link
+          to="/sequences/$id/edit"
+          params={{ id: sequence.id }}
+          className={buttonVariants({ variant: "ghost", size: "sm" })}
+        >
+          ← Edit sequence
         </Link>
         <h1 className="text-2xl font-semibold">{sequence.name}</h1>
       </div>
@@ -53,54 +61,75 @@ function SequenceDetailPage() {
           Analytics
         </Link>
         <Link
-          to="/sequences/$id/edit"
+          to="/sequences/$id/enroll"
           params={{ id: sequence.id }}
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >
-          Edit
-        </Link>
-        <Link to="/deliverability" className={buttonVariants({ variant: "outline", size: "sm" })}>
-          Deliverability grid
+          Enroll prospects
         </Link>
       </div>
 
-      {/* === Phase 11C live deliverability indicator (PHI) === */}
+      {sequenceRisk.showBanner && !dismissed && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Deliverability risk</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              This sequence enrolls {sequenceRisk.segProspectCount} prospect(s) at SEG-protected
+              domains. None of your mailboxes are marked enterprise-safe.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link to="/settings/deliverability" className={buttonVariants({ size: "sm" })}>
+                Enable routing guard
+              </Link>
+              <Link
+                to="/settings/mailboxes"
+                className={buttonVariants({ size: "sm", variant: "outline" })}
+              >
+                Configure mailboxes
+              </Link>
+              <Button size="sm" variant="ghost" onClick={() => setDismissed(true)}>
+                Ignore
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Live campaign deliverability</CardTitle>
+          <CardTitle>Deliverability outlook</CardTitle>
+          <CardDescription>
+            SEG mix of enrolled prospects — {(gatewayMix.classifiedPct * 100).toFixed(0)}%
+            classified
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          {!live ? (
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          ) : live.sampleSize === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No recent canary signal for this campaign (last 2 hours).
-            </p>
-          ) : (
-            <p className="text-lg font-medium">
-              Live deliverability for this campaign: {live.deliverabilityPct ?? "—"}%
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                ({live.sampleSize} canaries)
-              </span>
+        <CardContent className="space-y-4">
+          {segProspects > 0 && (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              This sequence enrolls {segProspects} prospect(s) behind secure email gateways
+              (Proofpoint, Mimecast, etc.). See Deliverability settings for routing options.
             </p>
           )}
-          {live?.belowThreshold && (
-            <p className="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
-              Auto-pause armed. Delivery rate has dropped below {live.threshold}%. Review at{" "}
-              <Link to="/deliverability" className="underline">
-                deliverability
-              </Link>
-              .
-            </p>
-          )}
-          {live?.autoPaused && (
-            <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-              This campaign was auto-paused due to canary deliverability breach.
-            </p>
-          )}
+          <div className="h-56">
+            {gatewayMix.mix.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No enrolled prospects with gateways yet.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={gatewayMix.mix} layout="vertical" margin={{ left: 100 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} />
+                  <YAxis type="category" dataKey="gateway" width={96} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value: number) => `${(value * 100).toFixed(1)}%`} />
+                  <Bar dataKey="pct" fill="hsl(var(--primary))" radius={2} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </CardContent>
       </Card>
-      {/* === End Phase 11C === */}
     </div>
   );
 }

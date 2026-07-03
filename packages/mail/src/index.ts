@@ -20,6 +20,13 @@ export {
 } from "./inbound-matching.ts";
 export { detectAutoReply, type AutoReplyDetection } from "./auto-reply.ts";
 export { buildMime, type BuildMimeInput, type BuildMimeOutput } from "./mime.ts";
+export {
+  sanitizeForSeg,
+  sanitizeForSegAsync,
+  extractRecipientDomain,
+  type BuiltMime,
+  type SanitizeForSegOptions,
+} from "./content-sanitizer.ts";
 export { decryptSmtpConfig, encryptSmtpConfig, type SmtpConfigPlain } from "./crypto.ts";
 export {
   decryptSeedImapConfig,

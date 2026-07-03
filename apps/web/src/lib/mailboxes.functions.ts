@@ -140,6 +140,10 @@ export type PublicMailbox = {
     dmarc: { pass: boolean; reason: string | null; record: string | null };
   } | null;
   status: string;
+  enterpriseSafe: boolean;
+  enterpriseSafeReason: string | null;
+  enterpriseSafeDeclaredAt: string | null;
+  enterpriseSafeAutoDowngraded: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -165,6 +169,10 @@ function toPublicMailbox(row: MailboxRow): PublicMailbox {
     healthCheckedAt: row.healthCheckedAt?.toISOString() ?? null,
     healthNotes: row.healthNotes as PublicMailbox["healthNotes"],
     status: row.status,
+    enterpriseSafe: row.enterpriseSafe,
+    enterpriseSafeReason: row.enterpriseSafeReason,
+    enterpriseSafeDeclaredAt: row.enterpriseSafeDeclaredAt?.toISOString() ?? null,
+    enterpriseSafeAutoDowngraded: row.enterpriseSafeAutoDowngraded,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -488,4 +496,58 @@ export const finalizeMicrosoftMailbox = orgFn({ method: "POST" })
       .returning();
     if (!updated) throw new MailboxError("NOT_FOUND", "Mailbox not found");
     return toPublicMailbox(updated);
+  });
+
+export const setMailboxEnterpriseSafe = orgFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z
+      .object({
+        mailboxId: z.string().uuid(),
+        safe: z.boolean(),
+        reason: z.string().max(500).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    requireAdmin({ orgContext: context.orgContext });
+    const organizationId = context.orgContext.organizationId;
+
+    const existing = await db.query.mailbox.findFirst({
+      where: and(
+        eq(tables.mailbox.id, data.mailboxId),
+        eq(tables.mailbox.organizationId, organizationId),
+      ),
+    });
+    if (!existing) throw new MailboxError("NOT_FOUND", "Mailbox not found");
+
+    const now = new Date();
+    const [row] = await db
+      .update(tables.mailbox)
+      .set({
+        enterpriseSafe: data.safe,
+        enterpriseSafeReason: data.safe ? (data.reason ?? existing.enterpriseSafeReason) : null,
+        enterpriseSafeDeclaredAt: data.safe ? now : null,
+        enterpriseSafeAutoDowngraded: data.safe ? false : existing.enterpriseSafeAutoDowngraded,
+      })
+      .where(
+        and(
+          eq(tables.mailbox.id, data.mailboxId),
+          eq(tables.mailbox.organizationId, organizationId),
+        ),
+      )
+      .returning();
+    if (!row) throw new MailboxError("NOT_FOUND", "Mailbox not found");
+
+    await db.insert(tables.event).values({
+      organizationId,
+      type: "mailbox.enterprise_safe_toggled",
+      entityType: "mailbox",
+      entityId: row.id,
+      payload: {
+        safe: data.safe,
+        reason: data.reason ?? null,
+      },
+    });
+
+    return toPublicMailbox(row);
   });

@@ -23,7 +23,8 @@
   },
   "dependencies": {
     "@quiksend/config": "workspace:*",
-    "nodemailer": "9.0.3"
+    "nodemailer": "9.0.3",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/nodemailer": "8.0.1"

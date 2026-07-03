@@ -50,7 +50,11 @@ export type TaskStepConfig = { title: string; instructions: string };
 
 export type StepConfig = EmailStepConfig | WaitStepConfig | TaskStepConfig;
 
-export type EntryCondition = { kind: "if_no_reply" };
+export type EntryCondition = {
+  kind?: "if_no_reply";
+  recipientGatewayIn?: string[];
+  recipientGatewayNotIn?: string[];
+};
 
 const sequenceSettingsSchema = z.object({
   timezone: z.string().min(1).max(100),
@@ -77,7 +81,9 @@ const taskConfigSchema = z.object({
 
 const entryConditionSchema = z
   .object({
-    kind: z.literal("if_no_reply"),
+    kind: z.literal("if_no_reply").optional(),
+    recipientGatewayIn: z.array(z.string()).optional(),
+    recipientGatewayNotIn: z.array(z.string()).optional(),
   })
   .strict();
 

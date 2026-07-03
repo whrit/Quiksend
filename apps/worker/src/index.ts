@@ -4,10 +4,10 @@ import { initSentry, Sentry, shutdownPostHog } from "@quiksend/observability";
 import { enqueue, getBoss, registerHandler, stopBoss } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
 import { registerAiResearchHandler } from "./handlers/ai-research.ts";
-import { registerCanaryCheckHandler } from "./handlers/canary-check.ts";
-import { registerCanarySendHandler } from "./handlers/canary-send-handler.ts";
-import { registerDeliverabilitySnapshotHandler } from "./handlers/deliverability-snapshot.ts";
-import { registerSeedInboxVerifyHandler } from "./handlers/seed-inbox-verify.ts";
+import {
+  registerGatewayDetectHandlers,
+  registerGatewaySweepCron,
+} from "./handlers/gateway-detect.ts";
 import { registerImportProspectsHandler } from "./handlers/import-prospects.ts";
 import { registerCrmSyncHandler } from "./handlers/crm-sync.ts";
 import { registerWebhookFanoutHandler } from "./handlers/webhook-fanout.ts";
@@ -15,6 +15,10 @@ import { registerCrmWritebackHandler } from "./handlers/crm-writeback.ts";
 import { registerMailboxPollHandler, registerMailboxPollTick } from "./handlers/mailbox-poll.ts";
 import { registerNangoWebhookSweep } from "./handlers/nango-webhook-sweep.ts";
 import { registerSequenceHandlers } from "./sequence/register.ts";
+import { registerCanaryCheckHandler } from "./handlers/canary-check.ts";
+import { registerCanarySendHandler } from "./handlers/canary-send-handler.ts";
+import { registerDeliverabilitySnapshotHandler } from "./handlers/deliverability-snapshot.ts";
+import { registerSeedInboxVerifyHandler } from "./handlers/seed-inbox-verify.ts";
 
 /**
  * Worker entrypoint. Boots pg-boss, registers job handlers, and idles waiting
@@ -57,13 +61,15 @@ async function main(): Promise<void> {
   await registerCrmWritebackHandler();
   await registerAiResearchHandler();
   await registerImportProspectsHandler();
+  await registerGatewayDetectHandlers();
+  await registerGatewaySweepCron();
   await registerSequenceHandlers();
   await registerMailboxPollHandler();
-  await registerMailboxPollTick();
   await registerSeedInboxVerifyHandler();
   await registerCanarySendHandler();
   await registerCanaryCheckHandler();
   await registerDeliverabilitySnapshotHandler();
+  await registerMailboxPollTick();
   await registerNangoWebhookSweep();
 
   if (env.NODE_ENV !== "production") {

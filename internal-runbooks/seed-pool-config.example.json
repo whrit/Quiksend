@@ -1,28 +1,13 @@
 [
   {
-    "email": "pro-seed-proofpoint-01@apex-mail.net",
+    "email": "example.name@example-seed-domain.net",
     "gateway": "proofpoint",
-    "provider": "m365",
+    "provider": "microsoft_365",
+    "imap_host": "outlook.office365.com",
+    "imap_port": 993,
+    "imap_username": "example.name@example-seed-domain.net",
+    "imap_password": "REDACTED-EXAMPLE",
     "pool_tag": "production",
-    "imap": {
-      "host": "outlook.office365.com",
-      "port": 993,
-      "username": "pro-seed-proofpoint-01@apex-mail.net",
-      "password": "REPLACE_ME",
-      "secure": true
-    }
-  },
-  {
-    "email": "pro-seed-mimecast-01@nova-corp-mail.com",
-    "gateway": "mimecast",
-    "provider": "m365",
-    "pool_tag": "production",
-    "imap": {
-      "host": "outlook.office365.com",
-      "port": 993,
-      "username": "pro-seed-mimecast-01@nova-corp-mail.com",
-      "password": "REPLACE_ME",
-      "secure": true
-    }
+    "notes": "Example config; do not use for real pool."
   }
 ]

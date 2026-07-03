@@ -16,6 +16,15 @@ const TRACKED_ENGINE_EVENTS = new Set([
   "enrollment.bounced",
 ]);
 
+const DELIVERABILITY_EVENTS = new Set([
+  "deliverability.delivered_at_risk",
+  "deliverability.mailbox_auto_swapped",
+  "deliverability.anchor_threading_preserved",
+  "enrollment.no_safe_mailbox_for_gateway",
+  "mailbox.enterprise_safe_toggled",
+  "workspace.deliverability_policy_changed",
+]);
+
 function normalizeAnalyticsType(engineType: string): string {
   if (engineType === "enrollment.replied") return "reply.received";
   if (engineType === "enrollment.bounced") return "bounce.received";
@@ -157,7 +166,7 @@ export async function handleEmitEvent(
     "enrollment event",
   );
 
-  if (!TRACKED_ENGINE_EVENTS.has(engineType)) return;
+  if (!TRACKED_ENGINE_EVENTS.has(engineType) && !DELIVERABILITY_EVENTS.has(engineType)) return;
 
   const { entityType, entityId } = await resolveEntityId(tx, ctx.organizationId, engineType, ctx);
   const analyticsType = normalizeAnalyticsType(engineType);

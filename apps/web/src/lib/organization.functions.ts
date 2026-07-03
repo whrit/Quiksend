@@ -1,0 +1,243 @@
+import { isAdminOrOwner } from "@quiksend/core";
+import {
+  SEG_GATEWAYS,
+  mergeDeliverabilityPolicy,
+  parseDeliverabilityPolicy,
+  type DeliverabilityPolicy,
+  type RoutingPolicy,
+} from "@quiksend/core/deliverability";
+import { db, tables } from "@quiksend/db";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { z } from "zod";
+import { orgFn } from "./org-fn.ts";
+
+class OrganizationError extends Error {
+  readonly code: "FORBIDDEN" | "NOT_FOUND";
+  constructor(code: OrganizationError["code"], message: string) {
+    super(message);
+    this.name = "OrganizationError";
+    this.code = code;
+  }
+}
+
+function requireAdmin(ctx: { orgContext: { role: string } }): void {
+  if (!isAdminOrOwner(ctx.orgContext as never)) {
+    throw new OrganizationError("FORBIDDEN", "Admin or owner role required");
+  }
+}
+
+async function loadOrgMetadata(organizationId: string): Promise<string | null> {
+  const org = await db.query.organization.findFirst({
+    where: eq(tables.organization.id, organizationId),
+    columns: { metadata: true },
+  });
+  if (!org) throw new OrganizationError("NOT_FOUND", "Workspace not found");
+  return org.metadata;
+}
+
+export const getWorkspaceDeliverabilityPolicy = orgFn({ method: "GET" }).handler(
+  async ({ context }) => {
+    const metadata = await loadOrgMetadata(context.orgContext.organizationId);
+    return parseDeliverabilityPolicy(metadata);
+  },
+);
+
+export const setWorkspaceDeliverabilityPolicy = orgFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z
+      .object({
+        routingPolicy: z.enum(["off", "warn", "enforce"]),
+        contentSanitizerEnabled: z.boolean().optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    requireAdmin({ orgContext: context.orgContext });
+    const organizationId = context.orgContext.organizationId;
+    const metadata = await loadOrgMetadata(organizationId);
+    const nextMetadata = mergeDeliverabilityPolicy(metadata, {
+      routingPolicy: data.routingPolicy,
+      contentSanitizerEnabled: data.contentSanitizerEnabled,
+      changedBy: context.orgContext.userId,
+    });
+
+    await db
+      .update(tables.organization)
+      .set({ metadata: nextMetadata })
+      .where(eq(tables.organization.id, organizationId));
+
+    await db.insert(tables.event).values({
+      organizationId,
+      type: "workspace.deliverability_policy_changed",
+      entityType: "organization",
+      entityId: organizationId,
+      payload: {
+        routingPolicy: data.routingPolicy,
+        contentSanitizerEnabled: data.contentSanitizerEnabled ?? data.routingPolicy !== "off",
+      },
+    });
+
+    return parseDeliverabilityPolicy(nextMetadata);
+  });
+
+export type RoutingImpactPreview = {
+  prospectsBehindSeg: number;
+  safeMailboxCount: number;
+  prospectsAtRiskOfSkip: number;
+  prospectsPerGateway: Array<{ gateway: string; count: number }>;
+};
+
+export async function computeRoutingImpact(organizationId: string): Promise<RoutingImpactPreview> {
+  const segGateways = [...SEG_GATEWAYS];
+
+  const segProspects = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(tables.prospect)
+    .where(
+      and(
+        eq(tables.prospect.organizationId, organizationId),
+        isNull(tables.prospect.deletedAt),
+        inArray(tables.prospect.emailGateway, segGateways),
+      ),
+    );
+
+  const prospectsBehindSeg = segProspects[0]?.count ?? 0;
+
+  const safeMailboxes = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(tables.mailbox)
+    .where(
+      and(
+        eq(tables.mailbox.organizationId, organizationId),
+        eq(tables.mailbox.status, "active"),
+        eq(tables.mailbox.enterpriseSafe, true),
+        eq(tables.mailbox.enterpriseSafeAutoDowngraded, false),
+      ),
+    );
+
+  const safeMailboxCount = safeMailboxes[0]?.count ?? 0;
+
+  const perGateway = await db
+    .select({
+      gateway: tables.prospect.emailGateway,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(tables.prospect)
+    .where(
+      and(
+        eq(tables.prospect.organizationId, organizationId),
+        isNull(tables.prospect.deletedAt),
+        inArray(tables.prospect.emailGateway, segGateways),
+      ),
+    )
+    .groupBy(tables.prospect.emailGateway);
+
+  return {
+    prospectsBehindSeg,
+    safeMailboxCount,
+    prospectsAtRiskOfSkip: safeMailboxCount === 0 ? prospectsBehindSeg : 0,
+    prospectsPerGateway: perGateway
+      .filter((row) => row.gateway != null)
+      .map((row) => ({ gateway: row.gateway!, count: row.count })),
+  };
+}
+
+export const previewRoutingImpact = orgFn({ method: "GET" }).handler(async ({ context }) => {
+  return computeRoutingImpact(context.orgContext.organizationId);
+});
+
+export type SequenceDeliverabilityRisk = {
+  segProspectCount: number;
+  safeMailboxCount: number;
+  showBanner: boolean;
+};
+
+export const getSequenceDeliverabilityRisk = orgFn({ method: "POST" })
+  .validator((data: unknown) => z.object({ sequenceId: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const organizationId = context.orgContext.organizationId;
+    const sequence = await db.query.sequence.findFirst({
+      where: and(
+        eq(tables.sequence.id, data.sequenceId),
+        eq(tables.sequence.organizationId, organizationId),
+      ),
+    });
+    if (!sequence) throw new OrganizationError("NOT_FOUND", "Sequence not found");
+
+    const segGateways = [...SEG_GATEWAYS];
+    const segEnrolled = await db
+      .select({ count: sql<number>`count(distinct ${tables.prospect.id})::int` })
+      .from(tables.enrollment)
+      .innerJoin(tables.prospect, eq(tables.prospect.id, tables.enrollment.prospectId))
+      .where(
+        and(
+          eq(tables.enrollment.sequenceId, sequence.id),
+          eq(tables.enrollment.organizationId, organizationId),
+          inArray(tables.prospect.emailGateway, segGateways),
+        ),
+      );
+
+    const impact = await computeRoutingImpact(organizationId);
+    const segProspectCount = segEnrolled[0]?.count ?? 0;
+
+    return {
+      segProspectCount,
+      safeMailboxCount: impact.safeMailboxCount,
+      showBanner: segProspectCount > 0 && impact.safeMailboxCount === 0,
+    } satisfies SequenceDeliverabilityRisk;
+  });
+
+export type EnrollmentSegWarning = {
+  segCount: number;
+  safeMailboxCount: number;
+  unsafeMailboxProviders: string[];
+  showWarning: boolean;
+};
+
+export const getEnrollmentSegWarning = orgFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z.object({ prospectIds: z.array(z.string().uuid()).min(1) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const organizationId = context.orgContext.organizationId;
+    const segGateways = [...SEG_GATEWAYS];
+
+    const segProspects = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tables.prospect)
+      .where(
+        and(
+          eq(tables.prospect.organizationId, organizationId),
+          inArray(tables.prospect.id, data.prospectIds),
+          inArray(tables.prospect.emailGateway, segGateways),
+        ),
+      );
+
+    const segCount = segProspects[0]?.count ?? 0;
+    const impact = await computeRoutingImpact(organizationId);
+
+    const unsafeMailboxes = await db.query.mailbox.findMany({
+      where: and(
+        eq(tables.mailbox.organizationId, organizationId),
+        eq(tables.mailbox.status, "active"),
+      ),
+      columns: { provider: true, enterpriseSafe: true, enterpriseSafeAutoDowngraded: true },
+    });
+
+    const unsafeMailboxProviders = [
+      ...new Set(
+        unsafeMailboxes
+          .filter((mb) => !mb.enterpriseSafe || mb.enterpriseSafeAutoDowngraded)
+          .map((mb) => mb.provider),
+      ),
+    ];
+
+    return {
+      segCount,
+      safeMailboxCount: impact.safeMailboxCount,
+      unsafeMailboxProviders,
+      showWarning: segCount > 0 && impact.safeMailboxCount === 0,
+    } satisfies EnrollmentSegWarning;
+  });
+
+export type { DeliverabilityPolicy, RoutingPolicy };
