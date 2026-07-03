@@ -1,21 +1,29 @@
-import { mergeCanaryConfig } from "@quiksend/core/deliverability";
+import {
+  isSegGateway,
+  mergeCanaryConfig,
+  parseDeliverabilityPolicy,
+} from "@quiksend/core/deliverability";
 import { env } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
 import {
   buildComplianceParts,
   buildMime,
   buildUnsubscribeUrl,
+  extractRecipientDomain,
   mintUnsubscribeToken,
+  sanitizeForSeg,
   sendMime,
   createSmtpTransport,
 } from "@quiksend/mail";
-import { and, eq, isNull } from "drizzle-orm";
+import { enqueue } from "@quiksend/queue";
+import { and, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { createMailboxAdapter } from "../sequence/mailbox-adapter.ts";
 import { renderTemplate, stripHtml } from "../sequence/render-template.ts";
 import { getWorkspacePostalAddress } from "../sequence/workspace-postal.ts";
 import type { EmailStepConfig } from "../sequence/context.ts";
 
 const ARRIVAL_WINDOW_MINUTES = 15;
+const DOMAIN_GAP_MS = 5 * 60 * 1000;
 
 export async function materializeCanarySend(canarySendId: string): Promise<void> {
   const row = await db.query.canarySend.findFirst({
@@ -23,7 +31,7 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
   });
   if (!row || row.sentAt) return;
 
-  const [sequence, mailbox, seedInbox] = await Promise.all([
+  const [sequence, mailbox, seedInbox, org] = await Promise.all([
     db.query.sequence.findFirst({
       where: and(
         eq(tables.sequence.id, row.sequenceId),
@@ -39,9 +47,20 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
     db.query.seedInbox.findFirst({
       where: eq(tables.seedInbox.id, row.seedInboxId),
     }),
+    db.query.organization.findFirst({
+      where: eq(tables.organization.id, row.organizationId),
+      columns: { metadata: true },
+    }),
   ]);
 
   if (!sequence || !mailbox || !seedInbox || !seedInbox.active) {
+    return;
+  }
+
+  const throttle = await checkCanaryDomainGap(mailbox.id, seedInbox.email, new Date());
+  if (!throttle.ok) {
+    const delaySec = Math.max(60, Math.ceil((throttle.deferUntil.getTime() - Date.now()) / 1000));
+    await enqueue("canary.send", { canarySendId }, { startAfter: delaySec });
     return;
   }
 
@@ -54,7 +73,7 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
   });
 
   const autoSteps = steps.filter((s) => s.stepType === "auto_email");
-  const step = autoSteps[hashToIndex(row.canaryToken, autoSteps.length)] ?? autoSteps[0];
+  const step = resolveCanaryStep(autoSteps, row.stepIndex, row.canaryToken);
   if (!step) return;
 
   const config = step.config as EmailStepConfig;
@@ -71,9 +90,31 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
   };
 
   const subject = `${renderTemplate(config.subject, templateCtx)} [Q${shortId}]`;
-  const bodyHtml = renderTemplate(config.body_template, templateCtx);
-  const bodyText = stripHtml(bodyHtml);
+  let bodyHtml = renderTemplate(config.body_template, templateCtx);
+  let bodyText = stripHtml(bodyHtml);
   const signature = mailbox.signatureHtml ? `\n\n${mailbox.signatureHtml}` : "";
+
+  const metadataRaw =
+    typeof org?.metadata === "string"
+      ? org.metadata
+      : org?.metadata
+        ? JSON.stringify(org.metadata)
+        : null;
+  const deliverabilityPolicy = parseDeliverabilityPolicy(metadataRaw);
+  const shouldSanitize =
+    deliverabilityPolicy.contentSanitizerEnabled && isSegGateway(seedInbox.gateway);
+  if (shouldSanitize) {
+    const sanitized = sanitizeForSeg(
+      { html: bodyHtml, text: bodyText },
+      {
+        stripTrackingPixel: true,
+        stripExternalImages: true,
+        preferPlainText: true,
+      },
+    );
+    bodyHtml = sanitized.html;
+    bodyText = sanitized.text;
+  }
 
   const token = mintUnsubscribeToken({
     prospectId: row.id,
@@ -148,6 +189,46 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
         isNull(tables.canarySend.sentAt),
       ),
     );
+}
+
+function resolveCanaryStep(
+  autoSteps: (typeof tables.sequenceStep.$inferSelect)[],
+  persistedStepIndex: number | null | undefined,
+  canaryToken: string,
+): typeof tables.sequenceStep.$inferSelect | undefined {
+  if (autoSteps.length === 0) return undefined;
+  if (persistedStepIndex != null) {
+    const matched = autoSteps.find((s) => s.stepIndex === persistedStepIndex);
+    if (matched) return matched;
+  }
+  return autoSteps[hashToIndex(canaryToken, autoSteps.length)] ?? autoSteps[0];
+}
+
+async function checkCanaryDomainGap(
+  mailboxId: string,
+  recipientEmail: string,
+  at: Date,
+): Promise<{ ok: true } | { ok: false; deferUntil: Date }> {
+  const recipientDomain = extractRecipientDomain(recipientEmail);
+  if (!recipientDomain) return { ok: true };
+
+  const since = new Date(at.getTime() - DOMAIN_GAP_MS);
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(tables.sendReservation)
+    .where(
+      and(
+        eq(tables.sendReservation.mailboxId, mailboxId),
+        eq(tables.sendReservation.recipientDomain, recipientDomain),
+        gte(tables.sendReservation.reservedAt, since),
+        inArray(tables.sendReservation.status, ["held", "sent"]),
+      ),
+    );
+
+  if ((rows[0]?.count ?? 0) >= 1) {
+    return { ok: false, deferUntil: new Date(at.getTime() + DOMAIN_GAP_MS) };
+  }
+  return { ok: true };
 }
 
 async function loadOrgMetadata(organizationId: string): Promise<Record<string, unknown> | null> {
