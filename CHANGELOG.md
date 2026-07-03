@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/whrit/Quiksend/compare/v2.2.0...v2.2.1) (2026-07-03)
+
+
+### Documentation
+
+* **v2.2.0:** catch up all docs + env with Phase 11 shipped ([#52](https://github.com/whrit/Quiksend/issues/52)) ([85f39a0](https://github.com/whrit/Quiksend/commit/85f39a011f08203927903d387b90b75188bcdb38))
+
 ## [2.2.0](https://github.com/whrit/Quiksend/compare/v2.1.1...v2.2.0) (2026-07-03)
 
 
