@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import {
   isSegGateway,
   mergeCanaryConfig,
@@ -260,10 +259,6 @@ function hashToIndex(token: string, length: number): number {
     hash = (hash * 31 + token.charCodeAt(i)) >>> 0;
   }
   return hash % length;
-}
-
-export function newCanaryToken(): string {
-  return randomUUID();
 }
 
 export { ARRIVAL_WINDOW_MINUTES };

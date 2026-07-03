@@ -50,7 +50,7 @@ export const getDeliverabilityGrid = orgFn({ method: "POST" })
     const snapshots = await db.query.deliverabilitySnapshot.findMany({
       where: and(
         eq(tables.deliverabilitySnapshot.organizationId, organizationId),
-        sql`${tables.deliverabilitySnapshot.windowStart} >= ${windowStart}`,
+        eq(tables.deliverabilitySnapshot.windowDays, data.windowDays),
       ),
     });
 
@@ -61,7 +61,9 @@ export const getDeliverabilityGrid = orgFn({ method: "POST" })
 
     const rows = mailboxes.map((mailbox) => {
       const cells = SEG_GATEWAY_VALUES.map((gateway) => {
-        const snap = snapshots.find((s) => s.mailboxId === mailbox.id && s.gateway === gateway);
+        const snap = snapshots
+          .filter((s) => s.mailboxId === mailbox.id && s.gateway === gateway)
+          .toSorted((a, b) => b.windowEnd.getTime() - a.windowEnd.getTime())[0];
         const total = snap?.canaryTotal ?? 0;
         const deliveredInbox = snap?.canaryDelivered ?? 0;
         const pct = snap?.deliverabilityPct ? Number(snap.deliverabilityPct) : null;

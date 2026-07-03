@@ -49,6 +49,10 @@ export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
   "list",
   "prospect",
   "company",
+  "gateway_classification",
+  "canary_send",
+  "seed_inbox",
+  "deliverability_snapshot",
 ];
 
 export async function truncateAppTables(): Promise<void> {

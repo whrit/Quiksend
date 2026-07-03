@@ -19,6 +19,8 @@ import { registerCanaryCheckHandler } from "./handlers/canary-check.ts";
 import { registerCanarySendHandler } from "./handlers/canary-send-handler.ts";
 import { registerDeliverabilitySnapshotHandler } from "./handlers/deliverability-snapshot.ts";
 import { registerSeedInboxVerifyHandler } from "./handlers/seed-inbox-verify.ts";
+import { registerSeedPoolHealthHandler } from "./handlers/seed-pool-health.ts";
+import { registerSeedPoolLegitMailHandler } from "./handlers/seed-pool-legit-mail.ts";
 
 /**
  * Worker entrypoint. Boots pg-boss, registers job handlers, and idles waiting
@@ -66,6 +68,8 @@ async function main(): Promise<void> {
   await registerSequenceHandlers();
   await registerMailboxPollHandler();
   await registerSeedInboxVerifyHandler();
+  await registerSeedPoolHealthHandler();
+  await registerSeedPoolLegitMailHandler();
   await registerCanarySendHandler();
   await registerCanaryCheckHandler();
   await registerDeliverabilitySnapshotHandler();

@@ -2,7 +2,7 @@ import { logger } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
 import { registerHandler } from "@quiksend/queue";
 import { eq } from "drizzle-orm";
-import { decryptSeedImapConfig } from "@quiksend/mail";
+import { decryptSeedImapConfig, validateImapHost } from "@quiksend/mail";
 import { verifyImapConnection } from "../deliverability/seed-imap.ts";
 
 const MAX_VERIFY_ATTEMPTS = 3;
@@ -19,6 +19,11 @@ export async function registerSeedInboxVerifyHandler(): Promise<void> {
 
     try {
       const config = decryptSeedImapConfig(seed.imapConfig, seed.organizationId);
+      const hostError = validateImapHost(config.host);
+      if (hostError) {
+        logger.warn({ seedInboxId, host: config.host }, `security: ${hostError}`);
+        throw new Error(hostError);
+      }
       await verifyImapConnection(config);
       await db
         .update(tables.seedInbox)

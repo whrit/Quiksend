@@ -5,7 +5,7 @@ import { enqueue } from "@quiksend/queue";
 import type { EmailGateway } from "@quiksend/mail";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { encryptSeedImapConfig, type SeedImapConfigPlain } from "@quiksend/mail";
+import { encryptSeedImapConfig, validateImapHost, type SeedImapConfigPlain } from "@quiksend/mail";
 import { isDeliverabilityProEntitled } from "./canary-injection.ts";
 import { orgFn } from "./org-fn.ts";
 
@@ -90,6 +90,11 @@ export const createUserSeedInbox = orgFn({ method: "POST" })
     const { organizationId } = context.orgContext;
     if (!env.MAILBOX_ENCRYPTION_KEY) {
       throw new SeedInboxError("CONFIG", "MAILBOX_ENCRYPTION_KEY is required");
+    }
+
+    const hostError = validateImapHost(data.imapHost);
+    if (hostError) {
+      throw new SeedInboxError("VALIDATION", hostError);
     }
 
     const imap: SeedImapConfigPlain = {
