@@ -63,7 +63,8 @@ export type Event =
     }
   | { readonly kind: "pause" }
   | { readonly kind: "resume" }
-  | { readonly kind: "stop"; readonly reason?: string };
+  | { readonly kind: "stop"; readonly reason?: string }
+  | { readonly kind: "no_safe_mailbox"; readonly at: Date };
 
 export type Effect =
   | { readonly kind: "schedule_at"; readonly at: Date }
