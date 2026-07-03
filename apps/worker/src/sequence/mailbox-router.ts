@@ -37,6 +37,9 @@ function toSafetySnapshot(mailbox: MailboxRow) {
 }
 
 async function loadSafeMailboxes(tx: DbTx, orgId: string): Promise<MailboxRow[]> {
+  // CR-35 (PERF-014): no partial index on enterprise_safe filter yet — acceptable at <20
+  // mailboxes/workspace; add (organization_id) WHERE status='active' AND enterprise_safe=true
+  // AND enterprise_safe_auto_downgraded=false if mailbox counts grow.
   const rows = await tx.query.mailbox.findMany({
     where: and(
       eq(tables.mailbox.organizationId, orgId),
@@ -54,6 +57,7 @@ async function pickLeastLoadedSafeMailbox(
   currentMailbox: MailboxRow,
   at: Date,
 ): Promise<string> {
+  // CR-34 (PERF-011): N reservation COUNTs inside advisory lock — fine at <5 safe mailboxes.
   let bestId = safeMailboxes[0]!.id;
   let bestCount = Number.POSITIVE_INFINITY;
   let bestSameProvider = false;

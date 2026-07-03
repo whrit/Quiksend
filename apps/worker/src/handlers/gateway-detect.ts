@@ -2,12 +2,14 @@ import { logger } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
 import { detectEmailGateway, type EmailGateway } from "@quiksend/mail/gateway-detect";
 import { enqueueWithRetries, registerHandler } from "@quiksend/queue";
-import { and, eq, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 
 const DNS_CONCURRENCY = 50;
 const CACHE_TTL_DAYS_HIGH = 30;
 const CACHE_TTL_DAYS_LOW = 7;
 const CACHE_TTL_HOURS_FAILURE = 24;
+
+type ClassificationRow = typeof tables.gatewayClassification.$inferSelect;
 
 function extractDomain(email: string): string | null {
   const trimmed = email.trim().toLowerCase();
@@ -51,6 +53,22 @@ async function upsertDomainClassification(
         ttlUntil: ttlForConfidence(result.confidence, isFailure),
       },
     });
+}
+
+async function loadFreshClassifications(
+  domains: string[],
+): Promise<Map<string, ClassificationRow>> {
+  if (domains.length === 0) return new Map();
+  const rows = await db
+    .select()
+    .from(tables.gatewayClassification)
+    .where(
+      and(
+        inArray(tables.gatewayClassification.emailDomain, domains),
+        gt(tables.gatewayClassification.ttlUntil, sql`now()`),
+      ),
+    );
+  return new Map(rows.map((row) => [row.emailDomain, row]));
 }
 
 async function applyClassificationToProspects(
@@ -109,6 +127,17 @@ export async function registerGatewayDetectHandlers(): Promise<void> {
       return;
     }
 
+    const cached = await loadFreshClassifications([domain]);
+    const fresh = cached.get(domain);
+    if (fresh) {
+      const count = await applyClassificationToProspects(domain, fresh.gateway, fresh.evidence);
+      logger.info(
+        { domain, gateway: fresh.gateway, prospectsUpdated: count, cacheHit: true },
+        "gateway.detect_single done",
+      );
+      return;
+    }
+
     await classifyDomain(domain);
     const row = await db.query.gatewayClassification.findFirst({
       where: eq(tables.gatewayClassification.emailDomain, domain),
@@ -117,26 +146,31 @@ export async function registerGatewayDetectHandlers(): Promise<void> {
 
     const count = await applyClassificationToProspects(domain, row.gateway, row.evidence);
     logger.info(
-      { domain, gateway: row.gateway, prospectsUpdated: count },
+      { domain, gateway: row.gateway, prospectsUpdated: count, cacheHit: false },
       "gateway.detect_single done",
     );
   });
 
   await registerHandler("gateway.detect_bulk", async ({ emails }) => {
     const domains = [...new Set(emails.map(extractDomain).filter((d): d is string => Boolean(d)))];
-    await runWithConcurrency(domains, DNS_CONCURRENCY, async (domain) => {
+    const cached = await loadFreshClassifications(domains);
+    const uncachedDomains = domains.filter((domain) => !cached.has(domain));
+
+    await runWithConcurrency(uncachedDomains, DNS_CONCURRENCY, async (domain) => {
       await classifyDomain(domain);
     });
 
     await enqueueWithRetries("gateway.apply_classification", {});
-    logger.info({ domainCount: domains.length }, "gateway.detect_bulk done");
+    logger.info(
+      { domainCount: domains.length, cacheHits: cached.size, dnsLookups: uncachedDomains.length },
+      "gateway.detect_bulk done",
+    );
   });
 
   await registerHandler("gateway.apply_classification", async ({ organizationId, domain }) => {
     if (domain) {
-      const row = await db.query.gatewayClassification.findFirst({
-        where: eq(tables.gatewayClassification.emailDomain, domain),
-      });
+      const cached = await loadFreshClassifications([domain]);
+      const row = cached.get(domain);
       if (row) {
         await applyClassificationToProspects(domain, row.gateway, row.evidence, organizationId);
       }
@@ -167,36 +201,22 @@ export async function registerGatewayDetectHandlers(): Promise<void> {
       ),
     ];
 
-    const cached =
-      domainsNeeded.length > 0
-        ? await db.query.gatewayClassification.findMany({
-            where: inArray(tables.gatewayClassification.emailDomain, domainsNeeded),
-          })
-        : [];
+    const cacheByDomain = await loadFreshClassifications(domainsNeeded);
+    const missingDomains: string[] = [];
 
-    const cacheByDomain = new Map(cached.map((row) => [row.emailDomain, row]));
-
-    for (const prospect of unclassified) {
-      const d = extractDomain(prospect.email);
-      if (!d) continue;
+    for (const d of domainsNeeded) {
       const row = cacheByDomain.get(d);
       if (!row) {
-        await enqueueWithRetries("gateway.detect_single", { email: prospect.email });
+        missingDomains.push(d);
         continue;
       }
-      await db
-        .update(tables.prospect)
-        .set({
-          emailGateway: row.gateway,
-          gatewayClassifiedAt: new Date(),
-          gatewayEvidence: row.evidence,
-        })
-        .where(
-          and(
-            eq(tables.prospect.id, prospect.id),
-            eq(tables.prospect.organizationId, prospect.organizationId),
-          ),
-        );
+      await applyClassificationToProspects(d, row.gateway, row.evidence, organizationId);
+    }
+
+    if (missingDomains.length > 0) {
+      await enqueueWithRetries("gateway.detect_bulk", {
+        emails: missingDomains.map((d) => `probe@${d}`),
+      });
     }
   });
 
@@ -231,4 +251,4 @@ export async function registerGatewaySweepCron(): Promise<void> {
   logger.info({ job: "gateway.sweep_stale" }, "gateway sweep cron scheduled");
 }
 
-export { extractDomain, applyClassificationToProspects, classifyDomain };
+export { extractDomain, applyClassificationToProspects, classifyDomain, loadFreshClassifications };
