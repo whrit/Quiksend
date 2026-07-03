@@ -7,7 +7,7 @@ import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
-import { resolveMailboxAdapter } from "./mailboxes.functions.ts";
+import { resolveMailboxAdapter } from "./mailboxes.server.ts";
 
 const inboxFilterSchema = z.object({
   unread: z.boolean().optional(),

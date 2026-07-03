@@ -8,8 +8,8 @@ const mockSend = vi.fn<MailboxAdapter["send"]>(async () => ({
   sentAt: new Date("2026-01-01T12:00:00Z"),
 }));
 
-vi.mock("./mailboxes.functions.ts", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./mailboxes.functions.ts")>();
+vi.mock("./mailboxes.server.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./mailboxes.server.ts")>();
   return {
     ...actual,
     resolveMailboxAdapter: vi.fn<typeof actual.resolveMailboxAdapter>(() => ({
@@ -21,7 +21,7 @@ vi.mock("./mailboxes.functions.ts", async (importOriginal) => {
   };
 });
 
-import { resolveMailboxAdapter } from "./mailboxes.functions.ts";
+import { resolveMailboxAdapter } from "./mailboxes.server.ts";
 import { buildThreadingHeaders } from "@quiksend/mail/threading";
 
 describe("compose send via adapter", () => {

@@ -18,11 +18,6 @@ import {
 } from "./mailboxes.server.ts";
 import { authMiddleware } from "./org-fn.ts";
 
-// Re-exported so existing callers (`compose.functions.ts`, `inbox.functions.ts`,
-// worker fixtures, tests) keep the same import path. Actual value lives in the
-// server-only `mailboxes.server.ts`; type erases at build time.
-export { resolveMailboxAdapter };
-
 class MailboxError extends Error {
   readonly code: "NOT_FOUND" | "FORBIDDEN" | "VALIDATION" | "CONFIG";
   constructor(code: MailboxError["code"], message: string) {
