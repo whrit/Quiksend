@@ -24,6 +24,28 @@ function requireAdmin(ctx: { orgContext: { role: string } }): void {
   }
 }
 
+export type UserSeedInboxListItem = {
+  kind: "user";
+  id: string;
+  email: string;
+  gateway: EmailGateway;
+  provider: string;
+  verifiedAt: string | null;
+  active: boolean;
+  notes: string | null;
+  providerManaged: false;
+};
+
+export type ProviderPoolSummaryListItem = {
+  kind: "provider_pool_summary";
+  gateway: EmailGateway;
+  count: number;
+  providerManaged: true;
+};
+
+export type SeedInboxListItem = UserSeedInboxListItem | ProviderPoolSummaryListItem;
+
+/** @deprecated Use `SeedInboxListItem` — kept for create/toggle responses. */
 export type PublicSeedInbox = {
   id: string;
   email: string;
@@ -46,6 +68,28 @@ function toPublic(row: typeof tables.seedInbox.$inferSelect): PublicSeedInbox {
     notes: row.notes,
     providerManaged: row.organizationId === null,
   };
+}
+
+function toUserListItem(row: typeof tables.seedInbox.$inferSelect): UserSeedInboxListItem {
+  const pub = toPublic(row);
+  return { kind: "user", ...pub, providerManaged: false };
+}
+
+function summarizeProviderPools(
+  rows: (typeof tables.seedInbox.$inferSelect)[],
+): ProviderPoolSummaryListItem[] {
+  const counts = new Map<EmailGateway, number>();
+  for (const row of rows) {
+    counts.set(row.gateway, (counts.get(row.gateway) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .toSorted(([a], [b]) => a.localeCompare(b))
+    .map(([gateway, count]) => ({
+      kind: "provider_pool_summary" as const,
+      gateway,
+      count,
+      providerManaged: true as const,
+    }));
 }
 
 const createSchema = z.object({
@@ -80,7 +124,10 @@ export const listSeedInboxes = orgFn({ method: "GET" }).handler(async ({ context
       })
     : [];
 
-  return [...userSeeds.map(toPublic), ...providerSeeds.map(toPublic)];
+  return [
+    ...userSeeds.map(toUserListItem),
+    ...summarizeProviderPools(providerSeeds),
+  ] satisfies SeedInboxListItem[];
 });
 
 export const createUserSeedInbox = orgFn({ method: "POST" })

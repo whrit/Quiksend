@@ -44,6 +44,7 @@ requires all of the following in addition to `DATABASE_URL`:
 | `DATABASE_POOLER_MODE=transaction`     | Use with PgBouncer / Neon pooled endpoints                                                                         |
 | `NANGO_PUBLIC_URL`                     | Public base URL Nango redirects to after connect                                                                   |
 | `SEG_DAILY_CAP_PER_MAILBOX`            | Extra per-mailbox daily cap for SEG-destined sends (default 50) — see [deliverability.md](./deliverability.md)     |
+| `TRACKING_PIXEL_DOMAIN`                | Hostname for tracking-pixel stripping in the SEG content sanitizer (defaults to `BETTER_AUTH_URL` host)            |
 | `SYSTEM_SEED_ENCRYPTION_KEY`           | **Quiksend Systems only** — decrypts provider-managed seed pool for Deliverability Pro. Leave UNSET for self-host. |
 
 Webhook throughput tuning: `WEBHOOK_SWEEP_INTERVAL_MS`, `WEBHOOK_SWEEP_BATCH_SIZE`,

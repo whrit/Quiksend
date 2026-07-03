@@ -1,4 +1,5 @@
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { Outlet, createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { authClient } from "@/lib/auth-client";
@@ -28,6 +29,13 @@ function ProtectedLayout() {
         <div className="flex items-center gap-4">
           <span className="font-semibold">Quiksend</span>
           <WorkspaceSwitcher />
+          <Link
+            to="/deliverability"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <Shield className="h-4 w-4" />
+            Deliverability
+          </Link>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{user.email}</span>

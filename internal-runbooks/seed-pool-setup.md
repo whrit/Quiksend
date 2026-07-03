@@ -448,11 +448,12 @@ Trigger `seed_inbox.verify` job (or wait for health cron) and confirm IMAP OK in
 
 ## Ongoing operations
 
-### Daily / automated: health check
+### Daily: seed pool health (manual until Wave 9 automation)
 
-Cron `seed_pool.health_check` (24h interval — Track PHI ships).
+**No automated cron ships in Phase 11.** Run this manual weekly ops procedure until
+`seed_pool.health_check` lands (Wave 9 / Track PHI2):
 
-**Alerts to on-call** if:
+**Check for:**
 
 - Any seed IMAP LOGIN fails
 - Any seed has **< 5 non-canary messages** in 30 days (dormant → SEG downgrade risk)
@@ -465,10 +466,11 @@ Cron `seed_pool.health_check` (24h interval — Track PHI ships).
 3. **Dormant:** subscribe seeds to 2–3 real newsletters; ensure legit-usage cron is enabled;
    see [seed-pool-legit-usage-patterns.md](./seed-pool-legit-usage-patterns.md).
 
-### Weekly: legit-usage generator
+### Weekly: legit-usage generator (manual until Wave 9 automation)
 
-Cron `seed_pool.generate_legit_mail` — templates in
-[seed-pool-legit-usage-patterns.md](./seed-pool-legit-usage-patterns.md).
+**No automated cron ships in Phase 11.** Until `seed_pool.generate_legit_mail` lands,
+follow the manual patterns in
+[seed-pool-legit-usage-patterns.md](./seed-pool-legit-usage-patterns.md):
 
 - Cap **5 messages/seed/week**
 - Vary content and send times
