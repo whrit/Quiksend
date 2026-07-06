@@ -1,7 +1,13 @@
 import type { ReactNode } from "react";
 import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { initSentry } from "@/lib/sentry-init.ts";
 import appCss from "@/styles/app.css?url";
+
+// Init Sentry before the router is constructed so any error thrown during SSR —
+// route loaders, server-fn 500s, API-route throws — is captured. On the client
+// bundle `initSentry` compiles down to a no-op (see `sentry-init.ts`).
+initSentry();
 
 export const Route = createRootRoute({
   head: () => ({
