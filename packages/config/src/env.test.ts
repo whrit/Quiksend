@@ -69,4 +69,25 @@ describe("EnvSchema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("accepts optional search provider API keys", () => {
+    const parsed = EnvSchema.parse({
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      BRAVE_API_KEY: "brave-token",
+      EXA_API_KEY: "exa-token",
+      TAVILY_API_KEY: "tavily-token",
+    });
+    expect(parsed.BRAVE_API_KEY).toBe("brave-token");
+    expect(parsed.EXA_API_KEY).toBe("exa-token");
+    expect(parsed.TAVILY_API_KEY).toBe("tavily-token");
+  });
+
+  it("treats search provider API keys as optional", () => {
+    const parsed = EnvSchema.parse({
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+    });
+    expect(parsed.BRAVE_API_KEY).toBeUndefined();
+    expect(parsed.EXA_API_KEY).toBeUndefined();
+    expect(parsed.TAVILY_API_KEY).toBeUndefined();
+  });
 });
