@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Download, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Loader2, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { bulkUnsuppressEmails, listSuppressions, unsuppressEmail } from "@/lib/inbox.functions.ts";
+import {
+  bulkUnsuppressEmails,
+  listSuppressions,
+  suppressEmail,
+  unsuppressEmail,
+} from "@/lib/inbox.functions.ts";
 
 export const Route = createFileRoute("/_protected/settings/suppression")({
   component: SuppressionPage,
@@ -27,6 +32,8 @@ function SuppressionPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [addEmail, setAddEmail] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -93,6 +100,23 @@ function SuppressionPage() {
     }
   };
 
+  const handleAdd = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const email = addEmail.trim().toLowerCase();
+    if (!email) return;
+    setAddBusy(true);
+    try {
+      await suppressEmail({ data: { email, reason: "manual" } });
+      toast.success(`${email} added to suppression list`);
+      setAddEmail("");
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add suppression");
+    } finally {
+      setAddBusy(false);
+    }
+  };
+
   const handleExportCsv = () => {
     const rows = (selectedEmails.length > 0 ? items.filter((row) => selected[row.id]) : items).map(
       (row) => [row.value, row.reason, row.createdAt].join(","),
@@ -121,6 +145,32 @@ function SuppressionPage() {
           Emails blocked from future sends due to bounces, unsubscribes, or manual blocks.
         </p>
       </div>
+
+      <form
+        onSubmit={(e) => void handleAdd(e)}
+        className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-3"
+      >
+        <Input
+          type="email"
+          placeholder="Add email to suppression list…"
+          value={addEmail}
+          onChange={(e) => setAddEmail(e.target.value)}
+          disabled={addBusy}
+          className="max-w-sm"
+          required
+        />
+        <Button size="sm" type="submit" disabled={addBusy || !addEmail.trim()}>
+          {addBusy ? (
+            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+          ) : (
+            <Plus className="mr-1 h-4 w-4" />
+          )}
+          Add to suppression list
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          Blocks future sends and marks the prospect <code>do_not_contact</code>.
+        </span>
+      </form>
 
       <div className="flex flex-wrap items-center gap-3">
         <Input

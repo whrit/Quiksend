@@ -1,3 +1,4 @@
+import { isAdminOrOwner } from "@quiksend/core";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { SUPPORTED_WEBHOOK_EVENTS } from "@quiksend/db/schema";
@@ -68,6 +69,9 @@ export const createWebhookEndpoint = createServerFn({ method: "POST" })
   .validator(createWebhookSchema)
   .handler(async ({ data, context }) => {
     const { organizationId, userId } = context.orgContext;
+    if (!isAdminOrOwner(context.orgContext)) {
+      throw new Error("Admin or owner role required to manage webhook endpoints");
+    }
     if (!isAllowedWebhookUrl(data.url)) {
       throw new Error("Webhook URL is not allowed");
     }
@@ -96,6 +100,9 @@ export const updateWebhookEndpoint = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
+    if (!isAdminOrOwner(context.orgContext)) {
+      throw new Error("Admin or owner role required to manage webhook endpoints");
+    }
     const { organizationId } = context.orgContext;
     if (data.patch.url && !isAllowedWebhookUrl(data.patch.url)) {
       throw new Error("Webhook URL is not allowed");
@@ -120,6 +127,9 @@ export const deleteWebhookEndpoint = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
+    if (!isAdminOrOwner(context.orgContext)) {
+      throw new Error("Admin or owner role required to manage webhook endpoints");
+    }
     const { organizationId } = context.orgContext;
     const [deleted] = await db
       .delete(tables.webhookEndpoint)
