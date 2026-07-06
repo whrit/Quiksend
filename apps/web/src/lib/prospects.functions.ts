@@ -765,58 +765,6 @@ async function resolveCompanyId(
   return null;
 }
 
-async function importProspectRow(
-  organizationId: string,
-  row: ValidCsvRow,
-  dedupePolicy: DedupePolicy,
-): Promise<"created" | "updated" | "skipped"> {
-  const email = normalizeEmail(row.prospect.email);
-  if (!email) throw new Error("Invalid email");
-
-  const companyId = await resolveCompanyId(organizationId, row.company);
-
-  const existing = await db.query.prospect.findFirst({
-    where: and(
-      eq(tables.prospect.organizationId, organizationId),
-      eq(tables.prospect.email, email),
-    ),
-  });
-
-  const prospectValues = {
-    firstName: row.prospect.firstName ?? null,
-    lastName: row.prospect.lastName ?? null,
-    title: row.prospect.title ?? null,
-    phone: row.prospect.phone ?? null,
-    linkedinUrl: row.prospect.linkedinUrl ?? null,
-    timezone: row.prospect.timezone ?? null,
-    companyId,
-    source: "csv" as const,
-    deletedAt: null,
-  };
-
-  if (existing) {
-    if (existing.deletedAt || dedupePolicy === "update_existing") {
-      await db
-        .update(tables.prospect)
-        .set(prospectValues)
-        .where(
-          and(
-            eq(tables.prospect.id, existing.id),
-            eq(tables.prospect.organizationId, organizationId),
-          ),
-        );
-      return existing.deletedAt ? "created" : "updated";
-    }
-    return "skipped";
-  }
-
-  await db.insert(tables.prospect).values({
-    organizationId,
-    email,
-    ...prospectValues,
-  });
-  return "created";
-}
 
 export const startImport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
