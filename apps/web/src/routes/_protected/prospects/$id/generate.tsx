@@ -57,10 +57,18 @@ function ProspectGeneratePage() {
   const runGenerate = async () => {
     setBusy("generate");
     try {
-      const row = await generateEmailForProspect({ data: { prospectId, forceResearch: false } });
-      setGeneration(row);
-      setSubject(row.outputSubject);
-      setBody(row.outputBodyMarkdown);
+      const result = await generateEmailForProspect({
+        data: { prospectId, forceResearch: false },
+      });
+      if (result.status === "RESEARCH_PENDING") {
+        // RESEARCH_PENDING is a normal state, not an error — poll and retry.
+        toast.info("Research kicked off — regenerating once it lands");
+        setTimeout(() => void reload(), 3000);
+        return;
+      }
+      setGeneration(result.generation);
+      setSubject(result.subject);
+      setBody(result.body);
       toast.success("Email generated");
       await reload();
     } catch (err) {

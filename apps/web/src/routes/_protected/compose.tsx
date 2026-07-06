@@ -81,9 +81,13 @@ function ComposePage() {
     }
     setAiAssisting(true);
     try {
-      const row = await generateEmailForProspect({ data: { prospectId } });
-      setSubject(row.outputSubject);
-      setBodyHtml(row.outputBodyMarkdown.replace(/\n/g, "<br>"));
+      const result = await generateEmailForProspect({ data: { prospectId } });
+      if (result.status === "RESEARCH_PENDING") {
+        toast.info("Research kicked off — try AI assist again in a few seconds");
+        return;
+      }
+      setSubject(result.subject);
+      setBodyHtml(result.body.replace(/\n/g, "<br>"));
       toast.success("AI draft loaded — review before sending");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "AI assist failed");

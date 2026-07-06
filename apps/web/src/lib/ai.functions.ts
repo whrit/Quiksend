@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import {
-  buildProfile,
   buildPrompt,
   generateEmail,
   humanizeEmail,
@@ -11,7 +10,7 @@ import {
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import type { GenerationPromptPayload, ResearchFact } from "@quiksend/db/schema";
-import { enqueue } from "@quiksend/queue";
+import { enqueue, enqueueWithRetries } from "@quiksend/queue";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
@@ -19,7 +18,7 @@ import { authMiddleware } from "./org-fn.ts";
 import { deleteValueProp, listValueProps, type PublicValueProp } from "./value-props.functions.ts";
 
 class AiError extends Error {
-  readonly code: "NOT_FOUND" | "VALIDATION" | "RESEARCH_PENDING";
+  readonly code: "NOT_FOUND" | "VALIDATION";
   constructor(code: AiError["code"], message: string) {
     super(message);
     this.name = "AiError";
@@ -127,27 +126,39 @@ async function loadThreadContext(
   }));
 }
 
-async function ensureResearch(
-  organizationId: string,
-  prospectId: string,
-  forceResearch: boolean,
-): Promise<void> {
-  const profile = await db.query.researchProfile.findFirst({
-    where: and(
-      eq(tables.researchProfile.organizationId, organizationId),
-      eq(tables.researchProfile.prospectId, prospectId),
-    ),
-  });
+/**
+ * Result of `generateEmailForProspect`.
+ *
+ * `RESEARCH_PENDING` is a **normal, non-error** state: research for the
+ * prospect is missing or stale, so a background `ai.research` job has been
+ * enqueued. The client should poll `getProspectAiReview` (or re-invoke
+ * this function) until it receives `OK`. Cold prospects would otherwise
+ * time out this request while research runs synchronously.
+ */
+export type GenerateEmailResult =
+  | {
+      status: "OK";
+      subject: string;
+      body: string;
+      rationale: string;
+      generation: PublicGeneration;
+    }
+  | {
+      status: "RESEARCH_PENDING";
+      researchJobEnqueued: true;
+    };
 
-  const stale =
-    !profile ||
-    profile.status !== "ready" ||
-    !profile.freshUntil ||
-    profile.freshUntil <= new Date();
+type ResearchProfileRow = typeof tables.researchProfile.$inferSelect;
 
-  if (stale || forceResearch) {
-    await buildProfile(prospectId, { forceRefresh: forceResearch || stale });
-  }
+function isResearchFresh(
+  profile: ResearchProfileRow | undefined,
+): profile is ResearchProfileRow & { status: "ready"; freshUntil: Date } {
+  return (
+    !!profile &&
+    profile.status === "ready" &&
+    !!profile.freshUntil &&
+    profile.freshUntil > new Date()
+  );
 }
 
 export const getProspectAiReview = createServerFn({ method: "POST" })
@@ -232,7 +243,7 @@ export const generateEmailForProspect = createServerFn({ method: "POST" })
       })
       .parse(data),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data, context }): Promise<GenerateEmailResult> => {
     const { organizationId } = context.orgContext;
 
     const prospect = await db.query.prospect.findFirst({
@@ -244,19 +255,27 @@ export const generateEmailForProspect = createServerFn({ method: "POST" })
     });
     if (!prospect) throw new AiError("NOT_FOUND", "Prospect not found");
 
-    await ensureResearch(organizationId, data.prospectId, data.forceResearch === true);
-
     const profile = await db.query.researchProfile.findFirst({
       where: and(
         eq(tables.researchProfile.organizationId, organizationId),
         eq(tables.researchProfile.prospectId, data.prospectId),
       ),
     });
-    if (!profile || profile.status === "pending") {
-      throw new AiError("RESEARCH_PENDING", "Research is still in progress");
-    }
-    if (profile.status === "error") {
-      throw new AiError("VALIDATION", profile.error ?? "Research failed");
+
+    const forceResearch = data.forceResearch === true;
+
+    // Non-blocking research pipeline. Under the old synchronous flow the
+    // request awaited `buildProfile` inline, so a cold prospect could time
+    // out an HTTP handler while the LLM crunched. Now: fresh profile →
+    // generate immediately; stale / missing / errored / forced → enqueue
+    // `ai.research` with retries and hand `RESEARCH_PENDING` back to the
+    // client to poll.
+    if (forceResearch || !isResearchFresh(profile)) {
+      await enqueueWithRetries("ai.research", {
+        prospectId: data.prospectId,
+        forceRefresh: forceResearch,
+      });
+      return { status: "RESEARCH_PENDING", researchJobEnqueued: true };
     }
 
     const facts = profile.facts as ResearchFact[];
@@ -324,7 +343,14 @@ export const generateEmailForProspect = createServerFn({ method: "POST" })
       .returning();
 
     if (!row) throw new AiError("VALIDATION", "Failed to persist generation");
-    return toPublicGeneration(row, humanized.warnings);
+    const generation = toPublicGeneration(row, humanized.warnings);
+    return {
+      status: "OK",
+      subject: generation.outputSubject,
+      body: generation.outputBodyMarkdown,
+      rationale: generation.outputRationale,
+      generation,
+    };
   });
 
 export const approveGeneration = createServerFn({ method: "POST" })

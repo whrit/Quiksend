@@ -918,11 +918,16 @@ function SequenceBuilderPage() {
                     stepId: stepForm.id,
                   },
                 })
-                  .then((row) => {
+                  .then((result) => {
+                    if (result.status === "RESEARCH_PENDING") {
+                      // RESEARCH_PENDING is a normal state, not an error.
+                      toast.info("Research kicked off — try again in a few seconds");
+                      return;
+                    }
                     setAiPreviewResult({
-                      subject: row.outputSubject,
-                      body: row.outputBodyMarkdown,
-                      rationale: row.outputRationale,
+                      subject: result.subject,
+                      body: result.body,
+                      rationale: result.rationale,
                     });
                     toast.success("Preview generated");
                   })
