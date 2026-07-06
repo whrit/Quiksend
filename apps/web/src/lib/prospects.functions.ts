@@ -831,15 +831,13 @@ export const startImport = createServerFn({ method: "POST" })
         filename: data.filename,
         mapping: data.mapping,
         createdByUserId: userId,
-        status: "processing",
+        // Row processing happens in the worker (import.process handler).
+        // "queued" tells the UI to keep polling instead of re-showing the file
+        // picker.
+        status: "queued",
       })
       .returning();
     if (!batch) throw new Error("Failed to create import batch");
-
-    let createdCount = 0;
-    let updatedCount = 0;
-    let skippedCount = 0;
-    let erroredCount = data.invalidRows?.length ?? 0;
 
     if (data.invalidRows?.length) {
       await db.insert(tables.importError).values(
@@ -850,45 +848,49 @@ export const startImport = createServerFn({ method: "POST" })
           reason: row.reason,
         })),
       );
+      // Reflect parse-time errors in the batch counters immediately so the
+      // client's polling snapshot has something to render.
+      await db
+        .update(tables.importBatch)
+        .set({ erroredCount: data.invalidRows.length })
+        .where(
+          and(
+            eq(tables.importBatch.id, batch.id),
+            eq(tables.importBatch.organizationId, organizationId),
+          ),
+        );
     }
 
-    for (const row of data.rows) {
-      try {
-        const outcome = await importProspectRow(organizationId, row, data.dedupePolicy);
-        if (outcome === "created") createdCount += 1;
-        else if (outcome === "updated") updatedCount += 1;
-        else skippedCount += 1;
-      } catch (err) {
-        erroredCount += 1;
-        await db.insert(tables.importError).values({
-          batchId: batch.id,
-          rowNumber: row.rowNumber,
-          raw: row.prospect as unknown as Record<string, unknown>,
-          reason: err instanceof Error ? err.message : "Import failed",
-        });
-      }
-    }
+    // Hand the actual row-by-row work off to the worker so a 5,000-row CSV
+    // doesn't hold a server-fn request open for minutes and time out at the
+    // proxy layer. The client polls `getImportBatch` and shows progress.
+    await enqueueWithRetries("import.process", {
+      batchId: batch.id,
+      organizationId,
+      dedupePolicy: data.dedupePolicy,
+      rows: data.rows,
+    });
 
-    const [completed] = await db
-      .update(tables.importBatch)
-      .set({
-        createdCount,
-        updatedCount,
-        skippedCount,
-        erroredCount,
-        status: "completed",
-      })
+    const [refreshed] = await db
+      .select()
+      .from(tables.importBatch)
       .where(
         and(
           eq(tables.importBatch.id, batch.id),
           eq(tables.importBatch.organizationId, organizationId),
         ),
-      )
-      .returning();
+      );
 
     return {
-      batch: serializeImportBatch(completed!),
-      summary: { createdCount, updatedCount, skippedCount, erroredCount },
+      batch: serializeImportBatch(refreshed ?? batch),
+      // Kept for backwards-compat with the previous synchronous shape; will be
+      // zero until the worker fills them in and the client re-polls.
+      summary: {
+        createdCount: 0,
+        updatedCount: 0,
+        skippedCount: 0,
+        erroredCount: data.invalidRows?.length ?? 0,
+      },
     };
   });
 
