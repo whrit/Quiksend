@@ -5,7 +5,6 @@ import type { EmailGateway } from "@quiksend/mail/gateway-detect";
 import { isAdminOrOwner } from "@quiksend/core";
 import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import type { DedupePolicy, ValidCsvRow } from "./prospect-import.ts";
 import { normalizeDomain, normalizeEmail } from "./prospect-import.ts";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
@@ -715,56 +714,6 @@ export const removeFromList = createServerFn({ method: "POST" })
 
     return { removed: data.prospectIds.length };
   });
-
-async function resolveCompanyId(
-  organizationId: string,
-  company: ValidCsvRow["company"],
-): Promise<string | null> {
-  if (!company) return null;
-
-  const domain = company.domain ? normalizeDomain(company.domain) : null;
-  const name = company.name?.trim() || null;
-
-  if (domain) {
-    const existing = await db.query.company.findFirst({
-      where: and(
-        eq(tables.company.organizationId, organizationId),
-        eq(tables.company.domain, domain),
-        isNull(tables.company.deletedAt),
-      ),
-    });
-    if (existing) return existing.id;
-
-    const [created] = await db
-      .insert(tables.company)
-      .values({
-        organizationId,
-        domain,
-        name: name ?? domain,
-        industry: company.industry,
-        website: company.website,
-      })
-      .returning();
-    return created?.id ?? null;
-  }
-
-  if (name) {
-    const existing = await db.query.company.findFirst({
-      where: and(
-        eq(tables.company.organizationId, organizationId),
-        sql`lower(${tables.company.name}) = ${name.toLowerCase()}`,
-        isNull(tables.company.deletedAt),
-      ),
-    });
-    if (existing) return existing.id;
-
-    const [created] = await db.insert(tables.company).values({ organizationId, name }).returning();
-    return created?.id ?? null;
-  }
-
-  return null;
-}
-
 
 export const startImport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
