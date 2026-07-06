@@ -313,6 +313,56 @@ export const getWorkspaceOverview = createServerFn({ method: "GET" })
     });
   });
 
+export const getSequencePerformance = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { organizationId } = context.orgContext;
+    return withAnalyticsTiming("getSequencePerformance", organizationId, async () => {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      const rows = await db.execute<{
+        sequence_id: string;
+        sequence_name: string;
+        sequence_status: "draft" | "active" | "archived";
+        sent: number;
+        replied: number;
+        bounced: number;
+      }>(sql`
+        SELECT
+          s.id AS sequence_id,
+          s.name AS sequence_name,
+          s.status AS sequence_status,
+          COUNT(*) FILTER (WHERE ev.type = 'message.sent')::int AS sent,
+          COUNT(*) FILTER (WHERE ev.type = 'reply.received')::int AS replied,
+          COUNT(*) FILTER (WHERE ev.type = 'bounce.received')::int AS bounced
+        FROM sequence s
+        LEFT JOIN event ev
+          ON ev.organization_id = s.organization_id
+          AND (ev.payload->>'sequenceId')::uuid = s.id
+          AND ev.created_at >= ${thirtyDaysAgo.toISOString()}
+        WHERE s.organization_id = ${organizationId}
+          AND s.deleted_at IS NULL
+        GROUP BY s.id, s.name, s.status
+        ORDER BY sent DESC, s.name ASC
+      `);
+
+      return rows.map((r) => {
+        const sent = r.sent ?? 0;
+        const replied = r.replied ?? 0;
+        const bounced = r.bounced ?? 0;
+        return {
+          sequenceId: r.sequence_id,
+          sequenceName: r.sequence_name,
+          sequenceStatus: r.sequence_status,
+          sent,
+          replied,
+          bounced,
+          replyRate: sent > 0 ? replied / sent : 0,
+        };
+      });
+    });
+  });
+
 export const getSequenceEventTimeline = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .validator((data: unknown) =>
