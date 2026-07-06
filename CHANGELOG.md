@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.4](https://github.com/whrit/Quiksend/compare/v2.3.3...v2.3.4) (2026-07-06)
+
+
+### Bug Fixes
+
+* **web:** stop /deliverability route pulling server-only canary-injection.ts ([#65](https://github.com/whrit/Quiksend/issues/65)) ([8e937c7](https://github.com/whrit/Quiksend/commit/8e937c742245ad8e1389ce7502cc33f9464a0e69))
+
 ## [2.3.3](https://github.com/whrit/Quiksend/compare/v2.3.2...v2.3.3) (2026-07-03)
 
 
