@@ -43,7 +43,26 @@ export const Route = createFileRoute("/_protected")({
     return { user: { id: access.userId, email: access.email, name: access.name } };
   },
   component: ProtectedLayout,
+  errorComponent: ProtectedErrorBoundary,
 });
+
+function ProtectedErrorBoundary({ error }: { error: unknown }) {
+  const message = error instanceof Error ? error.message : "Something went wrong.";
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-8 text-center">
+      <h1 className="text-2xl font-semibold">Something went wrong</h1>
+      <p className="max-w-lg text-sm text-muted-foreground">{message}</p>
+      <div className="flex gap-3 text-sm">
+        <Link to="/dashboard" className="underline">
+          Go to dashboard
+        </Link>
+        <button type="button" className="underline" onClick={() => window.location.reload()}>
+          Reload
+        </button>
+      </div>
+    </div>
+  );
+}
 
 type NavIcon = (props: { className?: string }) => React.ReactNode;
 

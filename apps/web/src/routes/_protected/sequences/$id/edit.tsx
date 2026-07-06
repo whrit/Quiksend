@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -84,7 +85,12 @@ import { cn } from "@/lib/utils";
 
 type SequenceDetail = Awaited<ReturnType<typeof getSequence>>;
 
+const editSearchSchema = z.object({
+  anchorMessageId: z.string().uuid().optional(),
+});
+
 export const Route = createFileRoute("/_protected/sequences/$id/edit")({
+  validateSearch: (search) => editSearchSchema.parse(search),
   loader: async ({ params }) => {
     const [sequence, mailboxes] = await Promise.all([
       getSequence({ data: { id: params.id } }),
@@ -332,6 +338,7 @@ function SortableStepCard({
 function SequenceBuilderPage() {
   const { sequence: initial, mailboxes } = Route.useLoaderData();
   const { id } = Route.useParams();
+  const { anchorMessageId } = Route.useSearch();
 
   const [sequence, setSequence] = useState(initial);
   const [steps, setSteps] = useState<Step[]>(initial.steps);
@@ -484,6 +491,17 @@ function SequenceBuilderPage() {
           )}
         </div>
       </div>
+
+      {anchorMessageId ? (
+        <div className="rounded-md border bg-primary/5 p-3 text-sm">
+          Anchored to message{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">
+            {anchorMessageId.slice(0, 8)}…
+          </code>{" "}
+          — use <code>auto_email</code> steps to reply into that thread when you activate and
+          enroll.
+        </div>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-4">
