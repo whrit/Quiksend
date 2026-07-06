@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.5.0](https://github.com/whrit/Quiksend/compare/v2.4.0...v2.5.0) (2026-07-06)
+
+
+### Features
+
+* **deliverability:** routing policy Off/Warn/Enforce UI + filtered canary drawer + grid empty state ([#71](https://github.com/whrit/Quiksend/issues/71)) ([6a882ff](https://github.com/whrit/Quiksend/commit/6a882ffe82a8f4e4158f3008719dc38b5d5d03ac))
+* **mailbox:** inline MAILBOX_ENCRYPTION_KEY error on SMTP mailbox creation ([#76](https://github.com/whrit/Quiksend/issues/76)) ([1cf486d](https://github.com/whrit/Quiksend/commit/1cf486d384abb5c44669cb6d784955872a60fec2))
+* **prospects:** CSV import runs on the worker queue instead of blocking the request ([#74](https://github.com/whrit/Quiksend/issues/74)) ([c02b1d9](https://github.com/whrit/Quiksend/commit/c02b1d99ca75534f4d3dcfc7b1798e794cca4e4f))
+* **security:** admin gates on webhook/API-key/sequence lifecycle + manual suppression add + step-0 validation ([#70](https://github.com/whrit/Quiksend/issues/70)) ([8e2e4b2](https://github.com/whrit/Quiksend/commit/8e2e4b2c9526d2c66ac6a0a0f91a5f10b231a14b))
+* **ux:** error boundaries + compose anchor plumbing + prospects previous page + sequence enroll mailbox names ([#73](https://github.com/whrit/Quiksend/issues/73)) ([c10e49e](https://github.com/whrit/Quiksend/commit/c10e49eadeebd3135b5e3d46e5491876bbafde7c))
+* **webhooks+api:** full engine event fanout + REST enroll safety net + canonical /webhooks/{id} + per-step analytics ([#72](https://github.com/whrit/Quiksend/issues/72)) ([4299524](https://github.com/whrit/Quiksend/commit/42995248486846eccd741d36293de2e1639bcaba))
+
 ## [2.4.0](https://github.com/whrit/Quiksend/compare/v2.3.4...v2.4.0) (2026-07-06)
 
 
