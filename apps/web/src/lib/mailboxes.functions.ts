@@ -200,7 +200,26 @@ export const createSmtpMailbox = createServerFn({ method: "POST" })
       })
       .returning();
     if (!row) throw new MailboxError("VALIDATION", "Failed to create mailbox");
-    return toPublicMailbox(row);
+
+    // Mirror finalizeGmailMailbox / finalizeMicrosoftMailbox: run SPF/DKIM/DMARC
+    // right after insert so the row shows sensible health dots on first load.
+    const domain = domainFromAddress(row.address);
+    const auth = await checkDomainAuth(domain);
+    const healthNotes = { spf: auth.spf, dkim: auth.dkim, dmarc: auth.dmarc };
+    const checkedAt = new Date();
+    const [updated] = await db
+      .update(tables.mailbox)
+      .set({
+        spfOk: auth.spf.pass,
+        dkimOk: auth.dkim.pass,
+        dmarcOk: auth.dmarc.pass,
+        healthCheckedAt: checkedAt,
+        healthNotes,
+      })
+      .where(eq(tables.mailbox.id, row.id))
+      .returning();
+    if (!updated) throw new MailboxError("NOT_FOUND", "Mailbox not found");
+    return toPublicMailbox(updated);
   });
 
 export const updateMailbox = createServerFn({ method: "POST" })
@@ -365,6 +384,10 @@ const oauthMailboxSchema = z.object({
   nangoConnectionId: z.string().min(1),
 });
 
+const reconnectMailboxSchema = z.object({
+  mailboxId: z.string().uuid(),
+});
+
 export const createGmailConnectSession = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
@@ -395,6 +418,81 @@ export const createMicrosoftConnectSession = createServerFn({ method: "POST" })
         id: context.orgContext.userId,
       },
       allowed_integrations: ["microsoft"],
+      organization: {
+        id: context.orgContext.organizationId,
+      },
+    });
+    return {
+      sessionToken: session.data.token,
+      connectUrl: session.data.connect_link,
+    };
+  });
+
+/**
+ * Mint a Nango Connect session bound to an existing mailbox's connection so the
+ * user can re-authorize after credentials go stale (e.g. `invalid_credentials`).
+ * See docs/nango-setup.md and https://docs.nango.dev/guides/reauthorize-a-connection.
+ */
+export const createGmailReconnectSession = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((data: unknown) => reconnectMailboxSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    requireAdmin({ orgContext: context.orgContext });
+    const mailbox = await db.query.mailbox.findFirst({
+      where: and(
+        eq(tables.mailbox.id, data.mailboxId),
+        eq(tables.mailbox.organizationId, context.orgContext.organizationId),
+      ),
+    });
+    if (!mailbox) throw new MailboxError("NOT_FOUND", "Mailbox not found");
+    if (mailbox.provider !== "gmail") {
+      throw new MailboxError("VALIDATION", "Mailbox is not a Gmail mailbox");
+    }
+    if (!mailbox.nangoConnectionId) {
+      throw new MailboxError("CONFIG", "Mailbox has no Nango connection to reconnect");
+    }
+    const nango = getNango();
+    const session = await nango.createReconnectSession({
+      connection_id: mailbox.nangoConnectionId,
+      integration_id: "google-mail",
+      end_user: {
+        id: context.orgContext.userId,
+      },
+      organization: {
+        id: context.orgContext.organizationId,
+      },
+    });
+    return {
+      sessionToken: session.data.token,
+      connectUrl: session.data.connect_link,
+    };
+  });
+
+export const createMicrosoftReconnectSession = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((data: unknown) => reconnectMailboxSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    requireAdmin({ orgContext: context.orgContext });
+    const mailbox = await db.query.mailbox.findFirst({
+      where: and(
+        eq(tables.mailbox.id, data.mailboxId),
+        eq(tables.mailbox.organizationId, context.orgContext.organizationId),
+      ),
+    });
+    if (!mailbox) throw new MailboxError("NOT_FOUND", "Mailbox not found");
+    if (mailbox.provider !== "microsoft") {
+      throw new MailboxError("VALIDATION", "Mailbox is not a Microsoft mailbox");
+    }
+    if (!mailbox.nangoConnectionId) {
+      throw new MailboxError("CONFIG", "Mailbox has no Nango connection to reconnect");
+    }
+    const nango = getNango();
+    const session = await nango.createReconnectSession({
+      connection_id: mailbox.nangoConnectionId,
+      integration_id: "microsoft",
+      end_user: {
+        id: context.orgContext.userId,
+      },
       organization: {
         id: context.orgContext.organizationId,
       },

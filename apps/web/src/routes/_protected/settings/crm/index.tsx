@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/select";
 import {
   createCrmConnectSession,
+  createHubspotReconnectSession,
+  createSalesforceReconnectSession,
   disconnectCrm,
   finalizeCrmConnection,
   listCrmConnections,
@@ -30,6 +32,7 @@ import {
 import { createList, listLists } from "@/lib/prospects.functions.ts";
 import Nango from "@nangohq/frontend";
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
+import { RotateCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -175,6 +178,7 @@ function CrmSettingsPage() {
   const router = useRouter();
   const [connections, setConnections] = useState<CrmConnectionDto[]>(initial);
   const [connecting, setConnecting] = useState(false);
+  const [reconnectingId, setReconnectingId] = useState<string | null>(null);
 
   async function refresh(): Promise<void> {
     const rows = await listCrmConnections();
@@ -212,6 +216,41 @@ function CrmSettingsPage() {
       toast.error(message);
     } finally {
       setConnecting(false);
+    }
+  }
+
+  async function reconnectProvider(conn: CrmConnectionDto): Promise<void> {
+    setReconnectingId(conn.id);
+    try {
+      const session =
+        conn.provider === "salesforce"
+          ? await createSalesforceReconnectSession({ data: { crmConnectionId: conn.id } })
+          : await createHubspotReconnectSession({ data: { crmConnectionId: conn.id } });
+      const nango = new Nango({ host: "https://api.nango.dev" });
+      await new Promise<void>((resolve, reject) => {
+        const connect = nango.openConnectUI({
+          onEvent: (event) => {
+            if (event.type === "close") reject(new Error("Connect UI closed"));
+            if (event.type === "connect") {
+              void finalizeCrmConnection({
+                data: {
+                  provider: conn.provider,
+                  nangoConnectionId: event.payload.connectionId,
+                },
+              })
+                .then(() => resolve())
+                .catch(reject);
+            }
+          },
+        });
+        connect.setSessionToken(session.sessionToken);
+      });
+      toast.success("CRM reconnected");
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to reconnect CRM");
+    } finally {
+      setReconnectingId(null);
     }
   }
 
@@ -284,6 +323,17 @@ function CrmSettingsPage() {
                 </Badge>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
+                {conn.status === "error" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={reconnectingId === conn.id}
+                    onClick={() => void reconnectProvider(conn)}
+                  >
+                    <RotateCw className="mr-1 h-3.5 w-3.5" />
+                    Reconnect
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="outline"

@@ -20,7 +20,11 @@ export interface SmtpAdapterConfig {
   readonly secure?: boolean;
   readonly fromAddress: string;
   readonly fromName?: string;
-  /** Used when `send()` builds MIME internally (e.g. test sends). */
+  /**
+   * REQUIRED. Callers MUST pass compliance explicitly — the adapter no longer
+   * falls back to a placeholder unsubscribe URL. Used when `send()` builds MIME
+   * internally (e.g. test sends).
+   */
   readonly compliance?: ComplianceInput;
   /** Inject for tests. */
   readonly transport?: Transporter;
@@ -44,8 +48,12 @@ export function createSmtpAdapter(config: SmtpAdapterConfig): MailboxAdapter {
   return {
     provider: "smtp",
     async send(input: OutboundEmail): Promise<SendResult> {
-      const compliance = config.compliance ?? minimalCompliance();
-      const mime = buildMimeFromOutbound(input, from, compliance);
+      if (!config.compliance) {
+        throw new Error(
+          "createSmtpAdapter: `compliance` is required. Pass ComplianceInput explicitly — the minimalCompliance fallback has been removed to prevent placeholder unsubscribe URLs in production sends.",
+        );
+      }
+      const mime = buildMimeFromOutbound(input, from, config.compliance);
       return sendMime(transport, mime, {
         from: from.email,
         to: input.to.map((t) => t.email),
@@ -136,14 +144,6 @@ function threadingToAnchor(
     subject: threading.subject || fallbackSubject,
     providerThreadId: threading.providerThreadId,
     priorReferences: threading.references.split(/\s+/).filter(Boolean),
-  };
-}
-
-function minimalCompliance(): ComplianceInput {
-  return {
-    unsubscribeUrl: "https://app.example.com/u/pending",
-    senderPostalAddress: "1 Main St, City",
-    senderOrgName: "Quiksend",
   };
 }
 

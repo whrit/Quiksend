@@ -85,6 +85,75 @@ export const createCrmConnectSession = createServerFn({ method: "POST" })
     };
   });
 
+/**
+ * Mint a Nango Connect session bound to an existing CRM connection so the user
+ * can re-authorize after credentials go stale (e.g. `invalid_credentials`).
+ * See docs/nango-setup.md and https://docs.nango.dev/guides/reauthorize-a-connection.
+ */
+async function createCrmReconnectSession(
+  connectionId: string,
+  expectedProvider: CrmProvider,
+  organizationId: string,
+  userId: string,
+): Promise<{ sessionToken: string; connectUrl: string }> {
+  const connection = await db.query.crmConnection.findFirst({
+    where: and(
+      eq(tables.crmConnection.id, connectionId),
+      eq(tables.crmConnection.organizationId, organizationId),
+    ),
+  });
+  if (!connection) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
+  if (connection.provider !== expectedProvider) {
+    throw new TenancyError("NOT_A_MEMBER", `Connection is not a ${expectedProvider} connection`);
+  }
+  const cfg = getProviderConfig(expectedProvider);
+  const nango = getNango();
+  const session = await nango.createReconnectSession({
+    connection_id: connection.nangoConnectionId,
+    integration_id: cfg.nangoIntegrationId,
+    end_user: {
+      id: userId,
+    },
+    organization: {
+      id: organizationId,
+    },
+  });
+  return {
+    sessionToken: session.data.token,
+    connectUrl: session.data.connect_link,
+  };
+}
+
+const reconnectCrmSchema = z.object({
+  crmConnectionId: z.string().uuid(),
+});
+
+export const createSalesforceReconnectSession = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((data: unknown) => reconnectCrmSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    requireAdmin({ orgContext: context.orgContext });
+    return createCrmReconnectSession(
+      data.crmConnectionId,
+      "salesforce",
+      context.orgContext.organizationId,
+      context.orgContext.userId,
+    );
+  });
+
+export const createHubspotReconnectSession = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((data: unknown) => reconnectCrmSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    requireAdmin({ orgContext: context.orgContext });
+    return createCrmReconnectSession(
+      data.crmConnectionId,
+      "hubspot",
+      context.orgContext.organizationId,
+      context.orgContext.userId,
+    );
+  });
+
 export const finalizeCrmConnection = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
