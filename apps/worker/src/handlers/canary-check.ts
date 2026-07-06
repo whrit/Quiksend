@@ -12,8 +12,10 @@ import {
   classifyArrivalFolder,
   folderToStatus,
   searchCanaryMessages,
+  type ImapMessageMatch,
 } from "../deliverability/seed-imap.ts";
 import { refreshDeliverabilitySnapshots } from "./deliverability-snapshot.ts";
+import { fanoutWebhookEvent } from "./webhook-fanout.ts";
 
 const IMAP_CONCURRENCY = 20;
 
@@ -56,7 +58,7 @@ export async function runCanaryCheck(): Promise<void> {
     ),
   );
 
-  await db
+  const timedOut = await db
     .update(tables.canarySend)
     .set({ arrivalStatus: "silent_drop", arrivedAt: sql`now()` })
     .where(
@@ -65,7 +67,29 @@ export async function runCanaryCheck(): Promise<void> {
         isNotNull(tables.canarySend.sentAt),
         lt(tables.canarySend.sentAt, sql`now() - interval '24 hours'`),
       ),
-    );
+    )
+    .returning({
+      id: tables.canarySend.id,
+      organizationId: tables.canarySend.organizationId,
+      sequenceId: tables.canarySend.sequenceId,
+      mailboxId: tables.canarySend.mailboxId,
+      seedInboxId: tables.canarySend.seedInboxId,
+      canaryToken: tables.canarySend.canaryToken,
+    });
+
+  for (const row of timedOut) {
+    await fanoutWebhookEvent({
+      organizationId: row.organizationId,
+      eventType: "deliverability.canary.silent_drop",
+      payload: {
+        canarySendId: row.id,
+        sequenceId: row.sequenceId,
+        mailboxId: row.mailboxId,
+        seedInboxId: row.seedInboxId,
+        canaryToken: row.canaryToken,
+      },
+    });
+  }
 
   await refreshDeliverabilitySnapshots();
   await maybePauseCampaigns();
@@ -107,7 +131,7 @@ async function pollSeed(
 
 async function applyCanaryMatches(
   canaries: (typeof tables.canarySend.$inferSelect)[],
-  matches: Map<string, import("../deliverability/seed-imap.ts").ImapMessageMatch>,
+  matches: Map<string, ImapMessageMatch>,
 ): Promise<void> {
   for (const canary of canaries) {
     const match = matches.get(canary.canaryToken);
@@ -124,6 +148,20 @@ async function applyCanaryMatches(
         arrivalGatewayHeaders: match.headers,
       })
       .where(eq(tables.canarySend.id, canary.id));
+
+    await fanoutWebhookEvent({
+      organizationId: canary.organizationId,
+      eventType: "deliverability.canary.arrived",
+      payload: {
+        canarySendId: canary.id,
+        sequenceId: canary.sequenceId,
+        mailboxId: canary.mailboxId,
+        seedInboxId: canary.seedInboxId,
+        canaryToken: canary.canaryToken,
+        arrivalStatus,
+        arrivalFolder: match.isBounce ? "bounce" : folder,
+      },
+    });
   }
 }
 

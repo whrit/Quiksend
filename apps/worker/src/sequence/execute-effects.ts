@@ -11,11 +11,20 @@ import type { EnrollmentContext } from "./context.ts";
 
 type DbTx = PostgresJsDatabase<typeof schema>;
 
+/**
+ * Engine events we materialize as analytics rows. These are the events the state
+ * machine actually emits during a normal run; the ones we skip persisting here
+ * are handled by the effect executor via a different code path.
+ */
 const TRACKED_ENGINE_EVENTS = new Set([
   "message.sent",
   "enrollment.completed",
   "enrollment.replied",
   "enrollment.bounced",
+  "enrollment.paused",
+  "enrollment.resumed",
+  "enrollment.stopped",
+  "enrollment.failed",
 ]);
 
 const DELIVERABILITY_EVENTS = new Set([
@@ -27,8 +36,23 @@ const DELIVERABILITY_EVENTS = new Set([
   "workspace.deliverability_policy_changed",
 ]);
 
-/** Phase 11 webhook types — fan out after persisting the analytics event row. */
-const WEBHOOK_FANOUT_EVENTS = new Set(["enrollment.no_safe_mailbox_for_gateway"]);
+/**
+ * Engine events we ALSO push to workspace-configured webhook endpoints via
+ * `fanoutWebhookEvent`. Kept broad: every state-machine transition + the
+ * SEG safety event ships. Keep this list aligned with `SUPPORTED_WEBHOOK_EVENTS`
+ * in `packages/db/src/schema/api.ts` so users can subscribe to what they see.
+ */
+const WEBHOOK_FANOUT_EVENTS = new Set([
+  "message.sent",
+  "enrollment.completed",
+  "enrollment.replied",
+  "enrollment.bounced",
+  "enrollment.paused",
+  "enrollment.resumed",
+  "enrollment.stopped",
+  "enrollment.failed",
+  "enrollment.no_safe_mailbox_for_gateway",
+]);
 
 function normalizeAnalyticsType(engineType: string): string {
   if (engineType === "enrollment.replied") return "reply.received";
@@ -192,15 +216,20 @@ export async function handleEmitEvent(
   });
 
   if (WEBHOOK_FANOUT_EVENTS.has(engineType)) {
+    const payload: Record<string, unknown> = {
+      enrollmentId: ctx.enrollmentId,
+      prospectId: ctx.prospect.id,
+      sequenceId: ctx.sequence.id,
+      mailboxId: ctx.mailbox.id,
+      recipientGateway: ctx.prospect.emailGateway,
+    };
+    if (engineType === "enrollment.no_safe_mailbox_for_gateway") {
+      payload.reason = "no_safe_mailbox_for_gateway";
+    }
     await fanoutWebhookEvent({
       organizationId: ctx.organizationId,
       eventType: engineType,
-      payload: {
-        enrollmentId: ctx.enrollmentId,
-        mailboxId: ctx.mailbox.id,
-        recipientGateway: ctx.prospect.emailGateway,
-        reason: "no_safe_mailbox_for_gateway",
-      },
+      payload,
     });
   }
 

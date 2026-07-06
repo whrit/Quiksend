@@ -123,6 +123,10 @@ const openApiSpec = {
       get: { summary: "List webhook endpoints" },
       post: { summary: "Create webhook endpoint" },
     },
+    "/webhooks/{id}": {
+      patch: { summary: "Update webhook endpoint" },
+      delete: { summary: "Delete webhook endpoint" },
+    },
     "/webhooks/{id}/deliveries": {
       get: { summary: "Recent webhook deliveries" },
     },
@@ -132,7 +136,7 @@ const openApiSpec = {
   },
 } as const;
 
-export const Route = createFileRoute("/api/v1/openapi/json")({
+export const Route = createFileRoute("/api/v1/openapi.json")({
   server: {
     handlers: {
       GET: () =>

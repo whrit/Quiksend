@@ -8,6 +8,7 @@ import {
 } from "@quiksend/mail/gateway-detect";
 import { enqueueWithRetries, registerHandler } from "@quiksend/queue";
 import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
+import { fanoutWebhookEvent } from "./webhook-fanout.ts";
 
 type ClassificationRow = typeof tables.gatewayClassification.$inferSelect;
 
@@ -91,7 +92,33 @@ async function applyClassificationToProspects(
       gatewayEvidence: evidence,
     })
     .where(and(...conditions))
-    .returning({ id: tables.prospect.id });
+    .returning({
+      id: tables.prospect.id,
+      organizationId: tables.prospect.organizationId,
+    });
+
+  if (updated.length > 0) {
+    // Fan out `gateway.detected` per org (dedup — one workspace event per batch,
+    // even if 500 prospects on the same domain match).
+    const byOrg = new Map<string, string[]>();
+    for (const row of updated) {
+      const list = byOrg.get(row.organizationId) ?? [];
+      list.push(row.id);
+      byOrg.set(row.organizationId, list);
+    }
+    for (const [orgId, prospectIds] of byOrg) {
+      await fanoutWebhookEvent({
+        organizationId: orgId,
+        eventType: "gateway.detected",
+        payload: {
+          domain,
+          gateway,
+          prospectIds,
+          prospectCount: prospectIds.length,
+        },
+      });
+    }
+  }
 
   return updated.length;
 }

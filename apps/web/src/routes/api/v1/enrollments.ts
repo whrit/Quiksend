@@ -5,6 +5,11 @@ import { tables } from "@quiksend/db/tables";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
+import {
+  injectCanariesForEnrollment,
+  isDeliverabilityProEntitled,
+  parseWorkspaceCanaryConfig,
+} from "@/lib/canary-injection.ts";
 import { jsonData, jsonError, parseJsonBody, withApiAuth } from "@/lib/api/v1/middleware.ts";
 
 type SequenceSettings = {
@@ -130,6 +135,16 @@ export const Route = createFileRoute("/api/v1/enrollments")({
             ),
           });
           const prospectSet = new Set(prospects.map((p) => p.id));
+          const prospectById = new Map(prospects.map((p) => [p.id, p]));
+
+          // Suppression check: block prospects whose email (or domain) is on
+          // the workspace suppression list. Matches the server-fn behavior in
+          // sequences.functions.ts:enrollProspects; kept inline here so the REST
+          // route doesn't grow a cross-import into a UI-facing module.
+          const suppressedEmails = await loadSuppressedEmailsForRest(
+            ctx.orgId,
+            prospects.map((p) => p.email),
+          );
 
           const existing = await db.query.enrollment.findMany({
             where: and(
@@ -151,6 +166,20 @@ export const Route = createFileRoute("/api/v1/enrollments")({
               continue;
             }
 
+            const prospect = prospectById.get(prospectId);
+            if (prospect) {
+              const email = prospect.email.toLowerCase();
+              if (
+                suppressedEmails.has(email) ||
+                prospect.status === "unsubscribed" ||
+                prospect.status === "do_not_contact" ||
+                prospect.status === "bounced"
+              ) {
+                skipped.push(prospectId);
+                continue;
+              }
+            }
+
             const mailbox = mailboxes[mailboxIndex % mailboxes.length];
             if (!mailbox) continue;
             mailboxIndex++;
@@ -166,6 +195,7 @@ export const Route = createFileRoute("/api/v1/enrollments")({
                 state: "active",
                 currentStepIndex: 0,
                 nextRunAt,
+                abBucket: Math.random() < 0.5 ? "A" : "B",
                 createdByUserId: ctx.userId,
               });
               enrolled.push(prospectId);
@@ -175,12 +205,60 @@ export const Route = createFileRoute("/api/v1/enrollments")({
             }
           }
 
+          // Canary injection: same as the server-fn path so a REST enroll gets
+          // the same deliverability safety net.
+          const org = await db.query.organization.findFirst({
+            where: eq(tables.organization.id, ctx.orgId),
+            columns: { metadata: true },
+          });
+          const canariesCreated = await injectCanariesForEnrollment({
+            organizationId: ctx.orgId,
+            sequenceId: seq.id,
+            enrolledProspectIds: enrolled,
+            mailboxIds: mailboxes.map((m) => m.id),
+            sequenceCanaryConfig: seq.canaryConfig,
+            workspaceCanaryConfig: parseWorkspaceCanaryConfig(org?.metadata),
+            isProEntitled: isDeliverabilityProEntitled(org?.metadata),
+          });
+
           return jsonData({
             enrolled: enrolled.length,
             skipped: skipped.length,
             skippedIds: skipped,
+            canariesCreated,
           });
         }),
     },
   },
 });
+
+function emailDomainLower(email: string): string {
+  const at = email.lastIndexOf("@");
+  return at >= 0 ? email.slice(at + 1).toLowerCase() : email.toLowerCase();
+}
+
+async function loadSuppressedEmailsForRest(
+  organizationId: string,
+  emails: string[],
+): Promise<Set<string>> {
+  if (emails.length === 0) return new Set();
+  const normalized = emails.map((e) => e.toLowerCase());
+  const domains = [...new Set(normalized.map(emailDomainLower))];
+  const rows = await db.query.suppression.findMany({
+    where: and(
+      eq(tables.suppression.organizationId, organizationId),
+      inArray(tables.suppression.value, [...normalized, ...domains]),
+    ),
+  });
+  const suppressed = new Set<string>();
+  for (const row of rows) {
+    if (row.valueType === "email") {
+      suppressed.add(row.value);
+    } else if (row.valueType === "domain") {
+      for (const email of normalized) {
+        if (emailDomainLower(email) === row.value) suppressed.add(email);
+      }
+    }
+  }
+  return suppressed;
+}
