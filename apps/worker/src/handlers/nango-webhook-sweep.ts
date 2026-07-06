@@ -11,10 +11,14 @@ export async function sweepNangoWebhookProcessed(): Promise<void> {
 }
 
 export async function registerNangoWebhookSweep(): Promise<void> {
-  const boss = await getBoss();
-  await boss.schedule("nango.webhook.sweep", "0 * * * *", {}, { tz: "UTC" });
+  // Order matters: `registerHandler` internally calls `boss.createQueue`, which
+  // inserts the row into `pgboss.queue`. `boss.schedule` inserts into
+  // `pgboss.schedule` with an FK back to `pgboss.queue.name` — scheduling
+  // before the queue exists throws `Queue nango.webhook.sweep not found`.
   await registerHandler("nango.webhook.sweep", async () => {
     await sweepNangoWebhookProcessed();
   });
+  const boss = await getBoss();
+  await boss.schedule("nango.webhook.sweep", "0 * * * *", {}, { tz: "UTC" });
   logger.info({ job: "nango.webhook.sweep" }, "nango webhook sweep scheduled");
 }

@@ -71,8 +71,10 @@ function mailboxPollBucket(mailboxId: string): number {
 }
 
 export async function registerMailboxPollTick(): Promise<void> {
-  const boss = await getBoss();
-  await boss.schedule("mailbox.poll.tick", "*/2 * * * *", {}, { tz: "UTC" });
+  // Order matters: `registerHandler` internally calls `boss.createQueue`, which
+  // inserts the row into `pgboss.queue`. `boss.schedule` inserts into
+  // `pgboss.schedule` with an FK back to `pgboss.queue.name` — scheduling
+  // before the queue exists throws `Queue mailbox.poll.tick not found`.
   await registerHandler("mailbox.poll.tick", async () => {
     const mailboxes = await db.query.mailbox.findMany({
       where: and(eq(tables.mailbox.status, "active"), isNotNull(tables.mailbox.address)),
@@ -85,6 +87,8 @@ export async function registerMailboxPollTick(): Promise<void> {
     }
     logger.debug({ count: mailboxes.length }, "mailbox.poll.tick enqueued mailboxes");
   });
+  const boss = await getBoss();
+  await boss.schedule("mailbox.poll.tick", "*/2 * * * *", {}, { tz: "UTC" });
   logger.info({ job: "mailbox.poll.tick" }, "mailbox poll tick scheduled");
 }
 
