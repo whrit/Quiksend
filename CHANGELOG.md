@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.6.0](https://github.com/whrit/Quiksend/compare/v2.5.0...v2.6.0) (2026-07-06)
+
+
+### Features
+
+* **ai:** Brave Search provider + BRAVE_API_KEY/EXA_API_KEY/TAVILY_API_KEY env vars ([#79](https://github.com/whrit/Quiksend/issues/79)) ([4870f7e](https://github.com/whrit/Quiksend/commit/4870f7e0c45d6a2056e3539d23837876ab5985e7))
+* **ai:** non-blocking research pipeline in generateEmailForProspect ([#80](https://github.com/whrit/Quiksend/issues/80)) ([baf507e](https://github.com/whrit/Quiksend/commit/baf507e11b51ae778b13c8e00f35df27186e46e1))
+* **analytics:** per-sequence performance drill-down on the analytics dashboard ([#81](https://github.com/whrit/Quiksend/issues/81)) ([e86e39f](https://github.com/whrit/Quiksend/commit/e86e39fb2296df2f1369d87a6cacd26961be4a44))
+* **mailbox+crm:** Nango reconnect flow + mailbox health link + SMTP domain-auth check ([#83](https://github.com/whrit/Quiksend/issues/83)) ([8a3abe4](https://github.com/whrit/Quiksend/commit/8a3abe433ffebc2941dd2bb2d3df9f565b7d88f9))
+* **observability:** initialize Sentry SDK in the web app ([#82](https://github.com/whrit/Quiksend/issues/82)) ([2026186](https://github.com/whrit/Quiksend/commit/20261861bedcb6d50c9c93492c13b45f7ddd9d47))
+* **queue:** defense-in-depth org filter on seed_inbox.verify + crm.writeback ([#78](https://github.com/whrit/Quiksend/issues/78)) ([675dd93](https://github.com/whrit/Quiksend/commit/675dd9328d130192cafaa282e5f24818da2e25f7))
+
 ## [2.5.0](https://github.com/whrit/Quiksend/compare/v2.4.0...v2.5.0) (2026-07-06)
 
 
