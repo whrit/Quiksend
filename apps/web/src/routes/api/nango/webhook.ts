@@ -26,6 +26,20 @@ const authWebhookSchema = z.object({
   connectionId: z.string(),
   providerConfigKey: z.string(),
   success: z.boolean(),
+  /**
+   * Present on failed auth webhooks — Nango carries e.g.
+   * `error: { type: "invalid_credentials", description: "..." }` when a
+   * refresh fails. UI uses this to distinguish reconnect-required from
+   * other error states.
+   */
+  error: z
+    .object({
+      type: z.string(),
+      description: z.string().optional(),
+    })
+    .optional(),
+  /** Nango auth operation kind: creation, refresh, etc. */
+  operation: z.string().optional(),
   event_id: z.string().optional(),
   eventId: z.string().optional(),
 });

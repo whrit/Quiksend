@@ -1,5 +1,6 @@
+import Nango from "@nangohq/frontend";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Loader2, Mail, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
+import { Activity, Loader2, Mail, Plus, RefreshCw, RotateCw, Send, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,11 @@ import {
 } from "@/components/ui/table";
 import {
   checkMailboxHealth,
+  createGmailReconnectSession,
+  createMicrosoftReconnectSession,
   deleteMailbox,
+  finalizeGmailMailbox,
+  finalizeMicrosoftMailbox,
   listMailboxes,
   setMailboxEnterpriseSafe,
   testMailboxSend,
@@ -90,6 +95,51 @@ function MailboxesPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const reconnectMailbox = useCallback(
+    async (mb: MailboxRow): Promise<void> => {
+      if (mb.provider !== "gmail" && mb.provider !== "microsoft") {
+        toast.error("Reconnect is only supported for Gmail and Microsoft mailboxes");
+        return;
+      }
+      setBusyId(mb.id);
+      try {
+        const session =
+          mb.provider === "gmail"
+            ? await createGmailReconnectSession({ data: { mailboxId: mb.id } })
+            : await createMicrosoftReconnectSession({ data: { mailboxId: mb.id } });
+        const nango = new Nango({ host: "https://api.nango.dev" });
+        await new Promise<void>((resolve, reject) => {
+          const connect = nango.openConnectUI({
+            onEvent: (event) => {
+              if (event.type === "close") reject(new Error("Connect UI closed"));
+              if (event.type === "connect") {
+                const finalize =
+                  mb.provider === "gmail" ? finalizeGmailMailbox : finalizeMicrosoftMailbox;
+                void finalize({
+                  data: {
+                    nangoConnectionId: event.payload.connectionId,
+                    address: mb.address,
+                    fromName: mb.fromName ?? undefined,
+                  },
+                })
+                  .then(() => resolve())
+                  .catch(reject);
+              }
+            },
+          });
+          connect.setSessionToken(session.sessionToken);
+        });
+        toast.success("Mailbox reconnected");
+        await reload();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to reconnect mailbox");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [reload],
+  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -171,6 +221,27 @@ function MailboxesPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
+                    {mb.status === "error" &&
+                      (mb.provider === "gmail" || mb.provider === "microsoft") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          title="Reconnect via Nango"
+                          disabled={busyId === mb.id}
+                          onClick={() => void reconnectMailbox(mb)}
+                        >
+                          <RotateCw className="mr-1 h-3.5 w-3.5" />
+                          Reconnect
+                        </Button>
+                      )}
+                    <Link
+                      to="/settings/mailboxes/$id/health"
+                      params={{ id: mb.id }}
+                      className={buttonVariants({ size: "icon", variant: "ghost" })}
+                      title="View health"
+                    >
+                      <Activity className="h-4 w-4" />
+                    </Link>
                     <Button
                       size="icon"
                       variant="ghost"
