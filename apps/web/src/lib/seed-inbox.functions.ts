@@ -169,7 +169,7 @@ export const createUserSeedInbox = createServerFn({ method: "POST" })
       .returning();
 
     if (!row) throw new SeedInboxError("VALIDATION", "Failed to create seed inbox");
-    await enqueue("seed_inbox.verify", { seedInboxId: row.id });
+    await enqueue("seed_inbox.verify", { seedInboxId: row.id, organizationId });
     return toPublic(row);
   });
 
@@ -186,7 +186,7 @@ export const verifySeedInbox = createServerFn({ method: "POST" })
       ),
     });
     if (!seed) throw new SeedInboxError("NOT_FOUND", "Seed inbox not found");
-    await enqueue("seed_inbox.verify", { seedInboxId: seed.id });
+    await enqueue("seed_inbox.verify", { seedInboxId: seed.id, organizationId });
     return { ok: true };
   });
 

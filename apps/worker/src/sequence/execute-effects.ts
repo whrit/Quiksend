@@ -174,6 +174,7 @@ async function scheduleWriteback(
     eventType: jobEventType,
     entityId,
     idempotencyKey,
+    organizationId,
   });
 }
 

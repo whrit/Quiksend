@@ -31,9 +31,17 @@ type WritebackContext = {
   provider: "salesforce" | "hubspot";
 };
 
-async function loadWritebackContext(connectionId: string): Promise<WritebackContext | null> {
+async function loadWritebackContext(
+  connectionId: string,
+  expectedOrgId?: string,
+): Promise<WritebackContext | null> {
   const connection = await db.query.crmConnection.findFirst({
-    where: eq(tables.crmConnection.id, connectionId),
+    where: expectedOrgId
+      ? and(
+          eq(tables.crmConnection.id, connectionId),
+          eq(tables.crmConnection.organizationId, expectedOrgId),
+        )
+      : eq(tables.crmConnection.id, connectionId),
   });
   if (!connection || connection.status !== "active") return null;
   return {
@@ -225,7 +233,7 @@ async function performWriteback(
 export async function registerCrmWritebackHandler(): Promise<void> {
   await registerHandler(
     "crm.writeback",
-    async ({ connectionId, eventType, entityId, idempotencyKey }) => {
+    async ({ connectionId, eventType, entityId, idempotencyKey, organizationId }) => {
       const existing = await db.query.crmWritebackLog.findFirst({
         where: eq(tables.crmWritebackLog.idempotencyKey, idempotencyKey),
       });
@@ -235,7 +243,7 @@ export async function registerCrmWritebackHandler(): Promise<void> {
         return;
       }
 
-      const ctx = await loadWritebackContext(connectionId);
+      const ctx = await loadWritebackContext(connectionId, organizationId);
       if (!ctx) {
         logger.warn({ connectionId }, "crm.writeback: connection not found or inactive");
         return;
