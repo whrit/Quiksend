@@ -23,29 +23,31 @@ Local development uses `docker compose up -d` (Postgres + Mailpit only) and runs
 Full list: [`.env.example`](../.env.example). Production validation (`NODE_ENV=production`)
 requires all of the following in addition to `DATABASE_URL`:
 
-| Variable                   | Required                | How to generate / set                                          |
-| -------------------------- | ----------------------- | -------------------------------------------------------------- |
-| `DATABASE_URL`             | Always                  | Postgres connection string                                     |
-| `BETTER_AUTH_SECRET`       | Production              | `openssl rand -base64 32` (≥ 32 bytes)                         |
-| `BETTER_AUTH_URL`          | Production              | Public URL of the web app, e.g. `https://quiksend.example.com` |
-| `NANGO_WEBHOOK_SECRET`     | Production              | From Nango dashboard → Environment settings                    |
-| `NANGO_SECRET_KEY`         | When using integrations | From Nango dashboard                                           |
-| `MAILBOX_ENCRYPTION_KEY`   | Production              | `openssl rand -base64 32` (encrypts SMTP credentials at rest)  |
-| `UNSUBSCRIBE_TOKEN_SECRET` | Production              | `openssl rand -base64 32`                                      |
+| Variable                   | Required                   | How to generate / set                                                                                                                                                                                |
+| -------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`             | Always                     | Postgres connection string                                                                                                                                                                           |
+| `BETTER_AUTH_SECRET`       | Production                 | `openssl rand -base64 32` (≥ 32 bytes)                                                                                                                                                               |
+| `BETTER_AUTH_URL`          | Production (strongly rec.) | Public URL of the web app, e.g. `https://quiksend.example.com`. Falls back to `request.url` when unset — safe only when your reverse proxy sets a trusted host header; set explicitly in production. |
+| `NANGO_WEBHOOK_SECRET`     | Production                 | From Nango dashboard → Environment settings                                                                                                                                                          |
+| `NANGO_SECRET_KEY`         | When using integrations    | From Nango dashboard                                                                                                                                                                                 |
+| `MAILBOX_ENCRYPTION_KEY`   | Production                 | `openssl rand -base64 32` (encrypts SMTP credentials at rest)                                                                                                                                        |
+| `UNSUBSCRIBE_TOKEN_SECRET` | Production                 | `openssl rand -base64 32`                                                                                                                                                                            |
 
 **Optional but recommended:**
 
-| Variable                               | Purpose                                                                                                            |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `SENTRY_DSN` / `SENTRY_ENVIRONMENT`    | Error tracking (web + worker)                                                                                      |
-| `POSTHOG_KEY` / `POSTHOG_HOST`         | Product analytics                                                                                                  |
-| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | AI features                                                                                                        |
-| `SMTP_HOST` / `SMTP_PORT`              | Default SMTP relay when not using OAuth mailboxes                                                                  |
-| `DATABASE_POOLER_MODE=transaction`     | Use with PgBouncer / Neon pooled endpoints                                                                         |
-| `NANGO_PUBLIC_URL`                     | Public base URL Nango redirects to after connect                                                                   |
-| `SEG_DAILY_CAP_PER_MAILBOX`            | Extra per-mailbox daily cap for SEG-destined sends (default 50) — see [deliverability.md](./deliverability.md)     |
-| `TRACKING_PIXEL_DOMAIN`                | Hostname for tracking-pixel stripping in the SEG content sanitizer (defaults to `BETTER_AUTH_URL` host)            |
-| `SYSTEM_SEED_ENCRYPTION_KEY`           | **Quiksend Systems only** — decrypts provider-managed seed pool for Deliverability Pro. Leave UNSET for self-host. |
+| Variable                               | Purpose                                                                                                                                                    |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SENTRY_DSN` / `SENTRY_ENVIRONMENT`    | Error tracking (web + worker)                                                                                                                              |
+| `POSTHOG_KEY` / `POSTHOG_HOST`         | Product analytics                                                                                                                                          |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | AI features                                                                                                                                                |
+| `SMTP_HOST` / `SMTP_PORT`              | Default SMTP relay when not using OAuth mailboxes                                                                                                          |
+| `DATABASE_POOLER_MODE=transaction`     | Use with PgBouncer / Neon pooled endpoints                                                                                                                 |
+| `NANGO_PUBLIC_URL`                     | Public base URL Nango redirects to after connect                                                                                                           |
+| `SEG_DAILY_CAP_PER_MAILBOX`            | Extra per-mailbox daily cap for SEG-destined sends (default 50) — see [deliverability.md](./deliverability.md)                                             |
+| `TRACKING_PIXEL_DOMAIN`                | Hostname for tracking-pixel stripping in the SEG content sanitizer (defaults to `BETTER_AUTH_URL` host)                                                    |
+| `SYSTEM_SEED_ENCRYPTION_KEY`           | **Quiksend Systems only** — decrypts provider-managed seed pool for Deliverability Pro. Leave UNSET for self-host.                                         |
+| `SYSTEM_ADMIN_EMAIL`                   | **Quiksend Systems only** — email address of the operator account allowed to run system-wide admin server-fns. Leave UNSET for self-host.                  |
+| `QUIKSEND_SYSTEM_ORG_ID`               | **Quiksend Systems only** — organizationId of the operator workspace used for system-owned data (provider seed pool ownership). Leave UNSET for self-host. |
 
 Webhook throughput tuning: `WEBHOOK_SWEEP_INTERVAL_MS`, `WEBHOOK_SWEEP_BATCH_SIZE`,
 `WEBHOOK_DELIVER_CONCURRENCY` — see [troubleshooting](./troubleshooting.md#webhook-delivery-backlog).

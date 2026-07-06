@@ -190,6 +190,14 @@ export type SeedPoolHealthCheckPayload = Record<string, never>;
 export const seedPoolGenerateLegitMailSchema = z.object({});
 export type SeedPoolGenerateLegitMailPayload = Record<string, never>;
 
+// ── mailbox.poll.tick — cron enqueuer for mailbox.poll (Phase 7) ────────────────
+export const mailboxPollTickSchema = z.object({});
+export type MailboxPollTickPayload = Record<string, never>;
+
+// ── nango.webhook.sweep — cron cleanup of processed Nango webhook markers ──────
+export const nangoWebhookSweepSchema = z.object({});
+export type NangoWebhookSweepPayload = Record<string, never>;
+
 export interface JobPayloadMap {
   "hello.ping": HelloPingPayload;
   "sequence.tick": SequenceTickPayload;
@@ -210,6 +218,8 @@ export interface JobPayloadMap {
   "deliverability.snapshot": DeliverabilitySnapshotPayload;
   "seed_pool.health_check": SeedPoolHealthCheckPayload;
   "seed_pool.generate_legit_mail": SeedPoolGenerateLegitMailPayload;
+  "mailbox.poll.tick": MailboxPollTickPayload;
+  "nango.webhook.sweep": NangoWebhookSweepPayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -234,6 +244,8 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "deliverability.snapshot": deliverabilitySnapshotSchema,
   "seed_pool.health_check": seedPoolHealthCheckSchema,
   "seed_pool.generate_legit_mail": seedPoolGenerateLegitMailSchema,
+  "mailbox.poll.tick": mailboxPollTickSchema,
+  "nango.webhook.sweep": nangoWebhookSweepSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];

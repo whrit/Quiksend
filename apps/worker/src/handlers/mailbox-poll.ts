@@ -6,7 +6,7 @@ import { getNango } from "@quiksend/integrations";
 import { detectAutoReply, matchInbound, parseBounce, type OutboundAnchor } from "@quiksend/mail";
 import { decryptSmtpConfig } from "@quiksend/mail";
 import { normalizeMessageId } from "@quiksend/mail/threading";
-import { registerHandler, enqueue } from "@quiksend/queue";
+import { enqueue, getBoss, registerHandler } from "@quiksend/queue";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
@@ -71,11 +71,9 @@ function mailboxPollBucket(mailboxId: string): number {
 }
 
 export async function registerMailboxPollTick(): Promise<void> {
-  const { getBoss } = await import("@quiksend/queue");
   const boss = await getBoss();
-  await boss.createQueue("mailbox.poll.tick");
   await boss.schedule("mailbox.poll.tick", "*/2 * * * *", {}, { tz: "UTC" });
-  await boss.work("mailbox.poll.tick", async () => {
+  await registerHandler("mailbox.poll.tick", async () => {
     const mailboxes = await db.query.mailbox.findMany({
       where: and(eq(tables.mailbox.status, "active"), isNotNull(tables.mailbox.address)),
     });
