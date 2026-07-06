@@ -24,19 +24,19 @@ Machine-readable spec: [GET /api/v1/openapi.json](http://localhost:3000/api/v1/o
 
 ## Endpoints
 
-| Method                | Path                               | Description                      |
-| --------------------- | ---------------------------------- | -------------------------------- |
-| GET                   | `/api/v1/prospects`                | List prospects                   |
-| POST                  | `/api/v1/prospects`                | Create/upsert prospect           |
-| GET                   | `/api/v1/prospects/{id}`           | Get prospect                     |
-| PATCH                 | `/api/v1/prospects/{id}`           | Update prospect                  |
-| DELETE                | `/api/v1/prospects/{id}`           | Soft-delete prospect             |
-| POST                  | `/api/v1/enrollments`              | Enroll prospects into a sequence |
-| GET                   | `/api/v1/sequences/{id}/analytics` | Funnel + step rates              |
-| GET                   | `/api/v1/messages`                 | List messages                    |
-| GET, POST             | `/api/v1/webhooks`                 | List / create webhook endpoints  |
-| PATCH, DELETE         | `/api/v1/webhooks/{id}`            | Update / delete webhook endpoint |
-| GET                   | `/api/v1/webhooks/{id}/deliveries` | Delivery log                     |
+| Method        | Path                               | Description                      |
+| ------------- | ---------------------------------- | -------------------------------- |
+| GET           | `/api/v1/prospects`                | List prospects                   |
+| POST          | `/api/v1/prospects`                | Create/upsert prospect           |
+| GET           | `/api/v1/prospects/{id}`           | Get prospect                     |
+| PATCH         | `/api/v1/prospects/{id}`           | Update prospect                  |
+| DELETE        | `/api/v1/prospects/{id}`           | Soft-delete prospect             |
+| POST          | `/api/v1/enrollments`              | Enroll prospects into a sequence |
+| GET           | `/api/v1/sequences/{id}/analytics` | Funnel + step rates              |
+| GET           | `/api/v1/messages`                 | List messages                    |
+| GET, POST     | `/api/v1/webhooks`                 | List / create webhook endpoints  |
+| PATCH, DELETE | `/api/v1/webhooks/{id}`            | Update / delete webhook endpoint |
+| GET           | `/api/v1/webhooks/{id}/deliveries` | Delivery log                     |
 
 > **Compat note.** For older integrations, `PATCH /api/v1/webhooks` also accepts `id` in the JSON body, and `DELETE /api/v1/webhooks` accepts `?id=…`. Prefer the path form for new code.
 
