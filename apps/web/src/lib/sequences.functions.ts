@@ -1,3 +1,4 @@
+import { isAdminOrOwner } from "@quiksend/core";
 import { computeSchedule } from "@quiksend/core/schedule";
 import type { MailboxSchedule, SendingWindow, StepKind, Weekday } from "@quiksend/core/schedule";
 import {
@@ -253,6 +254,21 @@ function validateStepTemplates(step: z.infer<typeof stepInputSchema>): void {
 function assertDraft(seq: SequenceRow, action: string): void {
   if (seq.status !== "draft") {
     throw new SequenceError("INVALID_STATE", `Cannot ${action} on a non-draft sequence`);
+  }
+}
+
+/**
+ * Guards `activateSequence` against the runtime foot-gun where step 0 is an
+ * `auto_email` step: `auto_email` composes on top of the enrollment's prior
+ * anchor message, so at step 0 there is nothing to reply to. Enrollment via
+ * `enrollWithExistingAnchor` is the supported path for that case.
+ */
+export function assertFirstStepIsNotAutoEmail(steps: readonly { stepType: string }[]): void {
+  if (steps[0]?.stepType === "auto_email") {
+    throw new SequenceError(
+      "VALIDATION",
+      "The first step cannot be auto_email — auto_email requires an existing anchor message. Use manual_email or a wait step first.",
+    );
   }
 }
 
@@ -676,6 +692,9 @@ export const activateSequence = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
+    if (!isAdminOrOwner(context.orgContext)) {
+      throw new SequenceError("FORBIDDEN", "Admin or owner role required to activate sequences");
+    }
     const { organizationId } = context.orgContext;
     const seq = await loadSequenceOrThrow(data.id, organizationId);
     if (seq.status !== "draft") {
@@ -686,6 +705,8 @@ export const activateSequence = createServerFn({ method: "POST" })
     if (steps.length === 0) {
       throw new SequenceError("VALIDATION", "Sequence must have at least one step");
     }
+
+    assertFirstStepIsNotAutoEmail(steps);
 
     for (const step of steps) {
       if (step.stepType === "manual_email" || step.stepType === "auto_email") {
@@ -731,6 +752,9 @@ export const archiveSequence = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
+    if (!isAdminOrOwner(context.orgContext)) {
+      throw new SequenceError("FORBIDDEN", "Admin or owner role required to archive sequences");
+    }
     const { organizationId } = context.orgContext;
     const seq = await loadSequenceOrThrow(data.id, organizationId);
     if (seq.status === "archived") return serializeSequence(seq);
@@ -758,6 +782,9 @@ export const enrollProspects = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
+    if (!isAdminOrOwner(context.orgContext)) {
+      throw new SequenceError("FORBIDDEN", "Admin or owner role required to enroll prospects");
+    }
     const { organizationId, userId } = context.orgContext;
     const seq = await loadSequenceOrThrow(data.sequenceId, organizationId);
     if (seq.status !== "active") {

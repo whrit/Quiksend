@@ -1,4 +1,5 @@
 import { auth } from "@quiksend/auth";
+import { isAdminOrOwner } from "@quiksend/core";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { eq } from "drizzle-orm";
@@ -36,6 +37,9 @@ export const createApiKey = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(createApiKeySchema)
   .handler(async ({ data, context }) => {
+    if (!isAdminOrOwner(context.orgContext)) {
+      throw new Error("Admin or owner role required to manage API keys");
+    }
     const { organizationId, userId } = context.orgContext;
 
     const created = await auth.api.createApiKey({
@@ -62,6 +66,9 @@ export const revokeApiKey = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ keyId: z.string().min(1) }))
   .handler(async ({ data, context }) => {
+    if (!isAdminOrOwner(context.orgContext)) {
+      throw new Error("Admin or owner role required to manage API keys");
+    }
     const { organizationId } = context.orgContext;
 
     const existing = await auth.api.getApiKey({
