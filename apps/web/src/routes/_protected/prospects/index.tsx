@@ -82,6 +82,11 @@ const searchSchema = z.object({
   companyId: z.string().optional(),
   gateways: z.string().optional(),
   cursor: z.string().optional(),
+  // Stack of previous cursors — JSON-encoded array. Empty stack = first page.
+  // Cursor pagination is forward-only in the loader; we simulate a "Previous
+  // page" button by pushing the current cursor onto this stack before
+  // navigating forward, and popping when the user goes back.
+  cursorHistory: z.string().optional(),
 });
 
 type ProspectRow = Awaited<ReturnType<typeof listProspects>>["items"][number];
@@ -559,14 +564,45 @@ function ProspectsPage() {
 
       <div className="flex justify-end gap-2">
         {search.cursor && (
-          <Button variant="outline" onClick={() => applyFilters({ cursor: undefined })}>
+          <Button
+            variant="outline"
+            onClick={() =>
+              applyFilters({ cursor: undefined, cursorHistory: undefined })
+            }
+          >
             First page
+          </Button>
+        )}
+        {search.cursor && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              const stack = search.cursorHistory
+                ? (JSON.parse(search.cursorHistory) as string[])
+                : [];
+              const prev = stack.pop();
+              applyFilters({
+                cursor: prev,
+                cursorHistory: stack.length > 0 ? JSON.stringify(stack) : undefined,
+              });
+            }}
+          >
+            Previous page
           </Button>
         )}
         {prospects.nextCursor && (
           <Button
             variant="outline"
-            onClick={() => applyFilters({ cursor: JSON.stringify(prospects.nextCursor) })}
+            onClick={() => {
+              const stack = search.cursorHistory
+                ? (JSON.parse(search.cursorHistory) as string[])
+                : [];
+              if (search.cursor) stack.push(search.cursor);
+              applyFilters({
+                cursor: JSON.stringify(prospects.nextCursor),
+                cursorHistory: JSON.stringify(stack),
+              });
+            }}
           >
             Next page
           </Button>

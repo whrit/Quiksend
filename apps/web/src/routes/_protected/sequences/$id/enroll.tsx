@@ -17,11 +17,15 @@ import {
 import { listProspects } from "@/lib/prospects.functions.ts";
 import { getEnrollmentSegWarning } from "@/lib/organization.functions.ts";
 import { enrollProspects, getSequence, previewSchedule } from "@/lib/sequences.functions.ts";
+import { listMailboxes } from "@/lib/mailboxes.functions.ts";
 
 export const Route = createFileRoute("/_protected/sequences/$id/enroll")({
   loader: async ({ params }) => {
-    const sequence = await getSequence({ data: { id: params.id } });
-    return { sequence };
+    const [sequence, mailboxes] = await Promise.all([
+      getSequence({ data: { id: params.id } }),
+      listMailboxes(),
+    ]);
+    return { sequence, mailboxes };
   },
   component: EnrollPage,
 });
@@ -37,7 +41,7 @@ const DEFERRAL_LABELS: Record<string, string> = {
 };
 
 function EnrollPage() {
-  const { sequence } = Route.useLoaderData();
+  const { sequence, mailboxes } = Route.useLoaderData();
   const { id } = Route.useParams();
 
   const [search, setSearch] = useState("");
@@ -52,6 +56,9 @@ function EnrollPage() {
   > | null>(null);
 
   const mailboxIds = sequence.settings.mailbox_ids;
+  const mailboxLabelById = new Map(
+    mailboxes.map((mb) => [mb.id, mb.address ?? mb.displayName ?? mb.id.slice(0, 8)]),
+  );
 
   const searchProspects = useCallback(async () => {
     setLoading(true);
@@ -237,7 +244,7 @@ function EnrollPage() {
               >
                 {mailboxIds.map((mbId: string) => (
                   <option key={mbId} value={mbId}>
-                    {mbId.slice(0, 8)}…
+                    {mailboxLabelById.get(mbId) ?? `${mbId.slice(0, 8)}…`}
                   </option>
                 ))}
               </select>

@@ -14,7 +14,32 @@ export const Route = createRootRoute({
   }),
   component: RootComponent,
   notFoundComponent: NotFound,
+  errorComponent: RootErrorBoundary,
 });
+
+function RootErrorBoundary({ error }: { error: unknown }) {
+  const message = error instanceof Error ? error.message : "Something went wrong.";
+  return (
+    <RootDocument>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-8 text-center">
+        <h1 className="text-2xl font-semibold">Something went wrong</h1>
+        <p className="max-w-lg text-sm text-muted-foreground">{message}</p>
+        <div className="flex gap-3 text-sm">
+          <a href="/dashboard" className="underline">
+            Go to dashboard
+          </a>
+          <button
+            type="button"
+            className="underline"
+            onClick={() => window.location.reload()}
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+    </RootDocument>
+  );
+}
 
 function NotFound() {
   return (
