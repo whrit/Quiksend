@@ -64,7 +64,7 @@ pnpm worker:dev       # required for sequences, CRM sync, and inbound polling
 
 > **Seed note:** `pnpm db:seed` inserts a demo workspace (mailbox, sequence, 20 prospects)
 > but does not set a login password for `demo@quiksend.local`. Use your own account for
-> the UI demo. See [NEEDS.md](./NEEDS.md) for the planned seed login fix.
+> the UI demo.
 
 Drizzle Studio: `pnpm db:studio`. CI gate for contributors: `pnpm check`.
 
