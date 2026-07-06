@@ -101,6 +101,8 @@ export const getCanaryHistory = createServerFn({ method: "POST" })
     z
       .object({
         sequenceId: z.string().uuid().optional(),
+        mailboxId: z.string().uuid().optional(),
+        gateway: z.string().optional(),
         limit: z.number().int().min(1).max(100).default(25),
         cursor: z.string().uuid().optional(),
       })
@@ -111,6 +113,9 @@ export const getCanaryHistory = createServerFn({ method: "POST" })
     const conditions = [eq(tables.canarySend.organizationId, organizationId)];
     if (data.sequenceId) {
       conditions.push(eq(tables.canarySend.sequenceId, data.sequenceId));
+    }
+    if (data.mailboxId) {
+      conditions.push(eq(tables.canarySend.mailboxId, data.mailboxId));
     }
     if (data.cursor) {
       conditions.push(lt(tables.canarySend.id, data.cursor));
@@ -127,7 +132,10 @@ export const getCanaryHistory = createServerFn({ method: "POST" })
     });
 
     const hasMore = rows.length > data.limit;
-    const items = hasMore ? rows.slice(0, data.limit) : rows;
+    let items = hasMore ? rows.slice(0, data.limit) : rows;
+    if (data.gateway) {
+      items = items.filter((row) => row.seedInbox?.gateway === data.gateway);
+    }
     const nextCursor = hasMore ? items[items.length - 1]?.id : undefined;
 
     return {

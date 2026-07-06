@@ -27,6 +27,14 @@ import {
   setWorkspaceCanaryConfig,
 } from "@/lib/deliverability.functions.ts";
 import {
+  getWorkspaceDeliverabilityPolicy,
+  previewRoutingImpact,
+  setWorkspaceDeliverabilityPolicy,
+  type DeliverabilityPolicy,
+  type RoutingImpactPreview,
+  type RoutingPolicy,
+} from "@/lib/organization.functions.ts";
+import {
   createUserSeedInbox,
   deleteSeedInbox,
   isEntitledToProviderSeeds,
@@ -40,20 +48,168 @@ export const Route = createFileRoute("/_protected/settings/deliverability")({
   component: DeliverabilitySettingsPage,
 });
 
+const ROUTING_POLICY_OPTIONS: Array<{ value: RoutingPolicy; label: string; description: string }> =
+  [
+    {
+      value: "off",
+      label: "Off",
+      description:
+        "No routing overrides. Sequences use the mailboxes you selected, regardless of gateway.",
+    },
+    {
+      value: "warn",
+      label: "Warn",
+      description:
+        "Show a banner in the compose UI when a selected mailbox looks unsafe for a recipient's SEG, but still send.",
+    },
+    {
+      value: "enforce",
+      label: "Enforce",
+      description:
+        "Skip sends when no enterprise-safe mailbox is available for the recipient's SEG. Safest, but drops volume.",
+    },
+  ];
+
 function DeliverabilityRoutingSection() {
+  const [policy, setPolicy] = useState<DeliverabilityPolicy | null>(null);
+  const [preview, setPreview] = useState<RoutingImpactPreview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [draftRoutingPolicy, setDraftRoutingPolicy] = useState<RoutingPolicy>("off");
+  const [draftSanitizer, setDraftSanitizer] = useState(false);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [p, i] = await Promise.all([
+        getWorkspaceDeliverabilityPolicy(),
+        previewRoutingImpact(),
+      ]);
+      setPolicy(p);
+      setDraftRoutingPolicy(p.routingPolicy);
+      setDraftSanitizer(p.contentSanitizerEnabled);
+      setPreview(i);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const dirty =
+    !!policy &&
+    (policy.routingPolicy !== draftRoutingPolicy ||
+      policy.contentSanitizerEnabled !== draftSanitizer);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await setWorkspaceDeliverabilityPolicy({
+        data: {
+          routingPolicy: draftRoutingPolicy,
+          contentSanitizerEnabled: draftSanitizer,
+        },
+      });
+      toast.success("Routing policy saved");
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save policy");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <section className="rounded-lg border p-4">
-      <h2 className="text-lg font-semibold">SEG routing</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Enterprise-safe mailbox routing is configured per mailbox. Visit mailbox settings to declare
-        M365-aged senders for SEG-protected recipients.
-      </p>
-      <Link
-        to="/settings/mailboxes"
-        className={buttonVariants({ variant: "outline", size: "sm", className: "mt-3" })}
-      >
-        Manage mailboxes
-      </Link>
+    <section className="space-y-4 rounded-lg border p-4">
+      <div>
+        <h2 className="text-lg font-semibold">SEG routing policy</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Controls how the sequence engine handles prospects on Proofpoint, Mimecast, Barracuda, and
+          Cisco IronPort when your selected mailboxes are not enterprise-safe.
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading policy…
+        </div>
+      ) : (
+        <>
+          <fieldset
+            className="grid gap-2"
+            role="radiogroup"
+            aria-label="Routing policy"
+            disabled={saving}
+          >
+            {ROUTING_POLICY_OPTIONS.map((opt) => (
+              <label
+                key={opt.value}
+                className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm hover:bg-muted/40 ${
+                  draftRoutingPolicy === opt.value ? "border-primary bg-primary/5" : ""
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="routingPolicy"
+                  value={opt.value}
+                  checked={draftRoutingPolicy === opt.value}
+                  onChange={() => setDraftRoutingPolicy(opt.value)}
+                  className="mt-1"
+                />
+                <div>
+                  <div className="font-medium">{opt.label}</div>
+                  <div className="text-muted-foreground">{opt.description}</div>
+                </div>
+              </label>
+            ))}
+          </fieldset>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={draftSanitizer}
+              onChange={(e) => setDraftSanitizer(e.target.checked)}
+              disabled={saving}
+            />
+            Enable content sanitizer for SEG-destined mail (strips tracking pixels + rewrites links)
+          </label>
+
+          {preview ? (
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <div className="font-medium">Impact preview</div>
+              <ul className="mt-1 list-disc pl-5 text-muted-foreground">
+                <li>{preview.prospectsBehindSeg} prospects behind SEG gateways</li>
+                <li>{preview.safeMailboxCount} enterprise-safe mailboxes available</li>
+                {draftRoutingPolicy === "enforce" ? (
+                  <li>
+                    {preview.prospectsAtRiskOfSkip} prospects would be skipped under enforce today
+                  </li>
+                ) : null}
+              </ul>
+            </div>
+          ) : null}
+
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => void handleSave()} disabled={!dirty || saving}>
+              {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+              Save policy
+            </Button>
+            <Link
+              to="/settings/mailboxes"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              Manage mailboxes
+            </Link>
+            {policy?.routingPolicyChangedAt ? (
+              <span className="text-xs text-muted-foreground">
+                Last changed {new Date(policy.routingPolicyChangedAt).toLocaleString()}
+              </span>
+            ) : null}
+          </div>
+        </>
+      )}
     </section>
   );
 }
