@@ -28,11 +28,7 @@ function RootErrorBoundary({ error }: { error: unknown }) {
           <a href="/dashboard" className="underline">
             Go to dashboard
           </a>
-          <button
-            type="button"
-            className="underline"
-            onClick={() => window.location.reload()}
-          >
+          <button type="button" className="underline" onClick={() => window.location.reload()}>
             Reload
           </button>
         </div>

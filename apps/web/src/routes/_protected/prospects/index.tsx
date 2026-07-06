@@ -566,9 +566,7 @@ function ProspectsPage() {
         {search.cursor && (
           <Button
             variant="outline"
-            onClick={() =>
-              applyFilters({ cursor: undefined, cursorHistory: undefined })
-            }
+            onClick={() => applyFilters({ cursor: undefined, cursorHistory: undefined })}
           >
             First page
           </Button>
