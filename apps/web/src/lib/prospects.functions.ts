@@ -5,7 +5,6 @@ import type { EmailGateway } from "@quiksend/mail/gateway-detect";
 import { isAdminOrOwner } from "@quiksend/core";
 import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import type { DedupePolicy, ValidCsvRow } from "./prospect-import.ts";
 import { normalizeDomain, normalizeEmail } from "./prospect-import.ts";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
@@ -716,108 +715,6 @@ export const removeFromList = createServerFn({ method: "POST" })
     return { removed: data.prospectIds.length };
   });
 
-async function resolveCompanyId(
-  organizationId: string,
-  company: ValidCsvRow["company"],
-): Promise<string | null> {
-  if (!company) return null;
-
-  const domain = company.domain ? normalizeDomain(company.domain) : null;
-  const name = company.name?.trim() || null;
-
-  if (domain) {
-    const existing = await db.query.company.findFirst({
-      where: and(
-        eq(tables.company.organizationId, organizationId),
-        eq(tables.company.domain, domain),
-        isNull(tables.company.deletedAt),
-      ),
-    });
-    if (existing) return existing.id;
-
-    const [created] = await db
-      .insert(tables.company)
-      .values({
-        organizationId,
-        domain,
-        name: name ?? domain,
-        industry: company.industry,
-        website: company.website,
-      })
-      .returning();
-    return created?.id ?? null;
-  }
-
-  if (name) {
-    const existing = await db.query.company.findFirst({
-      where: and(
-        eq(tables.company.organizationId, organizationId),
-        sql`lower(${tables.company.name}) = ${name.toLowerCase()}`,
-        isNull(tables.company.deletedAt),
-      ),
-    });
-    if (existing) return existing.id;
-
-    const [created] = await db.insert(tables.company).values({ organizationId, name }).returning();
-    return created?.id ?? null;
-  }
-
-  return null;
-}
-
-async function importProspectRow(
-  organizationId: string,
-  row: ValidCsvRow,
-  dedupePolicy: DedupePolicy,
-): Promise<"created" | "updated" | "skipped"> {
-  const email = normalizeEmail(row.prospect.email);
-  if (!email) throw new Error("Invalid email");
-
-  const companyId = await resolveCompanyId(organizationId, row.company);
-
-  const existing = await db.query.prospect.findFirst({
-    where: and(
-      eq(tables.prospect.organizationId, organizationId),
-      eq(tables.prospect.email, email),
-    ),
-  });
-
-  const prospectValues = {
-    firstName: row.prospect.firstName ?? null,
-    lastName: row.prospect.lastName ?? null,
-    title: row.prospect.title ?? null,
-    phone: row.prospect.phone ?? null,
-    linkedinUrl: row.prospect.linkedinUrl ?? null,
-    timezone: row.prospect.timezone ?? null,
-    companyId,
-    source: "csv" as const,
-    deletedAt: null,
-  };
-
-  if (existing) {
-    if (existing.deletedAt || dedupePolicy === "update_existing") {
-      await db
-        .update(tables.prospect)
-        .set(prospectValues)
-        .where(
-          and(
-            eq(tables.prospect.id, existing.id),
-            eq(tables.prospect.organizationId, organizationId),
-          ),
-        );
-      return existing.deletedAt ? "created" : "updated";
-    }
-    return "skipped";
-  }
-
-  await db.insert(tables.prospect).values({
-    organizationId,
-    email,
-    ...prospectValues,
-  });
-  return "created";
-}
-
 export const startImport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(startImportInputSchema)
@@ -831,15 +728,13 @@ export const startImport = createServerFn({ method: "POST" })
         filename: data.filename,
         mapping: data.mapping,
         createdByUserId: userId,
-        status: "processing",
+        // Row processing happens in the worker (import.process handler).
+        // "queued" tells the UI to keep polling instead of re-showing the file
+        // picker.
+        status: "queued",
       })
       .returning();
     if (!batch) throw new Error("Failed to create import batch");
-
-    let createdCount = 0;
-    let updatedCount = 0;
-    let skippedCount = 0;
-    let erroredCount = data.invalidRows?.length ?? 0;
 
     if (data.invalidRows?.length) {
       await db.insert(tables.importError).values(
@@ -850,45 +745,49 @@ export const startImport = createServerFn({ method: "POST" })
           reason: row.reason,
         })),
       );
+      // Reflect parse-time errors in the batch counters immediately so the
+      // client's polling snapshot has something to render.
+      await db
+        .update(tables.importBatch)
+        .set({ erroredCount: data.invalidRows.length })
+        .where(
+          and(
+            eq(tables.importBatch.id, batch.id),
+            eq(tables.importBatch.organizationId, organizationId),
+          ),
+        );
     }
 
-    for (const row of data.rows) {
-      try {
-        const outcome = await importProspectRow(organizationId, row, data.dedupePolicy);
-        if (outcome === "created") createdCount += 1;
-        else if (outcome === "updated") updatedCount += 1;
-        else skippedCount += 1;
-      } catch (err) {
-        erroredCount += 1;
-        await db.insert(tables.importError).values({
-          batchId: batch.id,
-          rowNumber: row.rowNumber,
-          raw: row.prospect as unknown as Record<string, unknown>,
-          reason: err instanceof Error ? err.message : "Import failed",
-        });
-      }
-    }
+    // Hand the actual row-by-row work off to the worker so a 5,000-row CSV
+    // doesn't hold a server-fn request open for minutes and time out at the
+    // proxy layer. The client polls `getImportBatch` and shows progress.
+    await enqueueWithRetries("import.process", {
+      batchId: batch.id,
+      organizationId,
+      dedupePolicy: data.dedupePolicy,
+      rows: data.rows,
+    });
 
-    const [completed] = await db
-      .update(tables.importBatch)
-      .set({
-        createdCount,
-        updatedCount,
-        skippedCount,
-        erroredCount,
-        status: "completed",
-      })
+    const [refreshed] = await db
+      .select()
+      .from(tables.importBatch)
       .where(
         and(
           eq(tables.importBatch.id, batch.id),
           eq(tables.importBatch.organizationId, organizationId),
         ),
-      )
-      .returning();
+      );
 
     return {
-      batch: serializeImportBatch(completed!),
-      summary: { createdCount, updatedCount, skippedCount, erroredCount },
+      batch: serializeImportBatch(refreshed ?? batch),
+      // Kept for backwards-compat with the previous synchronous shape; will be
+      // zero until the worker fills them in and the client re-polls.
+      summary: {
+        createdCount: 0,
+        updatedCount: 0,
+        skippedCount: 0,
+        erroredCount: data.invalidRows?.length ?? 0,
+      },
     };
   });
 
