@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.1](https://github.com/whrit/Quiksend/compare/v2.6.0...v2.6.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* **worker:** register cron queue before scheduling it ([#85](https://github.com/whrit/Quiksend/issues/85)) ([e7ce215](https://github.com/whrit/Quiksend/commit/e7ce21564c8ea94c7c5221124d52e232306a5e96))
+
 ## [2.6.0](https://github.com/whrit/Quiksend/compare/v2.5.0...v2.6.0) (2026-07-06)
 
 
