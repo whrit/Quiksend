@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SEG_GATEWAY_VALUES } from "@/lib/canary-injection.ts";
+import { SEG_GATEWAY_VALUES } from "@quiksend/core/deliverability";
 import {
   getCanaryHistory,
   getDeliverabilityGrid,
