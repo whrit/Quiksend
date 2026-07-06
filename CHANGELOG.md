@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/whrit/Quiksend/compare/v2.3.4...v2.4.0) (2026-07-06)
+
+
+### Features
+
+* **web:** add primary navigation shell + empty-state dashboard hero ([#67](https://github.com/whrit/Quiksend/issues/67)) ([138f2fc](https://github.com/whrit/Quiksend/commit/138f2fcac24dde61650bfb8f87fd13a37ed49494))
+
 ## [2.3.4](https://github.com/whrit/Quiksend/compare/v2.3.3...v2.3.4) (2026-07-06)
 
 
