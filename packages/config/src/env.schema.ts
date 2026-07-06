@@ -46,6 +46,11 @@ export const EnvSchema = z
     // Default provider a workspace uses if it has not chosen one in settings.
     AI_DEFAULT_PROVIDER: z.enum(["anthropic", "openai"]).default("anthropic"),
 
+    // AI research web search providers (Phase 8). Presence auto-selects a real provider; empty falls back to the fake.
+    BRAVE_API_KEY: z.string().optional(),
+    EXA_API_KEY: z.string().optional(),
+    TAVILY_API_KEY: z.string().optional(),
+
     // Mail (Phase 4). Local Mailpit values come from docker-compose.yml.
     SMTP_HOST: z.string().optional(),
     SMTP_PORT: z.coerce.number().int().positive().optional(),
