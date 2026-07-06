@@ -68,12 +68,14 @@ export const crmWritebackSchema = z.object({
   eventType: z.enum(["send", "reply", "status", "contact_upsert"]),
   entityId: z.string().uuid(),
   idempotencyKey: z.string(),
+  organizationId: z.string().optional(),
 });
 export interface CrmWritebackPayload {
   connectionId: string;
   eventType: "send" | "reply" | "status" | "contact_upsert";
   entityId: string;
   idempotencyKey: string;
+  organizationId?: string;
 }
 
 // ── webhook.deliver — outbound HMAC-signed webhook attempt (Phase 10) ───────
@@ -162,9 +164,11 @@ export type GatewaySweepStalePayload = Record<string, never>;
 // ── seed_inbox.verify — IMAP credential verification (Phase 11C) ───────────────
 export const seedInboxVerifySchema = z.object({
   seedInboxId: z.string().uuid(),
+  organizationId: z.string().optional(),
 });
 export interface SeedInboxVerifyPayload {
   seedInboxId: string;
+  organizationId?: string;
 }
 
 // ── canary.send — materialize a pending canary send (Phase 11C) ───────────────
