@@ -96,7 +96,12 @@ export function createGmailAdapter(config: GmailAdapterConfig): MailboxAdapter {
       };
     },
     async listInbound(): Promise<[]> {
-      // history-based polling wired in Phase 7 R-070
+      // Intentional no-op. Gmail inbound polling is implemented in
+      // `apps/worker/src/handlers/mailbox-poll.ts:pollGmail`, which calls the
+      // Gmail history API through Nango — bypassing this per-adapter method
+      // because it needs the workspace's poll cursor + threading writeback.
+      // Kept on the interface so a future in-process consumer (e.g. an SSR
+      // preview) has a symmetric read path.
       return [];
     },
     async verifyIdentity(): Promise<IdentityHealth> {
