@@ -63,7 +63,10 @@ function DeliverabilityGridPage() {
 
   useEffect(() => {
     if (!drawer) return;
-    void getCanaryHistory({ data: { limit: 20 } }).then((res) => setHistory(res));
+    setHistory(null);
+    void getCanaryHistory({
+      data: { mailboxId: drawer.mailboxId, gateway: drawer.gateway, limit: 20 },
+    }).then((res) => setHistory(res));
   }, [drawer]);
 
   return (
@@ -102,24 +105,35 @@ function DeliverabilityGridPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(grid?.rows ?? []).map((row) => (
-                <TableRow key={row.mailboxId}>
-                  <TableCell className="font-medium">{row.mailboxName}</TableCell>
-                  {row.cells.map((cell) => (
-                    <TableCell key={cell.gateway} className="text-center">
-                      <button
-                        type="button"
-                        className={`rounded px-2 py-1 text-xs font-medium ${SIGNAL_CLASS[cell.signal]}`}
-                        onClick={() =>
-                          setDrawer({ mailboxId: row.mailboxId, gateway: cell.gateway })
-                        }
-                      >
-                        {cell.signal === "insufficient_data" ? "—" : `${cell.deliverabilityPct}%`}
-                      </button>
-                    </TableCell>
-                  ))}
+              {(grid?.rows ?? []).length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={SEG_GATEWAY_VALUES.length + 1}
+                    className="py-8 text-center text-sm text-muted-foreground"
+                  >
+                    No mailboxes yet — add one to start seeing deliverability data.
+                  </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                (grid?.rows ?? []).map((row) => (
+                  <TableRow key={row.mailboxId}>
+                    <TableCell className="font-medium">{row.mailboxName}</TableCell>
+                    {row.cells.map((cell) => (
+                      <TableCell key={cell.gateway} className="text-center">
+                        <button
+                          type="button"
+                          className={`rounded px-2 py-1 text-xs font-medium ${SIGNAL_CLASS[cell.signal]}`}
+                          onClick={() =>
+                            setDrawer({ mailboxId: row.mailboxId, gateway: cell.gateway })
+                          }
+                        >
+                          {cell.signal === "insufficient_data" ? "—" : `${cell.deliverabilityPct}%`}
+                        </button>
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
