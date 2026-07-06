@@ -33,10 +33,12 @@ function NewMailboxPage() {
   const [dailyCap, setDailyCap] = useState("50");
   const [throttleSeconds, setThrottleSeconds] = useState("90");
   const [submitting, setSubmitting] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
 
   const onSubmitSmtp = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitting(true);
+    setConfigError(null);
     try {
       await createSmtpMailbox({
         data: {
@@ -52,7 +54,15 @@ function NewMailboxPage() {
       toast.success("SMTP mailbox connected");
       void navigate({ to: "/settings/mailboxes" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create mailbox");
+      const message = err instanceof Error ? err.message : "Failed to create mailbox";
+      // Detect the specific env-config failure so the user sees an actionable
+      // "set MAILBOX_ENCRYPTION_KEY" callout inline in the form instead of a
+      // vanishing toast that reads like a random server error.
+      if (message.includes("MAILBOX_ENCRYPTION_KEY")) {
+        setConfigError(message);
+      } else {
+        toast.error(message);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -142,6 +152,19 @@ function NewMailboxPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {configError ? (
+              <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm">
+                <div className="font-medium text-destructive">Server not configured</div>
+                <p className="mt-1 text-destructive/80">{configError}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Generate a key with{" "}
+                  <code className="rounded bg-muted px-1 py-0.5">openssl rand -base64 32</code>, add
+                  it to your <code className="rounded bg-muted px-1 py-0.5">.env</code> as{" "}
+                  <code className="rounded bg-muted px-1 py-0.5">MAILBOX_ENCRYPTION_KEY=…</code>,
+                  then restart the server.
+                </p>
+              </div>
+            ) : null}
             <form onSubmit={(e) => void onSubmitSmtp(e)} className="space-y-4">
               <MailboxIdentityFields
                 address={address}
