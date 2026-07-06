@@ -62,7 +62,7 @@ export const Route = createFileRoute("/api/v1/sequences/$id/analytics")({
                 .where(
                   and(
                     eq(tables.message.organizationId, ctx.orgId),
-                    sql`${tables.message.enrollmentId} in (select id from enrollment where sequence_id = ${params.id} and organization_id = ${ctx.orgId})`,
+                    sql`${tables.message.enrollmentId} in (select id from enrollment where sequence_id = ${params.id} and organization_id = ${ctx.orgId} and current_step_index >= ${step.stepIndex})`,
                   ),
                 );
               return {
