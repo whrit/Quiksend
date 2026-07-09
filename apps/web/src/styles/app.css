@@ -58,25 +58,56 @@
 }
 
 .dark {
-  --background: oklch(0.145 0.006 60);
-  --foreground: oklch(0.965 0.008 75);
-  --card: oklch(0.185 0.008 60);
-  --card-foreground: oklch(0.965 0.008 75);
-  --popover: oklch(0.205 0.008 60);
-  --popover-foreground: oklch(0.965 0.008 75);
-  --primary: oklch(0.965 0.008 75);
-  --primary-foreground: oklch(0.185 0.008 60);
-  --secondary: oklch(0.235 0.008 60);
-  --secondary-foreground: oklch(0.965 0.008 75);
-  --muted: oklch(0.235 0.008 60);
-  --muted-foreground: oklch(0.685 0.008 60);
-  --accent: oklch(0.72 0.155 68);
+  /* Warm ink scale — dark broadsheet inversion. Declared FIRST so any
+     downstream var(--ink-*) reference (paper, nav hover, etc.) reads warm. */
+  --ink-50: oklch(0.155 0.01 55);
+  --ink-100: oklch(0.195 0.011 55);
+  --ink-200: oklch(1 0 0 / 8%);
+  --ink-300: oklch(1 0 0 / 14%);
+  --ink-400: oklch(0.55 0.01 60);
+  --ink-500: oklch(0.685 0.01 65);
+  --ink-700: oklch(0.82 0.01 70);
+  --ink-900: oklch(0.92 0.009 72);
+  --ink-950: oklch(0.955 0.008 75);
+
+  /* Amber accent — punch chroma slightly; higher saturation reads better on
+     ink than on cream. --amber-500 drives ::selection in dark. */
+  --amber-600: oklch(0.755 0.17 68);
+  --amber-500: oklch(0.82 0.165 70);
+  --amber-100: oklch(0.28 0.055 65);
+
+  /* Background layers — deep umber-ink at page level, charcoal card stock
+     stacking upward through popover and secondary. */
+  --background: oklch(0.155 0.01 55);
+  --card: oklch(0.195 0.011 55);
+  --popover: oklch(0.215 0.011 55);
+  --secondary: oklch(0.245 0.01 55);
+  --muted: oklch(0.245 0.01 55);
+
+  /* Foreground layers — warm off-white with the tiniest cream tint. */
+  --foreground: oklch(0.955 0.008 75);
+  --card-foreground: oklch(0.955 0.008 75);
+  --popover-foreground: oklch(0.955 0.008 75);
+  --secondary-foreground: oklch(0.955 0.008 75);
+  --muted-foreground: oklch(0.685 0.01 65);
+
+  /* Primary buttons invert to cream on charcoal. */
+  --primary: oklch(0.955 0.008 75);
+  --primary-foreground: oklch(0.195 0.011 55);
+
+  /* Amber accent surfaces. */
+  --accent: oklch(0.755 0.17 68);
   --accent-foreground: oklch(0.145 0 0);
-  --accent-soft: oklch(0.27 0.05 65);
-  --destructive: oklch(0.68 0.19 22);
+  --accent-soft: oklch(0.28 0.055 65);
+
+  /* Feedback — softer on ink so warnings don't scream. */
+  --destructive: oklch(0.72 0.185 22);
+  --success: oklch(0.68 0.12 155);
+
+  /* Hairline borders — warm-white at low alpha so they float on ink. */
   --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.72 0.155 68);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.755 0.17 68);
 }
 
 @theme inline {
@@ -149,6 +180,11 @@
     background: var(--amber-600);
     color: white;
   }
+  /* Dark: warmer amber-500 punch on the drag; drop white for near-black ink. */
+  .dark ::selection {
+    background: var(--amber-500);
+    color: oklch(0.145 0 0);
+  }
   /* Refined scrollbar (Webkit) */
   ::-webkit-scrollbar {
     width: 10px;
@@ -161,6 +197,14 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--ink-300);
+  }
+  /* Dark: scrollbar rides warm ink; border stays the background so it recedes. */
+  .dark ::-webkit-scrollbar-thumb {
+    background: var(--ink-300);
+    border: 2px solid var(--background);
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: var(--ink-400);
   }
 }
 
@@ -321,5 +365,34 @@
   }
   .rise-6 {
     animation-delay: 340ms;
+  }
+
+  /* ─── Dark-mode utility overrides ─────────────────────────────────────
+     Base utilities carry light-tuned shadows and blend modes that crush on
+     ink. Retune for warm-dark so cards, grain, and nav still read as
+     paper — just at 2am. */
+
+  /* Grain: multiply crushes dark surfaces; screen at low opacity lifts them
+     with a hint of static instead. */
+  .dark .grain::before {
+    mix-blend-mode: screen;
+    opacity: 0.06;
+  }
+
+  /* Paper: swap the warm-black shadow stack for a warmer highlight ring and
+     deeper drop so charcoal cards keep their lift on ink. */
+  .dark .paper {
+    box-shadow:
+      0 0 0 1px rgba(255, 240, 210, 0.03),
+      0 1px 2px rgba(0, 0, 0, 0.25),
+      0 4px 12px -8px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Nav item active: light-mode ring shadow uses warm-black; retune for ink. */
+  .dark .nav-item[data-active="true"] {
+    background: var(--card);
+    box-shadow:
+      0 0 0 1px var(--border),
+      0 1px 2px rgba(0, 0, 0, 0.25);
   }
 }
