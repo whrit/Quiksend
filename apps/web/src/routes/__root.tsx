@@ -27,16 +27,29 @@ function RootErrorBoundary({ error }: { error: unknown }) {
   const message = error instanceof Error ? error.message : "Something went wrong.";
   return (
     <RootDocument>
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-8 text-center">
-        <h1 className="text-2xl font-semibold">Something went wrong</h1>
-        <p className="max-w-lg text-sm text-muted-foreground">{message}</p>
-        <div className="flex gap-3 text-sm">
-          <a href="/dashboard" className="underline">
-            Go to dashboard
-          </a>
-          <button type="button" className="underline" onClick={() => window.location.reload()}>
-            Reload
-          </button>
+      <div className="grain relative min-h-screen bg-background text-foreground">
+        <div className="relative z-[2] mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 p-8 text-center">
+          <div className="micro-label">Error · Unhandled exception</div>
+          <h1 className="font-display text-[3rem] leading-none tracking-[-0.02em]">
+            Something{" "}
+            <span className="font-display-italic text-[color:var(--amber-600)]">snapped</span>.
+          </h1>
+          <p className="mt-1 max-w-md text-[0.875rem] text-muted-foreground">{message}</p>
+          <div className="mt-2 flex gap-2">
+            <a
+              href="/dashboard"
+              className="inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-[0.8125rem] font-medium transition-colors hover:bg-secondary"
+            >
+              Return to dashboard
+            </a>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="inline-flex h-8 items-center rounded-md bg-foreground px-3 text-[0.8125rem] font-medium text-background hover:bg-foreground/92"
+            >
+              Reload
+            </button>
+          </div>
         </div>
       </div>
     </RootDocument>
@@ -45,15 +58,26 @@ function RootErrorBoundary({ error }: { error: unknown }) {
 
 function NotFound() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-8 text-center">
-      <h1 className="text-2xl font-semibold">Not found</h1>
-      <p className="text-sm text-muted-foreground">
-        That page doesn't exist. Check the URL or head back to your dashboard.
-      </p>
-      <a href="/dashboard" className="text-sm underline">
-        Go to dashboard
-      </a>
-    </div>
+    <RootDocument>
+      <div className="grain relative min-h-screen bg-background text-foreground">
+        <div className="relative z-[2] mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 p-8 text-center">
+          <div className="micro-label">404 · Missing page</div>
+          <h1 className="font-display text-[5rem] leading-none tracking-[-0.03em] tabular">
+            <span className="text-foreground">Not </span>
+            <span className="font-display-italic text-[color:var(--amber-600)]">found</span>.
+          </h1>
+          <p className="mt-1 max-w-sm text-[0.875rem] text-muted-foreground">
+            That page doesn't exist. Check the URL or head back to your dashboard.
+          </p>
+          <a
+            href="/dashboard"
+            className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-[0.8125rem] font-medium transition-colors hover:bg-secondary"
+          >
+            Go to dashboard →
+          </a>
+        </div>
+      </div>
+    </RootDocument>
   );
 }
 
