@@ -44,37 +44,54 @@ function NewSequencePage() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">New sequence</h1>
-        <p className="text-sm text-muted-foreground">Give your sequence a name to get started.</p>
-      </div>
+    <div className="mx-auto max-w-lg px-6 py-16">
+      <header className="rise">
+        <div className="micro-label">Step 01 · Name your sequence</div>
+        <h1 className="mt-2 font-display text-[2.5rem] leading-[0.95] tracking-[-0.025em]">
+          A sequence begins with{" "}
+          <span className="font-display-italic text-[color:var(--amber-600)]">a name</span>.
+        </h1>
+        <p className="mt-3 font-display-italic text-[1.0625rem] text-muted-foreground">
+          Give it something you&rsquo;ll recognise six weeks from now.
+        </p>
+      </header>
+
       {anchorMessageId ? (
-        <div className="rounded-md border bg-primary/5 p-3 text-sm">
-          Anchored to message{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">
-            {anchorMessageId.slice(0, 8)}…
-          </code>
-          — the first <code>auto_email</code> step will reply into that thread.
+        <div className="rise rise-1 paper mt-8 p-4 text-[0.875rem]">
+          <div className="micro-label">Anchored thread</div>
+          <p className="mt-1.5 text-foreground">
+            Replies land in message{" "}
+            <code className="rounded-[4px] border border-border bg-secondary px-1.5 py-0.5 font-mono text-[0.75rem]">
+              {anchorMessageId.slice(0, 8)}…
+            </code>
+            . The first{" "}
+            <code className="font-mono text-[0.75rem] text-muted-foreground">auto_email</code> step
+            will reply into that thread.
+          </p>
         </div>
       ) : null}
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+
+      <form onSubmit={(e) => void handleSubmit(e)} className="rise rise-2 mt-10 space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="name">Name</Label>
+          <Label htmlFor="name" className="micro-label">
+            Sequence name
+          </Label>
           <Input
             id="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Outbound Q1"
+            className="h-11 text-[1rem]"
           />
         </div>
-        <div className="flex gap-2">
-          <Button type="submit" disabled={creating || !name.trim()}>
+        <div className="flex items-center gap-2">
+          <Button type="submit" variant="accent" size="lg" disabled={creating || !name.trim()}>
             {creating ? "Creating…" : "Create sequence"}
           </Button>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
+            size="lg"
             onClick={() => void navigate({ to: "/sequences" })}
           >
             Cancel

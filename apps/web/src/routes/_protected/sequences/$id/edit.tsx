@@ -18,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import {
   ChevronDown,
+  ChevronLeft,
   Copy,
   GripVertical,
   MoreHorizontal,
@@ -30,7 +31,6 @@ import {
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -243,21 +243,6 @@ function formToStepPayload(form: StepFormState) {
   };
 }
 
-function stepTitle(step: Step): string {
-  const config = step.config;
-  if (step.type === "manual_email" || step.type === "auto_email") {
-    return "subject" in config ? config.subject || "Untitled email" : "Untitled email";
-  }
-  if (step.type === "task") {
-    return "title" in config ? config.title || "Untitled task" : "Untitled task";
-  }
-  if (step.type === "wait") {
-    const mins = "minutes" in config ? config.minutes : step.delayMinutes;
-    return `Wait ${mins}m`;
-  }
-  return "Step";
-}
-
 function SortableStepCard({
   step,
   isDraft,
@@ -282,56 +267,136 @@ function SortableStepCard({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const waitMinutes =
+    step.type === "wait" && "minutes" in step.config ? step.config.minutes : step.delayMinutes;
+  const emailSubject =
+    (step.type === "manual_email" || step.type === "auto_email") && "subject" in step.config
+      ? step.config.subject
+      : "";
+  const emailBody =
+    (step.type === "manual_email" || step.type === "auto_email") && "body_template" in step.config
+      ? step.config.body_template
+      : "";
+  const taskTitle = step.type === "task" && "title" in step.config ? step.config.title : "";
+  const taskInstr =
+    step.type === "task" && "instructions" in step.config ? step.config.instructions : "";
+
   return (
-    <div
+    <article
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-3 rounded-lg border bg-card p-4 shadow-sm"
+      className="paper group relative flex gap-4 p-5 transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-[1px] hover:shadow-[0_0_0_1px_rgba(20,15,5,0.03),0_2px_4px_rgba(20,15,5,0.04),0_8px_20px_-10px_rgba(20,15,5,0.08)]"
     >
-      {isDraft && (
-        <button
-          type="button"
-          className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-5 w-5" />
-        </button>
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate font-medium">{stepTitle(step)}</span>
-          <Badge variant="outline">{STEP_TYPE_LABELS[step.type]}</Badge>
-          {step.delayMinutes > 0 && <Badge variant="secondary">+{step.delayMinutes}m delay</Badge>}
+      <div className="flex w-14 shrink-0 flex-col items-start border-r border-border pr-4">
+        <div className="font-display tabular text-[2.25rem] leading-none text-foreground">
+          {String(step.index + 1).padStart(2, "0")}
         </div>
-        <p className="text-xs text-muted-foreground">Step {step.index + 1}</p>
+        {step.type === "wait" ? (
+          <div className="mt-2 font-mono tabular text-[0.6875rem] text-muted-foreground">
+            +{waitMinutes}m
+          </div>
+        ) : step.delayMinutes > 0 ? (
+          <div className="mt-2 font-mono tabular text-[0.6875rem] text-muted-foreground">
+            +{step.delayMinutes}m
+          </div>
+        ) : null}
       </div>
-      {isDraft && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost">
-              <MoreHorizontal className="h-4 w-4" />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-3">
+          <div className="micro-label">{STEP_TYPE_LABELS[step.type]}</div>
+          {step.entryCondition?.kind === "if_no_reply" ? (
+            <span className="font-mono text-[0.6875rem] text-muted-foreground">if no reply</span>
+          ) : null}
+        </div>
+
+        {step.type === "manual_email" || step.type === "auto_email" ? (
+          <>
+            <div className="mt-1.5 truncate text-[0.9375rem] font-medium text-foreground">
+              {emailSubject || (
+                <span className="font-display-italic text-muted-foreground">Untitled email</span>
+              )}
+            </div>
+            {emailBody ? (
+              <p className="mt-1 line-clamp-2 text-[0.8125rem] leading-snug text-muted-foreground">
+                {emailBody}
+              </p>
+            ) : (
+              <p className="mt-1 font-display-italic text-[0.8125rem] text-muted-foreground">
+                No body yet — open to compose.
+              </p>
+            )}
+          </>
+        ) : null}
+
+        {step.type === "wait" ? (
+          <>
+            <div className="mt-1 font-display-italic text-[1.25rem] leading-tight text-foreground">
+              Wait {waitMinutes} minutes
+            </div>
+            {step.businessDaysOnly ? (
+              <div className="mt-1 text-[0.75rem] text-muted-foreground">Business days only</div>
+            ) : null}
+          </>
+        ) : null}
+
+        {step.type === "task" ? (
+          <>
+            <div className="mt-1.5 truncate text-[0.9375rem] font-medium text-foreground">
+              {taskTitle || (
+                <span className="font-display-italic text-muted-foreground">Untitled task</span>
+              )}
+            </div>
+            {taskInstr ? (
+              <p className="mt-1 line-clamp-2 text-[0.8125rem] leading-snug text-muted-foreground">
+                {taskInstr}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+
+      <div className="flex shrink-0 items-start gap-0.5 opacity-80 transition-opacity group-hover:opacity-100">
+        {isDraft ? (
+          <>
+            <Button size="icon" variant="ghost" onClick={onEdit} aria-label="Edit step">
+              <Settings className="h-3.5 w-3.5" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
-            <DropdownMenuItem onClick={onDuplicate}>
-              <Copy className="mr-2 h-4 w-4" />
-              Duplicate
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive" onClick={onDelete}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-      {!isDraft && (
-        <Button size="sm" variant="ghost" onClick={onEdit}>
-          View
-        </Button>
-      )}
-    </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="ghost" aria-label="More actions">
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
+                <DropdownMenuItem onClick={onDuplicate}>
+                  <Copy className="mr-2 h-4 w-4" />
+                  Duplicate
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive" onClick={onDelete}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <button
+              type="button"
+              aria-label="Reorder step"
+              className="inline-flex h-8 w-8 cursor-grab items-center justify-center rounded-[6px] text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--amber-600)] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          </>
+        ) : (
+          <Button size="sm" variant="ghost" onClick={onEdit}>
+            View
+          </Button>
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -451,18 +516,27 @@ function SequenceBuilderPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold">{sequence.name}</h1>
-            <Badge>{sequence.status}</Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">
+    <div className="mx-auto max-w-[1200px] px-8 py-10">
+      <div className="rise mb-2">
+        <Link
+          to="/sequences"
+          className="micro-label inline-flex items-center gap-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--amber-600)] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <ChevronLeft className="h-3 w-3" /> All sequences
+        </Link>
+      </div>
+
+      <header className="rise rise-1 mb-10 flex items-end justify-between gap-6 border-b border-border pb-6">
+        <div className="min-w-0">
+          <div className="micro-label">{sequence.status}</div>
+          <h1 className="mt-2 truncate font-display text-[2.5rem] leading-none tracking-[-0.02em]">
+            {sequence.name}
+          </h1>
+          <p className="mt-1 font-display-italic text-[0.9375rem] text-muted-foreground">
             {isDraft ? "Draft — add steps and activate when ready." : "Active sequence"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           {sequence.status === "active" && (
             <>
               <Link
@@ -490,23 +564,34 @@ function SequenceBuilderPage() {
             </Button>
           )}
         </div>
-      </div>
+      </header>
 
       {anchorMessageId ? (
-        <div className="rounded-md border bg-primary/5 p-3 text-sm">
-          Anchored to message{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">
-            {anchorMessageId.slice(0, 8)}…
-          </code>{" "}
-          — use <code>auto_email</code> steps to reply into that thread when you activate and
-          enroll.
+        <div className="rise rise-2 paper mb-6 p-4 text-[0.875rem]">
+          <div className="micro-label">Anchored thread</div>
+          <p className="mt-1.5 text-foreground">
+            Replies land in message{" "}
+            <code className="rounded-[4px] border border-border bg-secondary px-1.5 py-0.5 font-mono text-[0.75rem]">
+              {anchorMessageId.slice(0, 8)}…
+            </code>
+            . Use <code className="font-mono text-[0.75rem] text-muted-foreground">auto_email</code>{" "}
+            steps to reply into that thread when you activate and enroll.
+          </p>
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium">Steps</h2>
+      <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+        <div className="rise rise-2 space-y-4">
+          <div className="flex items-end justify-between">
+            <div>
+              <div className="micro-label">The sequence</div>
+              <h2 className="mt-1 font-display text-[1.5rem] leading-none tracking-[-0.02em]">
+                Steps
+                <span className="ml-2 font-mono tabular text-[0.75rem] text-muted-foreground">
+                  {steps.length.toString().padStart(2, "0")}
+                </span>
+              </h2>
+            </div>
             {isDraft && (
               <Button
                 size="sm"
@@ -515,7 +600,7 @@ function SequenceBuilderPage() {
                   setSheetOpen(true);
                 }}
               >
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="mr-1 h-4 w-4" />
                 Add step
               </Button>
             )}
@@ -527,45 +612,114 @@ function SequenceBuilderPage() {
             onDragEnd={(e) => void handleDragEnd(e)}
           >
             <SortableContext items={steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-2">
-                {steps.length === 0 ? (
-                  <p className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-                    No steps yet. Add your first step to build the sequence.
-                  </p>
-                ) : (
-                  steps.map((step) => (
-                    <SortableStepCard
-                      key={step.id}
-                      step={step}
-                      isDraft={isDraft}
-                      onEdit={() => {
-                        setStepForm(stepToForm(step));
-                        setSheetOpen(true);
-                      }}
-                      onDuplicate={() => {
-                        const form = stepToForm(step);
-                        delete form.id;
-                        form.index = steps.length;
-                        setStepForm(form);
-                        setSheetOpen(true);
-                      }}
-                      onDelete={() => void handleDeleteStep(step.id)}
-                    />
-                  ))
-                )}
-              </div>
+              {steps.length === 0 ? (
+                <div className="paper relative overflow-hidden p-10 text-center">
+                  <div
+                    className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full opacity-[0.06]"
+                    style={{ background: "var(--amber-600)" }}
+                  />
+                  <div className="pointer-events-none absolute -right-4 top-1/2 -translate-y-1/2 opacity-[0.04]">
+                    <svg width="280" height="280" viewBox="0 0 100 100" fill="none">
+                      <circle cx="50" cy="50" r="48" stroke="currentColor" strokeWidth="0.3" />
+                      <circle cx="50" cy="50" r="34" stroke="currentColor" strokeWidth="0.3" />
+                      <circle cx="50" cy="50" r="20" stroke="currentColor" strokeWidth="0.3" />
+                      <line
+                        x1="0"
+                        y1="50"
+                        x2="100"
+                        y2="50"
+                        stroke="currentColor"
+                        strokeWidth="0.3"
+                      />
+                      <line
+                        x1="50"
+                        y1="0"
+                        x2="50"
+                        y2="100"
+                        stroke="currentColor"
+                        strokeWidth="0.3"
+                      />
+                    </svg>
+                  </div>
+                  <div className="relative mx-auto max-w-md">
+                    <div className="micro-label">Step 01 · Compose the first move</div>
+                    <h3 className="mt-3 font-display text-[2rem] leading-[0.95] tracking-[-0.025em] text-foreground">
+                      A sequence is a{" "}
+                      <span className="font-display-italic text-[color:var(--amber-600)]">
+                        series of notes
+                      </span>
+                      .
+                    </h3>
+                    <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted-foreground">
+                      Start with a manual email, layer follow-ups, land the ask. Each step is a
+                      paper slip in the ledger.
+                    </p>
+                    {isDraft ? (
+                      <div className="mt-6 flex justify-center">
+                        <Button
+                          variant="accent"
+                          size="lg"
+                          onClick={() => {
+                            setStepForm(emptyStepForm(0));
+                            setSheetOpen(true);
+                          }}
+                        >
+                          <Plus className="mr-1 h-4 w-4" />
+                          Add first step
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="relative">
+                  <div
+                    className="pointer-events-none absolute bottom-6 top-6 w-px bg-border"
+                    style={{ left: "calc(1.25rem + 1.375rem)" }}
+                    aria-hidden="true"
+                  />
+                  <div className="relative space-y-3">
+                    {steps.map((step) => (
+                      <SortableStepCard
+                        key={step.id}
+                        step={step}
+                        isDraft={isDraft}
+                        onEdit={() => {
+                          setStepForm(stepToForm(step));
+                          setSheetOpen(true);
+                        }}
+                        onDuplicate={() => {
+                          const form = stepToForm(step);
+                          delete form.id;
+                          form.index = steps.length;
+                          setStepForm(form);
+                          setSheetOpen(true);
+                        }}
+                        onDelete={() => void handleDeleteStep(step.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </SortableContext>
           </DndContext>
         </div>
 
-        <div className="space-y-4 rounded-lg border p-4">
-          <div className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            <h2 className="font-medium">Settings</h2>
+        <aside className="rise rise-3 paper space-y-5 p-5">
+          <div>
+            <div className="micro-label flex items-center gap-1.5">
+              <Settings className="h-3 w-3" />
+              Settings
+            </div>
+            <h2 className="mt-1 font-display text-[1.25rem] leading-none tracking-[-0.02em]">
+              How it sends
+            </h2>
           </div>
 
+          <div className="rule" />
+
           <div className="space-y-2">
-            <Label>Timezone</Label>
+            <Label className="micro-label">Timezone</Label>
             <Select
               value={settings.timezone}
               onValueChange={(v) => setSettings((s) => ({ ...s, timezone: v }))}
@@ -585,11 +739,12 @@ function SequenceBuilderPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Throttle (seconds between sends)</Label>
+            <Label className="micro-label">Throttle · seconds between sends</Label>
             <Input
               type="number"
               min={0}
               value={settings.throttle_seconds}
+              className="font-mono tabular"
               onChange={(e) =>
                 setSettings((s) => ({ ...s, throttle_seconds: Number(e.target.value) }))
               }
@@ -604,7 +759,9 @@ function SequenceBuilderPage() {
                 setSettings((s) => ({ ...s, business_days_only: c === true }))
               }
             />
-            <Label htmlFor="business-days">Business days only</Label>
+            <Label htmlFor="business-days" className="text-[0.8125rem] font-normal">
+              Business days only
+            </Label>
           </div>
 
           <div className="flex items-center gap-2">
@@ -613,14 +770,18 @@ function SequenceBuilderPage() {
               checked={settings.stop_on_reply}
               onCheckedChange={(c) => setSettings((s) => ({ ...s, stop_on_reply: c === true }))}
             />
-            <Label htmlFor="stop-reply">Stop on reply</Label>
+            <Label htmlFor="stop-reply" className="text-[0.8125rem] font-normal">
+              Stop on reply
+            </Label>
           </div>
 
           <div className="space-y-2">
-            <Label>Mailboxes</Label>
-            <div className="max-h-40 space-y-2 overflow-y-auto rounded border p-2">
+            <Label className="micro-label">Mailboxes</Label>
+            <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-[6px] border border-border bg-background/50 p-2">
               {mailboxes.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No mailboxes configured.</p>
+                <p className="font-display-italic text-[0.8125rem] text-muted-foreground">
+                  No mailboxes configured.
+                </p>
               ) : (
                 mailboxes.map((mb) => (
                   <div key={mb.id} className="flex items-center gap-2">
@@ -637,7 +798,10 @@ function SequenceBuilderPage() {
                         }));
                       }}
                     />
-                    <Label htmlFor={`mb-${mb.id}`} className="text-sm font-normal">
+                    <Label
+                      htmlFor={`mb-${mb.id}`}
+                      className="truncate font-mono text-[0.75rem] font-normal text-foreground"
+                    >
                       {mb.address}
                     </Label>
                   </div>
@@ -646,21 +810,33 @@ function SequenceBuilderPage() {
             </div>
           </div>
 
-          <Button className="w-full" onClick={() => void saveSettings()} disabled={saving}>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => void saveSettings()}
+            disabled={saving}
+          >
             {saving ? "Saving…" : "Save settings"}
           </Button>
-        </div>
+        </aside>
       </div>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent className="overflow-y-auto sm:max-w-lg">
           <SheetHeader>
-            <SheetTitle>{stepForm.id ? "Edit step" : "Add step"}</SheetTitle>
+            <div className="micro-label">
+              {stepForm.id
+                ? `Editing step ${String(stepForm.index + 1).padStart(2, "0")}`
+                : `New · step ${String(stepForm.index + 1).padStart(2, "0")}`}
+            </div>
+            <SheetTitle className="font-display text-[1.75rem] leading-none tracking-[-0.02em]">
+              {stepForm.id ? "Refine this step" : "Compose a step"}
+            </SheetTitle>
           </SheetHeader>
 
-          <div className="mt-6 space-y-4">
+          <div className="mt-6 space-y-5">
             <div className="space-y-2">
-              <Label>Step type</Label>
+              <Label className="micro-label">Step type</Label>
               <Select
                 value={stepForm.type}
                 onValueChange={(v) => setStepForm((f) => ({ ...f, type: v as StepType }))}
@@ -680,10 +856,11 @@ function SequenceBuilderPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Delay after previous step (minutes)</Label>
+              <Label className="micro-label">Delay after previous step · minutes</Label>
               <Input
                 type="number"
                 min={0}
+                className="font-mono tabular"
                 value={stepForm.delayMinutes}
                 onChange={(e) =>
                   setStepForm((f) => ({ ...f, delayMinutes: Number(e.target.value) }))
@@ -699,33 +876,39 @@ function SequenceBuilderPage() {
                   setStepForm((f) => ({ ...f, businessDaysOnly: c === true }))
                 }
               />
-              <Label htmlFor="step-biz-days">Business days only</Label>
+              <Label htmlFor="step-biz-days" className="text-[0.8125rem] font-normal">
+                Business days only
+              </Label>
             </div>
 
-            <div className="space-y-3 rounded border p-3">
-              <p className="text-sm font-medium">Entry conditions</p>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="if-no-reply"
-                  checked={stepForm.ifNoReply}
-                  onCheckedChange={(c) => setStepForm((f) => ({ ...f, ifNoReply: c === true }))}
+            <div className="rounded-[6px] border border-border bg-background/40 p-3">
+              <div className="micro-label">Entry conditions</div>
+              <div className="mt-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="if-no-reply"
+                    checked={stepForm.ifNoReply}
+                    onCheckedChange={(c) => setStepForm((f) => ({ ...f, ifNoReply: c === true }))}
+                  />
+                  <Label htmlFor="if-no-reply" className="text-[0.8125rem] font-normal">
+                    Only if no reply on thread
+                  </Label>
+                </div>
+                <GatewayMultiSelect
+                  label="Only send if recipient is behind"
+                  selected={stepForm.recipientGatewayIn}
+                  onChange={(recipientGatewayIn) =>
+                    setStepForm((f) => ({ ...f, recipientGatewayIn }))
+                  }
                 />
-                <Label htmlFor="if-no-reply">Only if no reply on thread</Label>
+                <GatewayMultiSelect
+                  label="Never send if recipient is behind"
+                  selected={stepForm.recipientGatewayNotIn}
+                  onChange={(recipientGatewayNotIn) =>
+                    setStepForm((f) => ({ ...f, recipientGatewayNotIn }))
+                  }
+                />
               </div>
-              <GatewayMultiSelect
-                label="Only send if recipient is behind"
-                selected={stepForm.recipientGatewayIn}
-                onChange={(recipientGatewayIn) =>
-                  setStepForm((f) => ({ ...f, recipientGatewayIn }))
-                }
-              />
-              <GatewayMultiSelect
-                label="Never send if recipient is behind"
-                selected={stepForm.recipientGatewayNotIn}
-                onChange={(recipientGatewayNotIn) =>
-                  setStepForm((f) => ({ ...f, recipientGatewayNotIn }))
-                }
-              />
             </div>
 
             {(stepForm.type === "manual_email" || stepForm.type === "auto_email") && (
@@ -736,7 +919,9 @@ function SequenceBuilderPage() {
                     checked={stepForm.aiGenerate}
                     onCheckedChange={(c) => setStepForm((f) => ({ ...f, aiGenerate: c === true }))}
                   />
-                  <Label htmlFor="ai-gen">AI generate content</Label>
+                  <Label htmlFor="ai-gen" className="text-[0.8125rem] font-normal">
+                    AI generate content
+                  </Label>
                 </div>
 
                 {stepForm.aiGenerate ? (
@@ -755,7 +940,7 @@ function SequenceBuilderPage() {
                 ) : null}
 
                 <div className="space-y-2">
-                  <Label>Subject</Label>
+                  <Label className="micro-label">Subject</Label>
                   <Input
                     value={stepForm.subject}
                     onChange={(e) => setStepForm((f) => ({ ...f, subject: e.target.value }))}
@@ -764,7 +949,7 @@ function SequenceBuilderPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Body template</Label>
+                  <Label className="micro-label">Body template</Label>
                   <Textarea
                     rows={6}
                     value={stepForm.bodyTemplate}
@@ -774,16 +959,18 @@ function SequenceBuilderPage() {
                 </div>
 
                 {templateWarnings.length > 0 && (
-                  <p className="text-sm text-amber-600">
+                  <p className="font-mono text-[0.75rem] text-[color:var(--amber-600)]">
                     Unknown tokens: {templateWarnings.join(", ")}
                   </p>
                 )}
 
                 {(stepForm.subject || stepForm.bodyTemplate) && (
-                  <div className="rounded border bg-muted/50 p-3 text-sm">
-                    <p className="mb-1 font-medium">Preview</p>
-                    <p className="font-medium">{renderPreview(stepForm.subject)}</p>
-                    <p className="mt-2 whitespace-pre-wrap">
+                  <div className="rounded-[6px] border border-border bg-secondary/50 p-3 text-[0.8125rem]">
+                    <div className="micro-label">Preview</div>
+                    <p className="mt-1.5 font-medium text-foreground">
+                      {renderPreview(stepForm.subject)}
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap text-foreground/90">
                       {renderPreview(stepForm.bodyTemplate)}
                     </p>
                   </div>
@@ -791,19 +978,19 @@ function SequenceBuilderPage() {
 
                 <button
                   type="button"
-                  className="flex w-full items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                  className="flex w-full items-center gap-1 text-[0.75rem] font-medium uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--amber-600)] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   onClick={() => setStepForm((f) => ({ ...f, showVariantB: !f.showVariantB }))}
                 >
                   <ChevronDown
                     className={`h-4 w-4 transition-transform ${stepForm.showVariantB ? "rotate-180" : ""}`}
                   />
-                  A/B variant B
+                  A/B · Variant B
                 </button>
 
                 {stepForm.showVariantB && (
-                  <div className="space-y-3 rounded border p-3">
+                  <div className="space-y-3 rounded-[6px] border border-border bg-background/40 p-3">
                     <div className="space-y-2">
-                      <Label>Variant B subject</Label>
+                      <Label className="micro-label">Variant B · subject</Label>
                       <Input
                         value={stepForm.variantBSubject}
                         onChange={(e) =>
@@ -812,7 +999,7 @@ function SequenceBuilderPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Variant B body</Label>
+                      <Label className="micro-label">Variant B · body</Label>
                       <Textarea
                         rows={4}
                         value={stepForm.variantBBody}
@@ -828,10 +1015,11 @@ function SequenceBuilderPage() {
 
             {stepForm.type === "wait" && (
               <div className="space-y-2">
-                <Label>Wait duration (minutes)</Label>
+                <Label className="micro-label">Wait duration · minutes</Label>
                 <Input
                   type="number"
                   min={1}
+                  className="font-mono tabular"
                   value={stepForm.waitMinutes}
                   onChange={(e) =>
                     setStepForm((f) => ({
@@ -847,14 +1035,14 @@ function SequenceBuilderPage() {
             {stepForm.type === "task" && (
               <>
                 <div className="space-y-2">
-                  <Label>Task title</Label>
+                  <Label className="micro-label">Task title</Label>
                   <Input
                     value={stepForm.taskTitle}
                     onChange={(e) => setStepForm((f) => ({ ...f, taskTitle: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Instructions</Label>
+                  <Label className="micro-label">Instructions</Label>
                   <Textarea
                     rows={4}
                     value={stepForm.taskInstructions}
