@@ -42,14 +42,16 @@ function MailboxHealthPage() {
         <Link to="/settings/mailboxes" className={buttonVariants({ variant: "ghost", size: "sm" })}>
           ← Mailboxes
         </Link>
-        <h1 className="text-2xl font-semibold">{mailbox.address} — Health</h1>
+        <h1 className="text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
+          {mailbox.address} — Health
+        </h1>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Sent today</CardDescription>
-            <CardTitle className="text-3xl tabular-nums">
+            <CardTitle className="font-mono tabular text-[1.5rem] font-semibold leading-none">
               {mailbox.sentToday} / {mailbox.dailyCap}
             </CardTitle>
           </CardHeader>
@@ -57,7 +59,7 @@ function MailboxHealthPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Cap utilization</CardDescription>
-            <CardTitle className="text-3xl tabular-nums">
+            <CardTitle className="font-mono tabular text-[1.5rem] font-semibold leading-none">
               {(mailbox.capUtilization * 100).toFixed(0)}%
             </CardTitle>
           </CardHeader>
@@ -65,7 +67,7 @@ function MailboxHealthPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Bounce rate (30d)</CardDescription>
-            <CardTitle className="text-3xl tabular-nums">
+            <CardTitle className="font-mono tabular text-[1.5rem] font-semibold leading-none">
               {(summary.bounceRate30d * 100).toFixed(1)}%
             </CardTitle>
           </CardHeader>

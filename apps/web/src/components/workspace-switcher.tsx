@@ -14,10 +14,8 @@ import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 /**
- * Workspace switcher — designed as the anchor of the sidebar header. The active
- * workspace name lives in Instrument Serif for editorial gravitas ("The Ledger",
- * "Acme Q4", etc. all read like publication titles). Initials tile carries the
- * amber accent as a signature moment.
+ * Workspace switcher — sidebar anchor. Neutral initials tile, workspace
+ * name in body sans (not serif). Direct product language throughout.
  */
 export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
   const { data: organizations } = authClient.useListOrganizations();
@@ -48,7 +46,6 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
 
   const switchTo = async (organizationId: string) => {
     await authClient.organization.setActive({ organizationId });
-    // Reload so all loaders re-fetch under the new org.
     window.location.reload();
   };
 
@@ -57,49 +54,52 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
-            "group flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors",
-            "hover:bg-[color:var(--ink-100)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "group flex w-full items-center gap-2 rounded-[4px] px-1.5 py-1.5 text-left transition-colors",
+            "hover:bg-[color:var(--paper-100)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           )}
         >
           <span
             aria-hidden
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-md font-medium text-[0.7rem] text-white shadow-[inset_0_-1px_0_rgba(0,0,0,0.12),0_1px_2px_rgba(140,80,20,0.2)]"
-            style={{ background: "var(--amber-600)", letterSpacing: "0.02em" }}
+            className="grid h-6 w-6 shrink-0 place-items-center rounded-[3px] text-[0.625rem] font-medium text-white"
+            style={{ background: "var(--paper-900)", letterSpacing: "0.02em" }}
           >
             {initials || "·"}
           </span>
           {!compact && (
             <>
               <div className="min-w-0 flex-1">
-                <div className="micro-label leading-none">Workspace</div>
-                <div className="mt-1 truncate font-display text-[1.0625rem] leading-none text-foreground">
+                <div className="truncate text-[0.75rem] font-medium leading-tight text-foreground">
                   {active?.name ?? "Select workspace"}
                 </div>
+                <div className="truncate text-[0.6875rem] leading-tight text-muted-foreground">
+                  {organizations?.length ?? 0} workspace
+                  {(organizations?.length ?? 0) === 1 ? "" : "s"}
+                </div>
               </div>
-              <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-[color:var(--ink-400)] transition-colors group-hover:text-foreground" />
+              <ChevronsUpDown className="h-3 w-3 shrink-0 text-[color:var(--paper-400)] transition-colors group-hover:text-foreground" />
             </>
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64 p-1.5">
-        <DropdownMenuLabel className="micro-label px-2 py-1.5">Workspaces</DropdownMenuLabel>
+      <DropdownMenuContent align="start" className="w-60 p-1">
+        <DropdownMenuLabel className="micro-label px-2 py-1">Workspaces</DropdownMenuLabel>
         {(organizations ?? []).map((org) => {
           const isActive = active?.id === org.id;
           return (
             <DropdownMenuItem
               key={org.id}
               onSelect={() => void switchTo(org.id)}
-              className="flex items-center gap-2 px-2 py-1.5 text-[0.8125rem]"
+              className="flex items-center gap-2 px-2 py-1.5 text-[0.75rem]"
             >
               <span
                 aria-hidden
-                className="grid h-5 w-5 place-items-center rounded text-[0.625rem] font-medium text-white"
-                style={{ background: isActive ? "var(--amber-600)" : "var(--ink-400)" }}
+                className="grid h-4 w-4 place-items-center rounded-[2px] text-[0.5625rem] font-medium text-white"
+                style={{ background: isActive ? "var(--paper-900)" : "var(--paper-400)" }}
               >
                 {org.name.slice(0, 1).toUpperCase()}
               </span>
               <span className="truncate flex-1">{org.name}</span>
-              {isActive && <Check className="h-3.5 w-3.5 text-[color:var(--amber-600)]" />}
+              {isActive && <Check className="h-3 w-3 text-foreground" />}
             </DropdownMenuItem>
           );
         })}
@@ -120,7 +120,7 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
                 }
               }}
             />
-            <Button size="sm" variant="accent" onClick={() => void create()}>
+            <Button size="sm" onClick={() => void create()}>
               Create
             </Button>
           </div>
@@ -130,9 +130,9 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
               e.preventDefault();
               setCreating(true);
             }}
-            className="flex items-center gap-2 px-2 py-1.5 text-[0.8125rem]"
+            className="flex items-center gap-2 px-2 py-1.5 text-[0.75rem]"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-3 w-3" />
             New workspace
           </DropdownMenuItem>
         )}

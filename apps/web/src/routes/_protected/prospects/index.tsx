@@ -355,23 +355,28 @@ function ProspectsPage() {
   });
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto max-w-[1400px] px-6 py-6 fade-in">
+      <header className="mb-4 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
         <div>
-          <h1 className="text-2xl font-semibold">Prospects</h1>
-          <p className="text-sm text-muted-foreground">Manage contacts, lists, and CSV imports.</p>
+          <div className="micro-label">Contacts</div>
+          <h1 className="mt-0.5 text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
+            Prospects
+          </h1>
+          <p className="mt-1 text-[0.75rem] text-muted-foreground">
+            Contacts, lists, and CSV imports.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Link to="/prospects/import" className={buttonVariants({ variant: "outline" })}>
-            <Upload className="mr-2 h-4 w-4" />
+            <Upload className="mr-1 h-3 w-3" />
             Import CSV
           </Link>
           <Button onClick={() => setAddOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-1 h-3 w-3" />
             Add prospect
           </Button>
         </div>
-      </div>
+      </header>
 
       <div className="flex flex-wrap gap-3">
         <form

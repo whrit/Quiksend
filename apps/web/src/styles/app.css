@@ -2,124 +2,145 @@
 @import "tw-animate-css";
 
 /* ─── Typography ────────────────────────────────────────────────────────────
-   - Instrument Serif  → editorial display moments (workspace name, hero
-     numbers, big page headers). Free, characterful, slightly italic-warm.
-   - General Sans      → refined grotesque for all UI. Cleaner than Inter,
-     rarer in SaaS, still exceptionally legible at small sizes.
-   - JetBrains Mono    → tabular figures, IDs, code, metric units.
+   Two families, both from IBM. Chosen because:
+   - IBM Plex Sans has real character (calligraphic terminals, distinctive `g`,
+     `y`, `Q`) without being trend-abused like Instrument Serif or Geist.
+   - IBM Plex Mono ships with the same design DNA — numbers, IDs, timestamps
+     and code all read as siblings of the surrounding UI.
+   No display serif. No cream. No amber. Utility over affect.
    ────────────────────────────────────────────────────────────────────────── */
-@import url("https://api.fontshare.com/v2/css?f[]=general-sans@200,300,400,500,600,700&f[]=instrument-serif@400i,400&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Ink & cream — a broadsheet palette. Amber is the ONLY chroma. */
-  --ink-950: oklch(0.145 0.008 60); /* body ink, near-black warm */
-  --ink-900: oklch(0.2 0.007 60);
-  --ink-700: oklch(0.36 0.006 60);
-  --ink-500: oklch(0.52 0.005 55); /* muted body */
-  --ink-400: oklch(0.66 0.005 55);
-  --ink-300: oklch(0.78 0.005 55);
-  --ink-200: oklch(0.88 0.006 65); /* subtle rule */
-  --ink-100: oklch(0.94 0.008 70); /* muted panel */
-  --ink-50: oklch(0.975 0.009 75); /* page cream */
+  /* ── Neutral paper scale ─────────────────────────────────────────────────
+     True near-white with a hair of warmth (60° hue at 0.002 chroma — barely
+     perceptible). Steps down through hairline dividers, panel surfaces, muted
+     foregrounds, and body ink. This is a single warm-neutral family — no
+     mixing of warm and cool grays. */
+  --paper-000: oklch(0.985 0.002 60); /* page background */
+  --paper-050: oklch(0.975 0.003 60); /* subtle raised surface */
+  --paper-100: oklch(0.955 0.003 60); /* muted panel */
+  --paper-150: oklch(0.925 0.004 60); /* light divider */
+  --paper-200: oklch(0.895 0.004 60); /* border, hairline */
+  --paper-300: oklch(0.795 0.005 60); /* border strong, disabled fg */
+  --paper-400: oklch(0.66 0.006 60); /* muted foreground */
+  --paper-500: oklch(0.52 0.006 60); /* secondary body */
+  --paper-600: oklch(0.4 0.006 60);
+  --paper-700: oklch(0.3 0.006 60);
+  --paper-800: oklch(0.22 0.005 60);
+  --paper-900: oklch(0.15 0.005 60); /* primary ink */
+  --paper-950: oklch(0.09 0.004 60);
 
-  --amber-600: oklch(0.62 0.155 65); /* accent — deep burnt orange */
-  --amber-500: oklch(0.72 0.155 68); /* accent hover */
-  --amber-100: oklch(0.945 0.05 75); /* accent tint */
+  /* ── Semantic status colors ──────────────────────────────────────────────
+     Red = destructive/bounce. Green = success/delivered. Blue = link/info.
+     Yellow = warn. That's it — no brand accent, no warm heroic hue. Color
+     carries meaning, not decoration. */
+  --status-red-600: oklch(0.55 0.19 22);
+  --status-red-050: oklch(0.965 0.02 22);
+  --status-green-600: oklch(0.55 0.13 155);
+  --status-green-050: oklch(0.965 0.02 155);
+  --status-blue-600: oklch(0.5 0.16 240);
+  --status-blue-050: oklch(0.965 0.02 240);
+  --status-yellow-600: oklch(0.72 0.14 82);
+  --status-yellow-050: oklch(0.975 0.03 82);
 
-  --danger-600: oklch(0.55 0.19 22);
-  --success-600: oklch(0.58 0.13 155);
+  /* ── Red pen ink — the one product-specific accent ──────────────────────
+     Deep desaturated red distinct from `--status-red-600`. Used ONLY to mark
+     human-authored artifacts: a message you drafted and sent, a reply you're
+     composing, a manual suppression add. Never used for canary sends, gateway
+     classifications, or any auto/system-generated data. This is the design
+     system's one product-specific decision — everything else is neutral. */
+  --ink-red-700: oklch(0.38 0.16 18);
+  --ink-red-600: oklch(0.44 0.17 18);
+  --ink-red-100: oklch(0.94 0.045 18);
 
-  --radius: 6px;
+  --radius: 4px;
 
-  /* Semantic token mapping — everything downstream reads these. */
-  --background: var(--ink-50);
-  --foreground: var(--ink-950);
-  --card: oklch(0.99 0.005 80);
-  --card-foreground: var(--ink-950);
-  --popover: oklch(0.995 0.004 80);
-  --popover-foreground: var(--ink-950);
-  --primary: var(--ink-950);
-  --primary-foreground: var(--ink-50);
-  --secondary: var(--ink-100);
-  --secondary-foreground: var(--ink-900);
-  --muted: var(--ink-100);
-  --muted-foreground: var(--ink-500);
-  --accent: var(--amber-600);
-  --accent-foreground: oklch(0.995 0 0);
-  --accent-soft: var(--amber-100);
-  --destructive: var(--danger-600);
-  --success: var(--success-600);
-  --border: var(--ink-200);
-  --input: var(--ink-200);
-  --ring: var(--amber-600);
+  /* ── Semantic token bridge ──────────────────────────────────────────────
+     Everything downstream reads these. Component libraries stay pure. */
+  --background: var(--paper-000);
+  --foreground: var(--paper-900);
+  --card: var(--paper-000);
+  --card-foreground: var(--paper-900);
+  --popover: var(--paper-000);
+  --popover-foreground: var(--paper-900);
+  --primary: var(--paper-900);
+  --primary-foreground: var(--paper-000);
+  --secondary: var(--paper-100);
+  --secondary-foreground: var(--paper-800);
+  --muted: var(--paper-100);
+  --muted-foreground: var(--paper-500);
+  --accent: var(--paper-150);
+  --accent-foreground: var(--paper-900);
+  --destructive: var(--status-red-600);
+  --success: var(--status-green-600);
+  --link: var(--status-blue-600);
+  --border: var(--paper-200);
+  --input: var(--paper-200);
+  --ring: var(--paper-500);
 }
 
 .dark {
-  /* Warm ink scale — dark broadsheet inversion. Declared FIRST so any
-     downstream var(--ink-*) reference (paper, nav hover, etc.) reads warm. */
-  --ink-50: oklch(0.155 0.01 55);
-  --ink-100: oklch(0.195 0.011 55);
-  --ink-200: oklch(1 0 0 / 8%);
-  --ink-300: oklch(1 0 0 / 14%);
-  --ink-400: oklch(0.55 0.01 60);
-  --ink-500: oklch(0.685 0.01 65);
-  --ink-700: oklch(0.82 0.01 70);
-  --ink-900: oklch(0.92 0.009 72);
-  --ink-950: oklch(0.955 0.008 75);
+  --paper-000: oklch(0.155 0.006 60);
+  --paper-050: oklch(0.19 0.007 60);
+  --paper-100: oklch(0.225 0.007 60);
+  --paper-150: oklch(1 0 0 / 6%);
+  --paper-200: oklch(1 0 0 / 10%);
+  --paper-300: oklch(1 0 0 / 18%);
+  --paper-400: oklch(0.52 0.008 60);
+  --paper-500: oklch(0.65 0.008 60);
+  --paper-600: oklch(0.75 0.008 60);
+  --paper-700: oklch(0.82 0.008 60);
+  --paper-800: oklch(0.9 0.008 60);
+  --paper-900: oklch(0.955 0.008 60);
+  --paper-950: oklch(0.99 0.006 60);
 
-  /* Amber accent — punch chroma slightly; higher saturation reads better on
-     ink than on cream. --amber-500 drives ::selection in dark. */
-  --amber-600: oklch(0.755 0.17 68);
-  --amber-500: oklch(0.82 0.165 70);
-  --amber-100: oklch(0.28 0.055 65);
+  --status-red-600: oklch(0.68 0.18 22);
+  --status-red-050: oklch(0.3 0.05 22);
+  --status-green-600: oklch(0.68 0.14 155);
+  --status-green-050: oklch(0.3 0.04 155);
+  --status-blue-600: oklch(0.68 0.15 240);
+  --status-blue-050: oklch(0.3 0.05 240);
+  --status-yellow-600: oklch(0.8 0.13 82);
+  --status-yellow-050: oklch(0.32 0.04 82);
 
-  /* Background layers — deep umber-ink at page level, charcoal card stock
-     stacking upward through popover and secondary. */
-  --background: oklch(0.155 0.01 55);
-  --card: oklch(0.195 0.011 55);
-  --popover: oklch(0.215 0.011 55);
-  --secondary: oklch(0.245 0.01 55);
-  --muted: oklch(0.245 0.01 55);
+  --ink-red-700: oklch(0.62 0.17 18);
+  --ink-red-600: oklch(0.7 0.17 18);
+  --ink-red-100: oklch(0.3 0.06 18);
 
-  /* Foreground layers — warm off-white with the tiniest cream tint. */
-  --foreground: oklch(0.955 0.008 75);
-  --card-foreground: oklch(0.955 0.008 75);
-  --popover-foreground: oklch(0.955 0.008 75);
-  --secondary-foreground: oklch(0.955 0.008 75);
-  --muted-foreground: oklch(0.685 0.01 65);
-
-  /* Primary buttons invert to cream on charcoal. */
-  --primary: oklch(0.955 0.008 75);
-  --primary-foreground: oklch(0.195 0.011 55);
-
-  /* Amber accent surfaces. */
-  --accent: oklch(0.755 0.17 68);
-  --accent-foreground: oklch(0.145 0 0);
-  --accent-soft: oklch(0.28 0.055 65);
-
-  /* Feedback — softer on ink so warnings don't scream. */
-  --destructive: oklch(0.72 0.185 22);
-  --success: oklch(0.68 0.12 155);
-
-  /* Hairline borders — warm-white at low alpha so they float on ink. */
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 10%);
-  --ring: oklch(0.755 0.17 68);
+  --background: var(--paper-000);
+  --foreground: var(--paper-900);
+  --card: var(--paper-050);
+  --card-foreground: var(--paper-900);
+  --popover: var(--paper-100);
+  --popover-foreground: var(--paper-900);
+  --primary: var(--paper-900);
+  --primary-foreground: var(--paper-000);
+  --secondary: var(--paper-100);
+  --secondary-foreground: var(--paper-900);
+  --muted: var(--paper-100);
+  --muted-foreground: var(--paper-500);
+  --accent: var(--paper-100);
+  --accent-foreground: var(--paper-900);
+  --destructive: var(--status-red-600);
+  --success: var(--status-green-600);
+  --link: var(--status-blue-600);
+  --border: var(--paper-200);
+  --input: var(--paper-200);
+  --ring: var(--paper-400);
 }
 
 @theme inline {
-  /* Font families exposed to Tailwind */
-  --font-sans: "General Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+  --font-display: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
 
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
-  --radius-xl: 14px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -135,9 +156,9 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --color-accent-soft: var(--accent-soft);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
+  --color-link: var(--link);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -157,242 +178,223 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "ss02", "cv11";
-    letter-spacing: -0.005em;
+    font-size: 0.8125rem; /* 13px — dense enough for an operator's console */
+    line-height: 1.45;
+    font-feature-settings: "ss03", "cv11";
   }
-  /* Tabular numbers everywhere by default — sales dashboards live and die on aligned digits. */
+  /* Tabular numerals globally — sales dashboards live and die on aligned digits. */
   input,
   td,
+  th,
+  code,
+  pre,
   .tabular,
   .font-mono {
     font-variant-numeric: tabular-nums;
   }
+  /* Headings — sans-serif, tight tracking, no serif drama. Hierarchy through
+     weight and size, not through typeface swap. */
   h1,
   h2,
   h3,
   h4,
   h5,
   h6 {
-    letter-spacing: -0.02em;
+    letter-spacing: -0.011em;
+    line-height: 1.15;
   }
-  /* Selection uses the amber accent — signature moment on every text drag. */
   ::selection {
-    background: var(--amber-600);
-    color: white;
+    background: var(--paper-800);
+    color: var(--paper-000);
   }
-  /* Dark: warmer amber-500 punch on the drag; drop white for near-black ink. */
-  .dark ::selection {
-    background: var(--amber-500);
-    color: oklch(0.145 0 0);
-  }
-  /* Refined scrollbar (Webkit) */
+  /* Refined scrollbar — thin, unobtrusive */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--ink-200);
-    border: 2px solid var(--background);
+    background: var(--paper-200);
     border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--ink-300);
+    background: var(--paper-300);
   }
-  /* Dark: scrollbar rides warm ink; border stays the background so it recedes. */
-  .dark ::-webkit-scrollbar-thumb {
-    background: var(--ink-300);
-    border: 2px solid var(--background);
+  /* Skip-to-content link — WCAG requirement, previously missing */
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    background: var(--paper-900);
+    color: var(--paper-000);
+    padding: 0.5rem 0.75rem;
+    z-index: 100;
+    font-size: 0.75rem;
+    text-decoration: none;
   }
-  .dark ::-webkit-scrollbar-thumb:hover {
-    background: var(--ink-400);
+  .skip-link:focus {
+    left: 1rem;
+    top: 1rem;
   }
 }
 
-/* ─── Utilities we reference throughout the app ─────────────────────────── */
+/* ─── Utilities ─────────────────────────────────────────────────────────── */
 @layer utilities {
-  /* Editorial display — big serif metric headings */
-  .font-display {
-    font-family: var(--font-display);
-    letter-spacing: -0.02em;
-  }
-  .font-display-italic {
-    font-family: var(--font-display);
-    font-style: italic;
-  }
-
-  /* Micro caps — refined uppercase labels above data */
+  /* Column header micro-label — refined for tabular header rows. Reserved for
+     dense tables and settings-form field labels. Not scattered on every card. */
   .micro-label {
-    font-family: var(--font-sans);
+    font-family: var(--font-mono);
     font-size: 0.6875rem;
     font-weight: 500;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
     color: var(--muted-foreground);
   }
 
-  /* Signature card treatment — soft cream on white with a hairline rule */
-  .paper {
+  /* Panel — the workhorse container. Hairline border, no shadow tier tricks,
+     no faux paper texture. Trust the border. */
+  .panel {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow:
-      0 0 0 1px rgba(20, 15, 5, 0.02),
-      0 1px 2px rgba(20, 15, 5, 0.03),
-      0 4px 12px -8px rgba(20, 15, 5, 0.06);
+    border-radius: var(--radius-md);
   }
 
-  /* Hairline horizontal rule */
-  .rule {
-    height: 1px;
-    background: var(--border);
-    border: 0;
+  /* Data table — everything a real operator's table needs, imported by name */
+  .data-table {
     width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.75rem;
+    line-height: 1.4;
   }
-  .rule-vert {
-    width: 1px;
-    background: var(--border);
-    border: 0;
-    height: 100%;
+  .data-table thead th {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--paper-050);
+    white-space: nowrap;
+  }
+  .data-table thead th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .data-table tbody td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--foreground);
+    vertical-align: middle;
+  }
+  .data-table tbody td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+  }
+  .data-table tbody tr:hover td {
+    background: var(--paper-050);
+  }
+  .data-table tbody tr:last-child td {
+    border-bottom: 0;
   }
 
-  /* Grain overlay — subtle, adds atmosphere without visual noise at glance */
-  .grain::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    opacity: 0.35;
-    mix-blend-mode: multiply;
-    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-    background-size: 220px 220px;
-  }
-
-  /* Focus ring — amber, offset, no default browser blue */
+  /* Focus ring — neutral, offset */
   .focus-ring {
     outline: none;
   }
   .focus-ring:focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: 3px;
   }
 
-  /* Sidebar item — active state with left amber accent bar */
-  .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 0.625rem;
-    padding: 0.4375rem 0.75rem;
-    border-radius: 6px;
-    color: var(--ink-700);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    letter-spacing: -0.005em;
-    position: relative;
-    transition:
-      background-color 140ms ease,
-      color 140ms ease;
-  }
-  .nav-item:hover {
-    background: var(--ink-100);
-    color: var(--ink-950);
-  }
-  .nav-item[data-active="true"] {
-    background: var(--card);
-    color: var(--ink-950);
-    box-shadow:
-      0 0 0 1px var(--border),
-      0 1px 2px rgba(20, 15, 5, 0.04);
-  }
-  .nav-item[data-active="true"]::before {
-    content: "";
-    position: absolute;
-    left: -14px;
-    top: 6px;
-    bottom: 6px;
-    width: 2px;
-    background: var(--amber-600);
-    border-radius: 2px;
-  }
-
-  /* Kbd — tiny inline key hint */
+  /* kbd — inline mono key hint */
   .kbd {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 1.25rem;
-    height: 1.125rem;
+    min-width: 1.125rem;
+    height: 1.0625rem;
     padding: 0 0.25rem;
     font-family: var(--font-mono);
     font-size: 0.6875rem;
     font-weight: 500;
     color: var(--muted-foreground);
-    background: var(--card);
+    background: var(--paper-050);
     border: 1px solid var(--border);
     border-radius: 3px;
-    box-shadow: 0 1px 0 var(--border);
   }
 
-  /* Staggered fade-in for reveal-on-mount */
-  @keyframes rise-in {
+  /* Sidebar nav item — no active-state accent bar; the row itself is the
+     active affordance. Boring on purpose. */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.625rem;
+    border-radius: 4px;
+    color: var(--paper-600);
+    font-size: 0.8125rem;
+    font-weight: 400;
+    letter-spacing: -0.005em;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+  .nav-item:hover {
+    background: var(--paper-100);
+    color: var(--foreground);
+  }
+  .nav-item[data-active="true"] {
+    background: var(--paper-100);
+    color: var(--foreground);
+    font-weight: 500;
+  }
+
+  /* Red-ink mark — the ONE product-specific accent. Used to indicate a
+     human-authored artifact (message you sent, reply you're composing,
+     manual override, etc.). Never used for system-generated data. */
+  .ink-mark {
+    color: var(--ink-red-600);
+  }
+  .ink-mark-bar {
+    box-shadow: inset 3px 0 0 var(--ink-red-600);
+  }
+  .ink-mark-dot::before {
+    content: "";
+    display: inline-block;
+    width: 0.375rem;
+    height: 0.375rem;
+    margin-right: 0.375rem;
+    border-radius: 999px;
+    background: var(--ink-red-600);
+    vertical-align: 0.05em;
+  }
+
+  /* Sparkline stroke color (used inside recharts <Line> or SVG) */
+  .stroke-fg {
+    stroke: var(--foreground);
+  }
+  .stroke-muted {
+    stroke: var(--paper-400);
+  }
+  .stroke-ink-red {
+    stroke: var(--ink-red-600);
+  }
+
+  /* Motion — a single mount reveal, kept subtle. No cascading stagger. */
+  @keyframes fade-in {
     from {
       opacity: 0;
-      transform: translateY(6px);
     }
     to {
       opacity: 1;
-      transform: none;
     }
   }
-  .rise {
-    animation: rise-in 480ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
-  }
-  .rise-1 {
-    animation-delay: 40ms;
-  }
-  .rise-2 {
-    animation-delay: 100ms;
-  }
-  .rise-3 {
-    animation-delay: 160ms;
-  }
-  .rise-4 {
-    animation-delay: 220ms;
-  }
-  .rise-5 {
-    animation-delay: 280ms;
-  }
-  .rise-6 {
-    animation-delay: 340ms;
-  }
-
-  /* ─── Dark-mode utility overrides ─────────────────────────────────────
-     Base utilities carry light-tuned shadows and blend modes that crush on
-     ink. Retune for warm-dark so cards, grain, and nav still read as
-     paper — just at 2am. */
-
-  /* Grain: multiply crushes dark surfaces; screen at low opacity lifts them
-     with a hint of static instead. */
-  .dark .grain::before {
-    mix-blend-mode: screen;
-    opacity: 0.06;
-  }
-
-  /* Paper: swap the warm-black shadow stack for a warmer highlight ring and
-     deeper drop so charcoal cards keep their lift on ink. */
-  .dark .paper {
-    box-shadow:
-      0 0 0 1px rgba(255, 240, 210, 0.03),
-      0 1px 2px rgba(0, 0, 0, 0.25),
-      0 4px 12px -8px rgba(0, 0, 0, 0.35);
-  }
-
-  /* Nav item active: light-mode ring shadow uses warm-black; retune for ink. */
-  .dark .nav-item[data-active="true"] {
-    background: var(--card);
-    box-shadow:
-      0 0 0 1px var(--border),
-      0 1px 2px rgba(0, 0, 0, 0.25);
+  .fade-in {
+    animation: fade-in 220ms ease-out both;
   }
 }

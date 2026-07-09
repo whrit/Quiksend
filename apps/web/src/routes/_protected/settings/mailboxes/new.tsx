@@ -112,7 +112,9 @@ function NewMailboxPage() {
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Add mailbox</h1>
+        <h1 className="text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
+          Add mailbox
+        </h1>
         <p className="text-sm text-muted-foreground">
           Connect SMTP (Mailpit locally), Gmail, or Microsoft 365.
         </p>

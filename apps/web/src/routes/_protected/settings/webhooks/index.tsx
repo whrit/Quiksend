@@ -108,7 +108,9 @@ function WebhooksPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Webhooks</h1>
+          <h1 className="text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
+            Webhooks
+          </h1>
           <p className="text-sm text-muted-foreground">
             Receive HMAC-signed event payloads at your HTTPS endpoints.
           </p>

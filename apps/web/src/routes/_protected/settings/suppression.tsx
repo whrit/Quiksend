@@ -140,7 +140,9 @@ function SuppressionPage() {
         </Link>
       </div>
       <div>
-        <h1 className="text-2xl font-semibold">Suppression list</h1>
+        <h1 className="text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
+          Suppression list
+        </h1>
         <p className="text-sm text-muted-foreground">
           Emails blocked from future sends due to bounces, unsubscribes, or manual blocks.
         </p>

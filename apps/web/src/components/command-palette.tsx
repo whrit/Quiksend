@@ -29,11 +29,11 @@ import {
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
+type LucideIcon = (props: { className?: string }) => React.ReactNode;
+
 type CommandAction =
   | { type: "navigate"; to: string; label: string; group: string; Icon: LucideIcon; kbd?: string }
   | { type: "action"; run: () => void; label: string; group: string; Icon: LucideIcon };
-
-type LucideIcon = (props: { className?: string }) => React.ReactNode;
 
 const NAV_COMMANDS: CommandAction[] = [
   {
@@ -99,13 +99,7 @@ const SETTINGS_COMMANDS: CommandAction[] = [
     group: "Settings",
     Icon: Mail,
   },
-  {
-    type: "navigate",
-    to: "/settings/crm",
-    label: "CRM connections",
-    group: "Settings",
-    Icon: Webhook,
-  },
+  { type: "navigate", to: "/settings/crm", label: "CRM", group: "Settings", Icon: Webhook },
   {
     type: "navigate",
     to: "/settings/webhooks",
@@ -137,18 +131,12 @@ const SETTINGS_COMMANDS: CommandAction[] = [
   {
     type: "navigate",
     to: "/settings/suppression",
-    label: "Suppression list",
+    label: "Suppression",
     group: "Settings",
     Icon: Settings,
   },
 ];
 
-/**
- * The ⌘K command palette — one of the signature moments. Groups feel like
- * chapter headings in a broadsheet; icons align to a monospace-ish grid.
- *
- * Trigger from anywhere: Cmd/Ctrl-K, or click the "Search" hint in the sidebar.
- */
 export function CommandPalette({
   open,
   onOpenChange,
@@ -184,20 +172,13 @@ export function CommandPalette({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-[560px] p-0 gap-0 border-0 shadow-[0_20px_60px_-15px_rgba(20,15,5,0.25),0_0_0_1px_var(--border)]"
+        className="max-w-[520px] p-0 gap-0 border-0 shadow-[0_20px_60px_-15px_rgba(20,15,10,0.25),0_0_0_1px_var(--border)]"
         showCloseButton={false}
       >
         <Command loop shouldFilter>
-          <CommandInput placeholder="Search everything, or type a command…" />
+          <CommandInput placeholder="Search or run a command" />
           <CommandList>
-            <CommandEmpty>
-              <div className="font-display text-[1.375rem] leading-none text-foreground">
-                Nothing here.
-              </div>
-              <div className="mt-1 text-[0.75rem] text-muted-foreground">
-                Try “prospects”, “compose”, or a sequence name.
-              </div>
-            </CommandEmpty>
+            <CommandEmpty>No results.</CommandEmpty>
             {groups.map(([heading, items], idx) => (
               <div key={heading}>
                 {idx > 0 && <CommandSeparator />}
@@ -211,7 +192,7 @@ export function CommandPalette({
                       <item.Icon />
                       <span className="flex-1">{item.label}</span>
                       {"kbd" in item && item.kbd && (
-                        <span className="flex items-center gap-1 text-[color:var(--ink-400)]">
+                        <span className="flex items-center gap-1 text-[color:var(--paper-400)]">
                           <span className="kbd">G</span>
                           <span className="kbd">{item.kbd}</span>
                         </span>
@@ -229,23 +210,22 @@ export function CommandPalette({
               </CommandItem>
             </CommandGroup>
           </CommandList>
-          <div className="flex items-center justify-between border-t border-border px-3 py-2 text-[0.6875rem] text-muted-foreground">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between border-t border-border px-3 py-1.5 text-[0.625rem] text-muted-foreground">
+            <div className="flex items-center gap-2">
               <span className="flex items-center gap-1">
                 <span className="kbd">↑</span>
                 <span className="kbd">↓</span>
-                to navigate
+                navigate
               </span>
               <span className="flex items-center gap-1">
                 <span className="kbd">↵</span>
-                to select
+                select
               </span>
               <span className="flex items-center gap-1">
                 <span className="kbd">esc</span>
-                to close
+                close
               </span>
             </div>
-            <span className="font-display-italic text-[color:var(--ink-500)]">Quiksend</span>
           </div>
         </Command>
       </DialogContent>
@@ -253,7 +233,6 @@ export function CommandPalette({
   );
 }
 
-/** Register global ⌘K / Ctrl-K handler. Import into the shell once. */
 export function useCommandPaletteHotkey(setOpen: (fn: (v: boolean) => boolean) => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

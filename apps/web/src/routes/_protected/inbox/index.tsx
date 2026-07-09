@@ -17,11 +17,7 @@ import {
 import { listMailboxes } from "@/lib/mailboxes.functions.ts";
 import { listSequences } from "@/lib/sequences.functions.ts";
 
-/* ─── Named contracts ───────────────────────────────────────────────────────
-   The reader owns the shapes it renders. Declaring these here (instead of
-   deriving via `ReturnType<typeof getInboxThread>`) documents the boundary
-   between the server function and the UI, and stops the client from coupling
-   to the handler's implementation details.                                 */
+/* ─── Contracts ─────────────────────────────────────────────────────────── */
 
 type MessageDirection = "inbound" | "outbound";
 
@@ -32,7 +28,6 @@ type MessageSentiment =
   | "out_of_office"
   | "unsubscribe_request";
 
-/** One message inside an inbox thread as returned by `getInboxThread`. */
 type InboxMessage = {
   id: string;
   direction: MessageDirection;
@@ -50,14 +45,12 @@ type InboxMessage = {
   sentiment: MessageSentiment | null;
 };
 
-/** Full thread payload the reader pane renders. */
 type InboxThreadDetail = {
   threadKey: string;
   mailbox: { id: string; address: string; displayName: string | null } | null;
   messages: InboxMessage[];
 };
 
-/** Which server-side status filter is currently active. */
 type StatusFilter = "all" | "unread" | "replied" | "bounced";
 
 export const Route = createFileRoute("/_protected/inbox/")({
@@ -72,11 +65,11 @@ const STATUS_CHIPS: Array<{ id: StatusFilter; label: string }> = [
 ];
 
 const SENTIMENT_LABELS: Record<MessageSentiment, string> = {
-  interested: "INTERESTED",
-  not_now: "NOT NOW",
-  objection: "OBJECTION",
-  out_of_office: "OUT OF OFFICE",
-  unsubscribe_request: "UNSUBSCRIBE REQUEST",
+  interested: "Interested",
+  not_now: "Not now",
+  objection: "Objection",
+  out_of_office: "OOO",
+  unsubscribe_request: "Unsubscribe",
 };
 
 function InboxPage() {
@@ -137,7 +130,6 @@ function InboxPage() {
     void getInboxThread({ data: { threadKey: selectedKey } })
       .then((detail) => {
         setThreadDetail(detail as InboxThreadDetail);
-        // Scroll to bottom of message list so the newest reply is visible.
         window.requestAnimationFrame(() => {
           const el = messageScrollRef.current;
           if (el) el.scrollTop = el.scrollHeight;
@@ -172,7 +164,7 @@ function InboxPage() {
   const handleMarkAllRead = useCallback(async () => {
     try {
       await markAllInboxRead({ data: {} });
-      toast.success("All threads marked read");
+      toast.success("Marked all read");
       void loadThreads();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to mark read");
@@ -203,7 +195,7 @@ function InboxPage() {
     if (!email) return;
     try {
       await suppressEmail({ data: { email, reason: "manual" } });
-      toast.success(`${email} suppressed`);
+      toast.success(`Suppressed ${email}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to suppress");
     }
@@ -215,8 +207,6 @@ function InboxPage() {
   }, []);
 
   const markDone = useCallback(() => {
-    // Opening the thread already marked its messages read on the server —
-    // refresh the list so the row's unread state syncs, then close the reader.
     void loadThreads();
     closeReader();
     toast.success("Marked done");
@@ -225,44 +215,45 @@ function InboxPage() {
   return (
     <div className="flex h-[100dvh] bg-background">
       {/* ─── Left pane — thread index ─────────────────────────────────── */}
-      <aside className="flex w-[380px] shrink-0 flex-col border-r border-border">
-        {/* Sticky header */}
-        <div className="shrink-0 border-b border-border px-4 py-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="font-mono text-[0.6875rem] tabular text-muted-foreground">
-                {unreadCount} unread
+      <aside
+        className="flex w-[340px] shrink-0 flex-col border-r border-border"
+        aria-label="Threads"
+      >
+        <div className="shrink-0 border-b border-border px-3 py-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <div>
+              <div className="micro-label">Inbox</div>
+              <div className="mt-0.5 text-[0.9375rem] font-semibold tracking-[-0.015em]">
+                {threads.length} thread{threads.length === 1 ? "" : "s"}
+                {unreadCount > 0 && (
+                  <span className="ml-2 font-mono text-[0.6875rem] tabular text-[color:var(--ink-red-600)]">
+                    · {unreadCount} unread
+                  </span>
+                )}
               </div>
-              <h1 className="mt-1 font-display text-[1.75rem] leading-none tracking-[-0.02em]">
-                Inbox
-              </h1>
             </div>
             <Link
               to="/settings/suppression"
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                "h-7 shrink-0 text-[0.6875rem]",
-              )}
+              className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "shrink-0")}
               title="Suppression list"
+              aria-label="Suppression list"
             >
               <Ban className="h-3 w-3" />
             </Link>
           </div>
 
-          {/* Search */}
-          <div className="relative mt-3">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[color:var(--ink-400)]" />
+          <div className="relative mt-2.5">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[color:var(--paper-400)]" />
             <Input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search subject, sender, body…"
-              className="h-8 pl-7"
+              className="pl-6"
             />
           </div>
 
-          {/* Status chips */}
-          <div className="mt-3 flex flex-wrap items-center gap-1">
+          <div className="mt-2 flex flex-wrap items-center gap-1">
             {STATUS_CHIPS.map((chip) => {
               const active = status === chip.id;
               return (
@@ -271,12 +262,12 @@ function InboxPage() {
                   type="button"
                   onClick={() => setStatus(chip.id)}
                   className={cn(
-                    "rounded-[6px] px-2 py-1 text-[0.6875rem] font-medium uppercase tracking-[0.08em]",
-                    "transition-[background-color,color,box-shadow] duration-150 ease-out",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--amber-600)] focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    "rounded-[3px] px-1.5 py-0.5 text-[0.6875rem] font-medium",
+                    "transition-colors duration-120",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                     active
-                      ? "bg-[color:var(--ink-100)] text-foreground shadow-[inset_0_0_0_1px_var(--border)]"
-                      : "text-[color:var(--ink-500)] hover:text-foreground",
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {chip.label}
@@ -286,17 +277,15 @@ function InboxPage() {
             <button
               type="button"
               onClick={() => void handleMarkAllRead()}
-              className="ml-auto text-[0.6875rem] font-medium tracking-[-0.005em] text-[color:var(--ink-500)] hover:text-foreground focus-visible:outline-none focus-visible:text-foreground"
+              className="ml-auto text-[0.6875rem] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:text-foreground"
               title="Mark all threads as read"
             >
               Mark all read
             </button>
           </div>
 
-          {/* Secondary filters — surfaced only when the user actually has
-              multiple mailboxes or sequences to disambiguate. */}
           {(mailboxes.length > 1 || sequences.length > 1) && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {mailboxes.length > 1 && (
                 <MiniSelect
                   value={mailboxId}
@@ -319,23 +308,19 @@ function InboxPage() {
           )}
         </div>
 
-        {/* Scrollable thread list */}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
             </div>
           ) : filteredThreads.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
-              <div className="micro-label">Nothing here</div>
-              <p className="max-w-[16rem] text-[0.75rem] leading-relaxed text-muted-foreground">
-                {query
-                  ? "No threads match that search. Try clearing the filter."
-                  : "No threads yet. Replies to your sequences will land here."}
+            <div className="p-6 text-center">
+              <p className="text-[0.75rem] leading-relaxed text-muted-foreground">
+                {query ? "No threads match that search." : "No threads yet."}
               </p>
             </div>
           ) : (
-            <ul className="divide-y divide-[color:var(--border)]/60">
+            <ul>
               {filteredThreads.map((thread) => (
                 <ThreadRow
                   key={thread.threadKey}
@@ -355,7 +340,7 @@ function InboxPage() {
           <ReaderEmpty />
         ) : detailLoading && !threadDetail ? (
           <div className="flex flex-1 items-center justify-center">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
           </div>
         ) : threadDetail ? (
           <ThreadReader
@@ -378,7 +363,7 @@ function InboxPage() {
   );
 }
 
-/* ─── Thread row — a newspaper column preview ─────────────────────────── */
+/* ─── Thread row ────────────────────────────────────────────────────────── */
 
 function ThreadRow({
   thread,
@@ -391,37 +376,36 @@ function ThreadRow({
 }) {
   const unread = thread.unreadCount > 0;
   const sentiment = thread.sentiment as MessageSentiment | null;
-  const senderLabel = thread.prospectName ?? thread.prospectEmail ?? "Unknown sender";
+  const senderLabel = thread.prospectName ?? thread.prospectEmail ?? "Unknown";
   const subject = thread.subject ?? "(no subject)";
   const preview = thread.preview ?? "";
 
   return (
-    <li className="relative">
+    <li>
       <button
         type="button"
         data-selected={selected}
         onClick={onSelect}
         className={cn(
-          "group relative flex w-full flex-col items-stretch gap-0 px-4 py-3 pl-5 text-left",
-          "transition-[background-color] duration-150 ease-out",
-          "hover:bg-[color:var(--ink-100)]",
-          "focus-visible:outline-none focus-visible:bg-[color:var(--ink-100)]",
-          selected && "bg-card shadow-[inset_-2px_0_0_var(--amber-600)] hover:bg-card",
+          "group relative flex w-full flex-col items-stretch px-3 py-2.5 pl-3.5 text-left",
+          "border-b border-border/60",
+          "transition-colors duration-120",
+          "hover:bg-[color:var(--paper-050)]",
+          "focus-visible:outline-none focus-visible:bg-[color:var(--paper-050)]",
+          selected && "bg-[color:var(--paper-100)] hover:bg-[color:var(--paper-100)]",
         )}
       >
-        {/* Unread dot — the amber accent moment on this row */}
         {unread && (
           <span
             aria-hidden
-            className="absolute left-1.5 top-[1.125rem] h-1.5 w-1.5 rounded-full bg-[color:var(--amber-600)]"
+            className="absolute left-1 top-3 h-1.5 w-1.5 rounded-full bg-[color:var(--ink-red-600)]"
           />
         )}
 
-        {/* Row 1 — sender + time */}
         <div className="flex items-baseline justify-between gap-2">
           <span
             className={cn(
-              "truncate text-[0.8125rem] tracking-[-0.005em]",
+              "truncate text-[0.75rem]",
               unread ? "font-semibold text-foreground" : "font-medium text-foreground",
             )}
           >
@@ -432,37 +416,34 @@ function ThreadRow({
           </span>
         </div>
 
-        {/* Row 2 — subject */}
         <div
           className={cn(
-            "mt-0.5 truncate text-[0.875rem] tracking-[-0.005em]",
-            unread ? "font-bold text-foreground" : "font-semibold text-foreground",
+            "mt-0.5 truncate text-[0.75rem]",
+            unread ? "font-medium text-foreground" : "text-foreground",
           )}
         >
           {subject}
         </div>
 
-        {/* Row 3 — preview */}
         {preview && (
-          <div className="mt-0.5 line-clamp-2 text-[0.75rem] leading-[1.35] text-muted-foreground">
+          <div className="mt-0.5 line-clamp-2 text-[0.6875rem] leading-[1.35] text-muted-foreground">
             {preview}
           </div>
         )}
 
-        {/* Row 4 — status tag row (only when there's something to say) */}
         {(thread.hasBounce || sentiment) && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          <div className="mt-1 flex flex-wrap items-center gap-1">
             {thread.hasBounce && (
-              <Badge variant="destructive" className="font-mono text-[0.625rem]">
+              <Badge variant="destructive" className="text-[0.625rem]">
                 bounce
               </Badge>
             )}
             {sentiment && !thread.hasBounce && (
               <Badge
-                variant={sentiment === "interested" ? "accent" : "outline"}
-                className="font-mono text-[0.625rem]"
+                variant={sentiment === "interested" ? "success" : "subtle"}
+                className="text-[0.625rem]"
               >
-                {SENTIMENT_LABELS[sentiment].toLowerCase()}
+                {SENTIMENT_LABELS[sentiment]}
               </Badge>
             )}
           </div>
@@ -472,40 +453,22 @@ function ThreadRow({
   );
 }
 
-/* ─── Reader empty state ──────────────────────────────────────────────── */
+/* ─── Reader empty state ────────────────────────────────────────────────── */
 
 function ReaderEmpty() {
   return (
-    <div className="relative flex flex-1 items-center justify-center overflow-hidden px-8">
-      {/* Concentric editorial mark — mirrors the dashboard empty state */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.05]"
-      >
-        <svg width="440" height="440" viewBox="0 0 100 100" fill="none">
-          <circle cx="50" cy="50" r="48" stroke="currentColor" strokeWidth="0.3" />
-          <circle cx="50" cy="50" r="34" stroke="currentColor" strokeWidth="0.3" />
-          <circle cx="50" cy="50" r="20" stroke="currentColor" strokeWidth="0.3" />
-          <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="0.3" />
-          <line x1="50" y1="0" x2="50" y2="100" stroke="currentColor" strokeWidth="0.3" />
-        </svg>
-      </div>
-
-      <div className="relative max-w-md text-center">
-        <div className="micro-label">Nothing selected</div>
-        <h2 className="mt-3 font-display text-[2rem] leading-[0.95] tracking-[-0.025em]">
-          Pick a thread from the <span className="font-display-italic">left</span>.
-        </h2>
-        <p className="mx-auto mt-3 max-w-sm text-[0.875rem] leading-relaxed text-muted-foreground">
-          Replies land here as your prospects respond to sequences. Bounces and auto-replies get
-          flagged.
+    <div className="flex flex-1 items-center justify-center px-6">
+      <div className="max-w-sm text-center">
+        <div className="micro-label">No thread selected</div>
+        <p className="mt-1.5 text-[0.75rem] leading-relaxed text-muted-foreground">
+          Choose a thread from the list. Replies from prospects land here as your sequences run.
         </p>
       </div>
     </div>
   );
 }
 
-/* ─── Thread reader — the broadsheet article ──────────────────────────── */
+/* ─── Thread reader ─────────────────────────────────────────────────────── */
 
 function ThreadReader({
   detail,
@@ -551,25 +514,29 @@ function ThreadReader({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* ── Article masthead ─────────────────────────────────────────── */}
-      <header className="shrink-0 border-b border-border px-8 py-6">
+      {/* ── Reader header ────────────────────────────────────────────── */}
+      <header className="shrink-0 border-b border-border px-5 py-3">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="micro-label">{status}</div>
-            <h1 className="mt-2 font-display text-[2.25rem] leading-[0.95] tracking-[-0.025em] text-foreground">
+            <div className="flex items-center gap-2">
+              <span className="micro-label">{status}</span>
+              {detail.mailbox && (
+                <span className="font-mono text-[0.625rem] tabular text-muted-foreground">
+                  via {detail.mailbox.address}
+                </span>
+              )}
+            </div>
+            <h1 className="mt-1 text-[1rem] font-semibold leading-tight tracking-[-0.01em] text-foreground">
               {firstSubject}
             </h1>
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.75rem] text-muted-foreground">
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.6875rem] text-muted-foreground">
               <span className="truncate font-medium text-foreground">{senderLine}</span>
               {lastTs && <span className="font-mono tabular">{formatFullTime(lastTs)}</span>}
-              {detail.mailbox && (
-                <span className="font-mono tabular">via {detail.mailbox.address}</span>
-              )}
               {summary?.sequenceId && summary.sequenceName && (
                 <Link
                   to="/sequences/$id/edit"
                   params={{ id: summary.sequenceId }}
-                  className="underline decoration-[color:var(--ink-300)] decoration-1 underline-offset-[3px] hover:text-foreground hover:decoration-foreground"
+                  className="underline decoration-[color:var(--paper-300)] decoration-1 underline-offset-[3px] hover:text-foreground hover:decoration-foreground"
                 >
                   {summary.sequenceName}
                 </Link>
@@ -577,39 +544,43 @@ function ThreadReader({
             </div>
           </div>
 
-          {/* Quick actions */}
           <div className="flex shrink-0 items-center gap-0.5">
             <IconAction label="Reply" onClick={onReply}>
-              <Reply className="h-3.5 w-3.5" />
+              <Reply className="h-3 w-3" />
             </IconAction>
             <IconAction label="Suppress sender" onClick={onSuppress}>
-              <Ban className="h-3.5 w-3.5" />
+              <Ban className="h-3 w-3" />
             </IconAction>
             <IconAction label="Mark done" onClick={onMarkDone}>
-              <Check className="h-3.5 w-3.5" />
+              <Check className="h-3 w-3" />
             </IconAction>
             <IconAction label="Close" onClick={onClose}>
-              <X className="h-3.5 w-3.5" />
+              <X className="h-3 w-3" />
             </IconAction>
           </div>
         </div>
       </header>
 
-      {/* ── Article body — a stack of messages ───────────────────────── */}
+      {/* ── Messages ─────────────────────────────────────────────────── */}
       <div ref={messageScrollRef} className="min-h-0 flex-1 overflow-y-auto">
         {messages.map((msg) => (
           <MessageArticle key={msg.id} message={msg} />
         ))}
       </div>
 
-      {/* ── Docked reply composer ────────────────────────────────────── */}
-      <div className="sticky bottom-0 shrink-0 border-t border-border bg-card px-8 py-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="micro-label">Reply</div>
-          <div className="flex items-center gap-1 font-mono text-[0.6875rem] text-muted-foreground">
+      {/* ── Composer ─────────────────────────────────────────────────── */}
+      <div className="sticky bottom-0 shrink-0 border-t border-border bg-card px-5 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="micro-label">Reply</div>
+            <span className="ink-mark-dot text-[0.625rem] font-mono uppercase tracking-wider text-[color:var(--ink-red-600)]">
+              draft
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-[0.625rem] text-muted-foreground">
             <span className="kbd">⌘</span>
             <span className="kbd">↵</span>
-            <span className="ml-1">to send</span>
+            <span className="ml-0.5">send</span>
           </div>
         </div>
         <textarea
@@ -620,36 +591,35 @@ function ThreadReader({
           rows={3}
           placeholder="Write your reply…"
           className={cn(
-            "mt-2 block w-full resize-none rounded-[6px] border border-input bg-background px-3 py-2",
-            "font-display text-[1rem] leading-[1.5] tracking-[-0.005em] text-foreground",
-            "shadow-[inset_0_1px_1px_rgba(20,15,5,0.03)]",
-            "placeholder:font-sans placeholder:text-[color:var(--ink-400)]",
-            "transition-[border-color,box-shadow] duration-150",
-            "hover:border-[color:var(--ink-300)]",
-            "focus-visible:outline-none focus-visible:border-[color:var(--amber-600)] focus-visible:ring-[3px] focus-visible:ring-[color:var(--amber-100)]",
+            "mt-1.5 block w-full resize-none rounded-[4px] border border-input bg-background px-2 py-1.5",
+            "text-[0.8125rem] leading-[1.5] text-foreground",
+            "placeholder:text-[color:var(--paper-400)]",
+            "transition-[border-color] duration-120",
+            "hover:border-[color:var(--paper-300)]",
+            "focus-visible:outline-none focus-visible:border-[color:var(--paper-500)] focus-visible:ring-2 focus-visible:ring-[color:var(--paper-100)]",
             "disabled:cursor-not-allowed disabled:opacity-50",
           )}
           disabled={sending}
         />
-        <div className="mt-2 flex items-center justify-end gap-2">
+        <div className="mt-1.5 flex items-center justify-end gap-1.5">
           <button
             type="button"
             onClick={() => onReplyChange("")}
             disabled={!replyBody}
-            className="text-[0.75rem] text-muted-foreground hover:text-foreground disabled:opacity-40"
+            className="text-[0.6875rem] text-muted-foreground hover:text-foreground disabled:opacity-40"
           >
             Clear
           </button>
           <Button
-            variant="accent"
-            size="sm"
+            variant="ink"
+            size="default"
             onClick={onSend}
             disabled={sending || !replyBody.trim()}
           >
             {sending ? (
-              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
             ) : (
-              <Send className="mr-1 h-3.5 w-3.5" />
+              <Send className="mr-0.5 h-3 w-3" />
             )}
             Send reply
           </Button>
@@ -659,34 +629,39 @@ function ThreadReader({
   );
 }
 
-/* ─── Individual message article ──────────────────────────────────────── */
+/* ─── Individual message ────────────────────────────────────────────────── */
 
 function MessageArticle({ message }: { message: InboxMessage }) {
   const ts = message.direction === "inbound" ? message.receivedAt : message.sentAt;
-  const directionLabel = message.direction === "inbound" ? "↓ inbound" : "↑ outbound";
+  const isOutbound = message.direction === "outbound";
   const hasHtml = Boolean(message.bodyHtml && message.bodyHtml.trim().length > 0);
 
   return (
-    <article className="border-b border-border px-8 py-6 last:border-b-0">
+    <article
+      className={cn(
+        "border-b border-border px-5 py-4 last:border-b-0",
+        // Human-authored (outbound) messages get a red-ink left bar — the one
+        // product-specific accent used throughout the design system.
+        isOutbound && "ink-mark-bar",
+      )}
+    >
       <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="flex items-baseline gap-3">
-          <span className="text-[0.8125rem] font-medium tracking-[-0.005em] text-foreground">
-            {message.direction === "inbound" ? "From prospect" : "You"}
-          </span>
+        <div className="flex items-baseline gap-2">
           <span
             className={cn(
-              "font-mono text-[0.6875rem] tabular",
-              message.direction === "inbound"
-                ? "text-[color:var(--ink-700)]"
-                : "text-muted-foreground",
+              "text-[0.75rem] font-medium",
+              isOutbound ? "text-[color:var(--ink-red-700)]" : "text-foreground",
             )}
           >
-            {directionLabel}
+            {isOutbound ? "You" : "Prospect"}
+          </span>
+          <span className="font-mono text-[0.625rem] tabular text-muted-foreground">
+            {isOutbound ? "outbound" : "inbound"}
           </span>
         </div>
         <div className="flex items-center gap-2">
           {message.bounceType && (
-            <Badge variant="destructive" className="font-mono text-[0.625rem]">
+            <Badge variant="destructive" className="text-[0.625rem]">
               {message.bounceType} bounce
             </Badge>
           )}
@@ -700,11 +675,11 @@ function MessageArticle({ message }: { message: InboxMessage }) {
 
       {hasHtml ? (
         <div
-          className="mt-4 font-display text-[1.0625rem] leading-[1.55] text-foreground [&_a]:text-foreground [&_a]:underline [&_a]:decoration-[color:var(--ink-300)] [&_a]:underline-offset-[3px] [&_p]:mb-3 [&_p:last-child]:mb-0"
+          className="mt-2.5 text-[0.8125rem] leading-[1.55] text-foreground [&_a]:text-[color:var(--link)] [&_a]:underline [&_a]:underline-offset-2 [&_p]:mb-2 [&_p:last-child]:mb-0"
           dangerouslySetInnerHTML={{ __html: message.bodyHtml ?? "" }}
         />
       ) : (
-        <div className="mt-4 whitespace-pre-wrap font-display text-[1.0625rem] leading-[1.55] text-foreground">
+        <div className="mt-2.5 whitespace-pre-wrap text-[0.8125rem] leading-[1.55] text-foreground">
           {message.bodyText ?? ""}
         </div>
       )}
@@ -712,7 +687,7 @@ function MessageArticle({ message }: { message: InboxMessage }) {
   );
 }
 
-/* ─── Small primitives ────────────────────────────────────────────────── */
+/* ─── Small primitives ──────────────────────────────────────────────────── */
 
 function IconAction({
   label,
@@ -730,10 +705,10 @@ function IconAction({
       title={label}
       aria-label={label}
       className={cn(
-        "inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-[color:var(--ink-700)]",
-        "transition-[background-color,color,box-shadow,transform] duration-150 ease-out",
-        "hover:bg-[color:var(--ink-100)] hover:text-foreground",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--amber-600)] focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "inline-flex h-7 w-7 items-center justify-center rounded-[4px] text-muted-foreground",
+        "transition-colors duration-120",
+        "hover:bg-[color:var(--paper-100)] hover:text-foreground",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       )}
     >
       {children}
@@ -755,11 +730,11 @@ function MiniSelect({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={cn(
-        "h-6 max-w-[9rem] truncate rounded-[5px] border border-border bg-card px-1.5 text-[0.6875rem]",
-        "font-mono tabular text-[color:var(--ink-700)]",
-        "transition-[border-color] duration-150",
-        "hover:border-[color:var(--ink-300)]",
-        "focus-visible:outline-none focus-visible:border-[color:var(--amber-600)] focus-visible:ring-[2px] focus-visible:ring-[color:var(--amber-100)]",
+        "h-6 max-w-[9rem] truncate rounded-[3px] border border-border bg-card px-1.5 text-[0.6875rem]",
+        "font-mono tabular text-muted-foreground",
+        "transition-[border-color] duration-120",
+        "hover:border-[color:var(--paper-300)]",
+        "focus-visible:outline-none focus-visible:border-[color:var(--paper-500)] focus-visible:ring-2 focus-visible:ring-[color:var(--paper-100)]",
       )}
     >
       {options.map((o) => (
@@ -771,7 +746,7 @@ function MiniSelect({
   );
 }
 
-/* ─── Formatting helpers ──────────────────────────────────────────────── */
+/* ─── Formatting helpers ────────────────────────────────────────────────── */
 
 const timeFmt = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
@@ -809,20 +784,19 @@ function formatFullTime(iso: string): string {
   return fullFmt.format(d);
 }
 
-/** Editorial label above the subject: REPLIED / BOUNCED / OUT-OF-OFFICE / … */
 function statusLabelForThread(
   summary: InboxThreadSummary | null,
   messages: InboxMessage[],
 ): string {
-  if (summary?.hasBounce || messages.some((m) => m.bounceType)) return "BOUNCED";
+  if (summary?.hasBounce || messages.some((m) => m.bounceType)) return "Bounced";
   const sentiment = (summary?.sentiment ?? messages.find((m) => m.sentiment)?.sentiment) as
     | MessageSentiment
     | null
     | undefined;
   if (sentiment) return SENTIMENT_LABELS[sentiment];
   const lastDir = summary?.lastDirection ?? messages.at(-1)?.direction;
-  if (lastDir === "inbound") return "REPLIED";
-  return "CONVERSATION";
+  if (lastDir === "inbound") return "Replied";
+  return "Thread";
 }
 
 function escapeHtml(text: string): string {

@@ -122,15 +122,18 @@ function ComposePage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Compose</h1>
-        <p className="text-sm text-muted-foreground">
+    <div className="mx-auto max-w-2xl px-6 py-6 fade-in">
+      <header className="mb-4 border-b border-border pb-4">
+        <div className="micro-label">One-off</div>
+        <h1 className="mt-0.5 text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
+          Compose
+        </h1>
+        <p className="mt-1 text-[0.75rem] text-muted-foreground">
           Send a one-off email and capture the thread anchor for follow-up sequences.
         </p>
-      </div>
+      </header>
 
-      <div className="space-y-4 rounded-lg border p-6">
+      <div className="panel space-y-4 p-4">
         <div className="space-y-2">
           <Label>Mailbox</Label>
           <Select value={mailboxId} onValueChange={setMailboxId}>

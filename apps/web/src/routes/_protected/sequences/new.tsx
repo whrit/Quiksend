@@ -28,64 +28,54 @@ function NewSequencePage() {
     setCreating(true);
     try {
       const seq = await createSequence({ data: { name: name.trim() } });
-      toast.success("Sequence created");
-      // Preserve the anchor context through the redirect so edit.tsx knows the
-      // user came here from Compose → "Start a follow-up sequence from this message".
-      void navigate({
+      await navigate({
         to: "/sequences/$id/edit",
         params: { id: seq.id },
         search: anchorMessageId ? { anchorMessageId } : {},
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create");
+      toast.error(err instanceof Error ? err.message : "Failed to create sequence");
     } finally {
       setCreating(false);
     }
   }
 
   return (
-    <div className="mx-auto max-w-lg px-6 py-16">
-      <header className="rise">
-        <div className="micro-label">Step 01 · Name your sequence</div>
-        <h1 className="mt-2 font-display text-[2.5rem] leading-[0.95] tracking-[-0.025em]">
-          A sequence begins with{" "}
-          <span className="font-display-italic text-[color:var(--amber-600)]">a name</span>.
+    <div className="mx-auto max-w-md px-6 py-10">
+      <header className="mb-6 border-b border-border pb-4">
+        <div className="micro-label">New sequence</div>
+        <h1 className="mt-0.5 text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
+          Name your sequence
         </h1>
-        <p className="mt-3 font-display-italic text-[1.0625rem] text-muted-foreground">
-          Give it something you&rsquo;ll recognise six weeks from now.
+        <p className="mt-1 text-[0.75rem] text-muted-foreground">
+          You can edit steps and settings after creating.
         </p>
       </header>
 
       {anchorMessageId ? (
-        <div className="rise rise-1 paper mt-8 p-4 text-[0.875rem]">
-          <div className="micro-label">Anchored thread</div>
-          <p className="mt-1.5 text-foreground">
-            Replies land in message{" "}
-            <code className="rounded-[4px] border border-border bg-secondary px-1.5 py-0.5 font-mono text-[0.75rem]">
-              {anchorMessageId.slice(0, 8)}…
-            </code>
-            . The first{" "}
-            <code className="font-mono text-[0.75rem] text-muted-foreground">auto_email</code> step
-            will reply into that thread.
-          </p>
+        <div className="panel mb-4 px-3 py-2 text-[0.75rem] text-muted-foreground">
+          Follow-up sequence for message{" "}
+          <code className="font-mono text-foreground">{anchorMessageId.slice(0, 8)}</code>.
         </div>
       ) : null}
 
-      <form onSubmit={(e) => void handleSubmit(e)} className="rise rise-2 mt-10 space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="name" className="micro-label">
-            Sequence name
+      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="sequence-name" className="text-[0.6875rem] font-medium">
+            Name
           </Label>
           <Input
-            id="name"
+            id="sequence-name"
+            // oxlint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            placeholder="Q4 outbound — CFOs"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Outbound Q1"
-            className="h-11 text-[1rem]"
+            required
           />
         </div>
-        <div className="flex items-center gap-2">
-          <Button type="submit" variant="accent" size="lg" disabled={creating || !name.trim()}>
+        <div className="flex items-center gap-1.5 pt-1">
+          <Button type="submit" size="lg" disabled={creating || !name.trim()}>
             {creating ? "Creating…" : "Create sequence"}
           </Button>
           <Button
