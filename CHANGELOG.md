@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.0](https://github.com/whrit/Quiksend/compare/v2.8.0...v2.9.0) (2026-07-09)
+
+
+### Features
+
+* **design:** operator's console redesign — strip editorial affectation ([#95](https://github.com/whrit/Quiksend/issues/95)) ([669670a](https://github.com/whrit/Quiksend/commit/669670a05705dd73553b7770fe632fa7f0064f73))
+
 ## [2.8.0](https://github.com/whrit/Quiksend/compare/v2.7.0...v2.8.0) (2026-07-09)
 
 
