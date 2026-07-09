@@ -81,10 +81,13 @@ curl --request POST \
 
 ### 3. Connect in Quiksend
 
-1. Settings → **Mailboxes** → **Add mailbox** → **Gmail** tab.
-2. Enter the mailbox **From address** (must match the Google account).
-3. Click **Connect Gmail** — Nango Connect UI opens (`@nangohq/frontend`).
-4. Complete Google consent. Quiksend finalizes the connection server-side.
+1. Settings → **Mailboxes** → **Add mailbox** → **Gmail** chip.
+2. (Optional) Set a **From name** for the display name in the From header.
+3. Click **Continue with Gmail** — Nango Connect UI opens (`@nangohq/frontend`),
+   you pick your Google account and grant the Gmail scopes.
+4. Quiksend's server calls `GET /gmail/v1/users/me/profile` via the Nango proxy
+   and captures the OAuth-verified address. The mailbox row is created with
+   that address; you'll see a toast confirming which account was connected.
 
 Inbound reply detection uses Gmail polling via Nango proxy (`packages/mail` Gmail adapter).
 
@@ -129,8 +132,10 @@ curl --request POST \
 
 ### 3. Connect in Quiksend
 
-Same flow as Gmail: Settings → Mailboxes → **Microsoft** tab → enter address →
-**Connect Microsoft**.
+Same flow as Gmail: Settings → **Mailboxes** → **Add mailbox** → **Microsoft**
+chip → optional **From name** → **Continue with Microsoft 365**. The mailbox
+address is captured server-side from Microsoft Graph `/me` — Quiksend prefers
+`mail` (the SMTP address) and falls back to `userPrincipalName`.
 
 ## Salesforce
 
