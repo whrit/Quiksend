@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.0](https://github.com/whrit/Quiksend/compare/v2.6.2...v2.7.0) (2026-07-09)
+
+
+### Features
+
+* **design:** editorial command-center design system ([#89](https://github.com/whrit/Quiksend/issues/89)) ([8bb7017](https://github.com/whrit/Quiksend/commit/8bb701757f90a009ff0bc3695f82b07ff892fe4b))
+
 ## [2.6.2](https://github.com/whrit/Quiksend/compare/v2.6.1...v2.6.2) (2026-07-09)
 
 
