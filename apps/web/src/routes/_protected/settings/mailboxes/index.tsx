@@ -119,7 +119,6 @@ function MailboxesPage() {
                 void finalize({
                   data: {
                     nangoConnectionId: event.payload.connectionId,
-                    address: mb.address,
                     fromName: mb.fromName ?? undefined,
                   },
                 })

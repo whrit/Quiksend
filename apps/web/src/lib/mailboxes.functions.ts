@@ -378,11 +378,84 @@ export const testMailboxSend = createServerFn({ method: "POST" })
     };
   });
 
+/**
+ * OAuth finalize input. `address` is intentionally NOT here — for Gmail and
+ * Microsoft it's read from the provider's own profile endpoint after OAuth
+ * completes, so the mailbox address is guaranteed to be the account the user
+ * actually consented with. Only the optional display name and the Nango
+ * connection id come from the client.
+ */
 const oauthMailboxSchema = z.object({
-  address: z.string().email(),
   fromName: z.string().max(200).optional(),
   nangoConnectionId: z.string().min(1),
 });
+
+/**
+ * `users.getProfile` for Gmail returns the primary address of the authorized
+ * mailbox. We parse the response with Zod at the boundary so the address we
+ * persist is validated once, not asserted at every read site.
+ * https://developers.google.com/gmail/api/reference/rest/v1/users/getProfile
+ */
+const gmailProfileSchema = z.object({
+  emailAddress: z.string().email(),
+});
+
+/**
+ * Microsoft Graph `/me` returns `mail` (SMTP address, when the tenant has
+ * assigned one) and always returns `userPrincipalName` (the login identifier,
+ * routable as an email for cloud accounts). Prefer `mail`, fall back to UPN.
+ * https://learn.microsoft.com/en-us/graph/api/user-get
+ */
+const microsoftProfileSchema = z.object({
+  mail: z.string().email().nullish(),
+  userPrincipalName: z.string().nullish(),
+});
+
+/**
+ * Fetch the authenticated Gmail user's primary address. Deriving it
+ * server-side means a user logged in as themselves can never accidentally
+ * register a different mailbox as their own by typing the wrong address.
+ */
+async function fetchGmailAddressFromNango(connectionId: string): Promise<string> {
+  const nango = getNango();
+  const profile = await nango.get({
+    endpoint: "/gmail/v1/users/me/profile",
+    providerConfigKey: "google-mail",
+    connectionId,
+  });
+  const parsed = gmailProfileSchema.safeParse(profile.data);
+  if (!parsed.success) {
+    throw new MailboxError(
+      "CONFIG",
+      "Google did not return a mailbox address — check that the Gmail scope was granted",
+    );
+  }
+  return parsed.data.emailAddress.toLowerCase();
+}
+
+/**
+ * Fetch the authenticated Microsoft user's primary address via Graph.
+ */
+async function fetchMicrosoftAddressFromNango(connectionId: string): Promise<string> {
+  const nango = getNango();
+  const me = await nango.get({
+    endpoint: "/v1.0/me",
+    providerConfigKey: "microsoft",
+    connectionId,
+  });
+  const parsed = microsoftProfileSchema.safeParse(me.data);
+  if (!parsed.success) {
+    throw new MailboxError(
+      "CONFIG",
+      "Microsoft did not return a mailbox address — check that the Mail.Send scope was granted",
+    );
+  }
+  const address = (parsed.data.mail ?? parsed.data.userPrincipalName ?? "").toLowerCase();
+  if (!address || !address.includes("@")) {
+    throw new MailboxError("CONFIG", "Microsoft account has no routable mailbox address");
+  }
+  return address;
+}
 
 const reconnectMailboxSchema = z.object({
   mailboxId: z.string().uuid(),
@@ -508,13 +581,15 @@ export const finalizeGmailMailbox = createServerFn({ method: "POST" })
   .validator((data: unknown) => oauthMailboxSchema.parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
+    // Trust the OAuth-verified address from Gmail, not user input.
+    const address = await fetchGmailAddressFromNango(data.nangoConnectionId);
     const [row] = await db
       .insert(tables.mailbox)
       .values({
         organizationId: context.orgContext.organizationId,
         ownerUserId: context.orgContext.userId,
         provider: "gmail",
-        address: data.address.toLowerCase(),
+        address,
         fromName: data.fromName,
         nangoConnectionId: data.nangoConnectionId,
       })
@@ -545,13 +620,15 @@ export const finalizeMicrosoftMailbox = createServerFn({ method: "POST" })
   .validator((data: unknown) => oauthMailboxSchema.parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
+    // Trust the OAuth-verified address from Microsoft Graph, not user input.
+    const address = await fetchMicrosoftAddressFromNango(data.nangoConnectionId);
     const [row] = await db
       .insert(tables.mailbox)
       .values({
         organizationId: context.orgContext.organizationId,
         ownerUserId: context.orgContext.userId,
         provider: "microsoft",
-        address: data.address.toLowerCase(),
+        address,
         fromName: data.fromName,
         nangoConnectionId: data.nangoConnectionId,
       })
