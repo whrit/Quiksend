@@ -619,8 +619,18 @@ in ...`. If it never shows up:
 
 - Terminal shows an error about `BETTER_AUTH_SECRET`: you forgot to fill it in
   in `.env`. Add it, save, and restart with `Ctrl+C` then `pnpm web:dev`.
-- Terminal shows "port 3000 in use": something else on your machine has taken
-  port 3000. Either stop that thing or `PORT=3001 pnpm web:dev`.
+- Terminal shows "Port 3000 is in use" or "EADDRINUSE": another process on your
+  host has taken port 3000. Two options:
+  1. Stop the other process.
+  2. Run Quiksend on a different port. Set both `WEB_PORT` and `BETTER_AUTH_URL`
+     in `.env` so the browser, Better Auth callbacks, and Nango tunnels all
+     agree — otherwise auth silently breaks. For example:
+     ```
+     WEB_PORT=3005
+     BETTER_AUTH_URL=http://localhost:3005
+     ```
+     Then restart `pnpm web:dev`. If you're tunneling to Nango via ngrok, point
+     it at the new port too: `ngrok http 3005`.
 
 ### Emails don't appear in Mailpit
 

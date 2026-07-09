@@ -5,8 +5,15 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 
+// Dev-server port. Defaults to 3000 (matches `BETTER_AUTH_URL` in `.env.example`),
+// override via `WEB_PORT=3005` in `.env` or shell when 3000 is taken by another
+// process on the host. `strictPort: true` makes a collision a hard error instead
+// of silently drifting to the next free port — otherwise Better Auth callbacks
+// and Nango webhook tunnels would keep hitting the wrong service.
+const port = Number(process.env.WEB_PORT ?? process.env.PORT ?? 3000);
+
 export default defineConfig({
-  server: { port: 3000 },
+  server: { port, strictPort: true },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
