@@ -34,12 +34,12 @@ export const Route = createFileRoute("/_protected/analytics/")({
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription>{label}</CardDescription>
-        <CardTitle className="text-3xl tabular-nums">{value}</CardTitle>
-      </CardHeader>
-    </Card>
+    <div className="panel px-3 py-2.5">
+      <div className="micro-label">{label}</div>
+      <div className="mt-0.5 font-mono tabular text-[1.5rem] font-semibold leading-none text-foreground">
+        {value}
+      </div>
+    </div>
   );
 }
 
@@ -47,16 +47,21 @@ function AnalyticsOverviewPage() {
   const { overview, sequencePerformance } = Route.useLoaderData();
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-[1200px] px-6 py-6 fade-in">
+      <header className="mb-4 flex items-end justify-between gap-6 border-b border-border pb-4">
         <div>
-          <h1 className="text-2xl font-semibold">Analytics</h1>
-          <p className="text-sm text-muted-foreground">Workspace overview — last 30 days</p>
+          <div className="micro-label">Last 30 days</div>
+          <h1 className="mt-0.5 text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
+            Analytics
+          </h1>
+          <p className="mt-1 text-[0.75rem] text-muted-foreground">
+            Workspace overview and per-sequence performance.
+          </p>
         </div>
-        <Link to="/dashboard" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+        <Link to="/dashboard" className={buttonVariants({ variant: "ghost", size: "default" })}>
           ← Dashboard
         </Link>
-      </div>
+      </header>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Active sequences" value={overview.activeSequences} />

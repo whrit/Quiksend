@@ -84,7 +84,9 @@ function ApiKeysPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">API keys</h1>
+          <h1 className="text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
+            API keys
+          </h1>
           <p className="text-sm text-muted-foreground">
             Programmatic access to the public REST API for this workspace.
           </p>

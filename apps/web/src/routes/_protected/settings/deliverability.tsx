@@ -485,7 +485,9 @@ function CanaryConfigSection() {
 function DeliverabilitySettingsPage() {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Deliverability settings</h1>
+      <h1 className="text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
+        Deliverability settings
+      </h1>
       <DeliverabilityRoutingSection />
       {/* === Phase 11C Canary section (PHI extends here) === */}
       <SeedInboxesSection />

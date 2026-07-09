@@ -58,7 +58,9 @@ function MappingPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold capitalize">{connection.provider} field mapping</h1>
+          <h1 className="text-[1.125rem] font-semibold capitalize leading-tight tracking-[-0.015em]">
+            {connection.provider} field mapping
+          </h1>
           <p className="text-muted-foreground text-sm">
             Map Quiksend fields to {connection.provider} property names.
           </p>

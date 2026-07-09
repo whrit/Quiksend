@@ -27,25 +27,24 @@ function RootErrorBoundary({ error }: { error: unknown }) {
   const message = error instanceof Error ? error.message : "Something went wrong.";
   return (
     <RootDocument>
-      <div className="grain relative min-h-screen bg-background text-foreground">
-        <div className="relative z-[2] mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 p-8 text-center">
-          <div className="micro-label">Error · Unhandled exception</div>
-          <h1 className="font-display text-[3rem] leading-none tracking-[-0.02em]">
-            Something{" "}
-            <span className="font-display-italic text-[color:var(--amber-600)]">snapped</span>.
+      <div className="min-h-[100dvh] bg-background text-foreground">
+        <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col items-center justify-center gap-3 p-8 text-center">
+          <div className="micro-label">Unhandled error</div>
+          <h1 className="text-[1.5rem] font-semibold leading-tight tracking-[-0.015em]">
+            Something went wrong
           </h1>
-          <p className="mt-1 max-w-md text-[0.875rem] text-muted-foreground">{message}</p>
+          <p className="max-w-md text-[0.75rem] text-muted-foreground">{message}</p>
           <div className="mt-2 flex gap-2">
             <a
               href="/dashboard"
-              className="inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-[0.8125rem] font-medium transition-colors hover:bg-secondary"
+              className="inline-flex h-7 items-center rounded-[4px] border border-border bg-card px-2.5 text-[0.75rem] font-medium transition-colors hover:bg-[color:var(--paper-050)]"
             >
               Return to dashboard
             </a>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="inline-flex h-8 items-center rounded-md bg-foreground px-3 text-[0.8125rem] font-medium text-background hover:bg-foreground/92"
+              className="inline-flex h-7 items-center rounded-[4px] bg-foreground px-2.5 text-[0.75rem] font-medium text-background hover:bg-[color:var(--paper-800)]"
             >
               Reload
             </button>
@@ -59,21 +58,20 @@ function RootErrorBoundary({ error }: { error: unknown }) {
 function NotFound() {
   return (
     <RootDocument>
-      <div className="grain relative min-h-screen bg-background text-foreground">
-        <div className="relative z-[2] mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 p-8 text-center">
-          <div className="micro-label">404 · Missing page</div>
-          <h1 className="font-display text-[5rem] leading-none tracking-[-0.03em] tabular">
-            <span className="text-foreground">Not </span>
-            <span className="font-display-italic text-[color:var(--amber-600)]">found</span>.
+      <div className="min-h-[100dvh] bg-background text-foreground">
+        <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col items-center justify-center gap-3 p-8 text-center">
+          <div className="micro-label">404 · Not found</div>
+          <h1 className="text-[1.5rem] font-semibold leading-tight tracking-[-0.015em]">
+            Page not found
           </h1>
-          <p className="mt-1 max-w-sm text-[0.875rem] text-muted-foreground">
-            That page doesn't exist. Check the URL or head back to your dashboard.
+          <p className="max-w-sm text-[0.75rem] text-muted-foreground">
+            The page you're looking for doesn't exist. Check the URL or head back to your dashboard.
           </p>
           <a
             href="/dashboard"
-            className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-[0.8125rem] font-medium transition-colors hover:bg-secondary"
+            className="mt-2 inline-flex h-7 items-center rounded-[4px] border border-border bg-card px-2.5 text-[0.75rem] font-medium transition-colors hover:bg-[color:var(--paper-050)]"
           >
-            Go to dashboard →
+            Go to dashboard
           </a>
         </div>
       </div>

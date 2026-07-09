@@ -285,44 +285,43 @@ function SortableStepCard({
     <article
       ref={setNodeRef}
       style={style}
-      className="paper group relative flex gap-4 p-5 transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-[1px] hover:shadow-[0_0_0_1px_rgba(20,15,5,0.03),0_2px_4px_rgba(20,15,5,0.04),0_8px_20px_-10px_rgba(20,15,5,0.08)]"
+      className="panel group relative flex gap-3 p-3 transition-colors duration-120 hover:border-[color:var(--paper-300)]"
     >
-      <div className="flex w-14 shrink-0 flex-col items-start border-r border-border pr-4">
-        <div className="font-display tabular text-[2.25rem] leading-none text-foreground">
+      {/* Number column — mono digit, small, no serif */}
+      <div className="flex w-10 shrink-0 flex-col items-start border-r border-border pr-3">
+        <div className="font-mono tabular text-[0.875rem] font-semibold leading-none text-foreground">
           {String(step.index + 1).padStart(2, "0")}
         </div>
         {step.type === "wait" ? (
-          <div className="mt-2 font-mono tabular text-[0.6875rem] text-muted-foreground">
+          <div className="mt-1.5 font-mono tabular text-[0.625rem] text-muted-foreground">
             +{waitMinutes}m
           </div>
         ) : step.delayMinutes > 0 ? (
-          <div className="mt-2 font-mono tabular text-[0.6875rem] text-muted-foreground">
+          <div className="mt-1.5 font-mono tabular text-[0.625rem] text-muted-foreground">
             +{step.delayMinutes}m
           </div>
         ) : null}
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2">
           <div className="micro-label">{STEP_TYPE_LABELS[step.type]}</div>
           {step.entryCondition?.kind === "if_no_reply" ? (
-            <span className="font-mono text-[0.6875rem] text-muted-foreground">if no reply</span>
+            <span className="font-mono text-[0.625rem] text-muted-foreground">if no reply</span>
           ) : null}
         </div>
 
         {step.type === "manual_email" || step.type === "auto_email" ? (
           <>
-            <div className="mt-1.5 truncate text-[0.9375rem] font-medium text-foreground">
-              {emailSubject || (
-                <span className="font-display-italic text-muted-foreground">Untitled email</span>
-              )}
+            <div className="mt-1 truncate text-[0.8125rem] font-medium text-foreground">
+              {emailSubject || <span className="text-muted-foreground">Untitled email</span>}
             </div>
             {emailBody ? (
-              <p className="mt-1 line-clamp-2 text-[0.8125rem] leading-snug text-muted-foreground">
+              <p className="mt-0.5 line-clamp-2 text-[0.75rem] leading-snug text-muted-foreground">
                 {emailBody}
               </p>
             ) : (
-              <p className="mt-1 font-display-italic text-[0.8125rem] text-muted-foreground">
+              <p className="mt-0.5 text-[0.75rem] text-muted-foreground">
                 No body yet — open to compose.
               </p>
             )}
@@ -330,25 +329,23 @@ function SortableStepCard({
         ) : null}
 
         {step.type === "wait" ? (
-          <>
-            <div className="mt-1 font-display-italic text-[1.25rem] leading-tight text-foreground">
-              Wait {waitMinutes} minutes
-            </div>
+          <div className="mt-1 text-[0.875rem] font-medium text-foreground">
+            Wait {waitMinutes} minutes
             {step.businessDaysOnly ? (
-              <div className="mt-1 text-[0.75rem] text-muted-foreground">Business days only</div>
+              <span className="ml-2 text-[0.6875rem] font-normal text-muted-foreground">
+                business days only
+              </span>
             ) : null}
-          </>
+          </div>
         ) : null}
 
         {step.type === "task" ? (
           <>
-            <div className="mt-1.5 truncate text-[0.9375rem] font-medium text-foreground">
-              {taskTitle || (
-                <span className="font-display-italic text-muted-foreground">Untitled task</span>
-              )}
+            <div className="mt-1 truncate text-[0.8125rem] font-medium text-foreground">
+              {taskTitle || <span className="text-muted-foreground">Untitled task</span>}
             </div>
             {taskInstr ? (
-              <p className="mt-1 line-clamp-2 text-[0.8125rem] leading-snug text-muted-foreground">
+              <p className="mt-0.5 line-clamp-2 text-[0.75rem] leading-snug text-muted-foreground">
                 {taskInstr}
               </p>
             ) : null}
@@ -356,26 +353,26 @@ function SortableStepCard({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 items-start gap-0.5 opacity-80 transition-opacity group-hover:opacity-100">
+      <div className="flex shrink-0 items-start gap-0.5 opacity-70 transition-opacity group-hover:opacity-100">
         {isDraft ? (
           <>
             <Button size="icon" variant="ghost" onClick={onEdit} aria-label="Edit step">
-              <Settings className="h-3.5 w-3.5" />
+              <Settings className="h-3 w-3" />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="icon" variant="ghost" aria-label="More actions">
-                  <MoreHorizontal className="h-3.5 w-3.5" />
+                  <MoreHorizontal className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
                 <DropdownMenuItem onClick={onDuplicate}>
-                  <Copy className="mr-2 h-4 w-4" />
+                  <Copy className="mr-2 h-3 w-3" />
                   Duplicate
                 </DropdownMenuItem>
                 <DropdownMenuItem className="text-destructive" onClick={onDelete}>
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 className="mr-2 h-3 w-3" />
                   Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -383,11 +380,11 @@ function SortableStepCard({
             <button
               type="button"
               aria-label="Reorder step"
-              className="inline-flex h-8 w-8 cursor-grab items-center justify-center rounded-[6px] text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--amber-600)] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="inline-flex h-7 w-7 cursor-grab items-center justify-center rounded-[4px] text-muted-foreground hover:bg-[color:var(--paper-100)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               {...attributes}
               {...listeners}
             >
-              <GripVertical className="h-4 w-4" />
+              <GripVertical className="h-3 w-3" />
             </button>
           </>
         ) : (
@@ -516,23 +513,23 @@ function SequenceBuilderPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-[1200px] px-8 py-10">
-      <div className="rise mb-2">
+    <div className="mx-auto max-w-[1200px] px-6 py-6 fade-in">
+      <div className="mb-2">
         <Link
           to="/sequences"
-          className="micro-label inline-flex items-center gap-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--amber-600)] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="micro-label inline-flex items-center gap-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <ChevronLeft className="h-3 w-3" /> All sequences
         </Link>
       </div>
 
-      <header className="rise rise-1 mb-10 flex items-end justify-between gap-6 border-b border-border pb-6">
+      <header className="mb-4 flex items-end justify-between gap-6 border-b border-border pb-4">
         <div className="min-w-0">
           <div className="micro-label">{sequence.status}</div>
-          <h1 className="mt-2 truncate font-display text-[2.5rem] leading-none tracking-[-0.02em]">
+          <h1 className="mt-0.5 truncate text-[1.25rem] font-semibold leading-tight tracking-[-0.015em]">
             {sequence.name}
           </h1>
-          <p className="mt-1 font-display-italic text-[0.9375rem] text-muted-foreground">
+          <p className="mt-1 text-[0.75rem] text-muted-foreground">
             {isDraft ? "Draft — add steps and activate when ready." : "Active sequence"}
           </p>
         </div>
@@ -567,11 +564,11 @@ function SequenceBuilderPage() {
       </header>
 
       {anchorMessageId ? (
-        <div className="rise rise-2 paper mb-6 p-4 text-[0.875rem]">
+        <div className="panel mb-4 p-3 text-[0.8125rem]">
           <div className="micro-label">Anchored thread</div>
-          <p className="mt-1.5 text-foreground">
+          <p className="mt-1 text-foreground">
             Replies land in message{" "}
-            <code className="rounded-[4px] border border-border bg-secondary px-1.5 py-0.5 font-mono text-[0.75rem]">
+            <code className="rounded-[3px] border border-border bg-[color:var(--paper-050)] px-1 py-0.5 font-mono text-[0.75rem]">
               {anchorMessageId.slice(0, 8)}…
             </code>
             . Use <code className="font-mono text-[0.75rem] text-muted-foreground">auto_email</code>{" "}
@@ -580,14 +577,14 @@ function SequenceBuilderPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
-        <div className="rise rise-2 space-y-4">
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <div className="space-y-3">
           <div className="flex items-end justify-between">
             <div>
-              <div className="micro-label">The sequence</div>
-              <h2 className="mt-1 font-display text-[1.5rem] leading-none tracking-[-0.02em]">
-                Steps
-                <span className="ml-2 font-mono tabular text-[0.75rem] text-muted-foreground">
+              <div className="micro-label">Steps</div>
+              <h2 className="mt-0.5 text-[0.9375rem] font-semibold leading-tight tracking-[-0.015em]">
+                {steps.length} step{steps.length === 1 ? "" : "s"}
+                <span className="ml-2 font-mono tabular text-[0.75rem] font-normal text-muted-foreground">
                   {steps.length.toString().padStart(2, "0")}
                 </span>
               </h2>
@@ -613,58 +610,27 @@ function SequenceBuilderPage() {
           >
             <SortableContext items={steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               {steps.length === 0 ? (
-                <div className="paper relative overflow-hidden p-10 text-center">
-                  <div
-                    className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full opacity-[0.06]"
-                    style={{ background: "var(--amber-600)" }}
-                  />
-                  <div className="pointer-events-none absolute -right-4 top-1/2 -translate-y-1/2 opacity-[0.04]">
-                    <svg width="280" height="280" viewBox="0 0 100 100" fill="none">
-                      <circle cx="50" cy="50" r="48" stroke="currentColor" strokeWidth="0.3" />
-                      <circle cx="50" cy="50" r="34" stroke="currentColor" strokeWidth="0.3" />
-                      <circle cx="50" cy="50" r="20" stroke="currentColor" strokeWidth="0.3" />
-                      <line
-                        x1="0"
-                        y1="50"
-                        x2="100"
-                        y2="50"
-                        stroke="currentColor"
-                        strokeWidth="0.3"
-                      />
-                      <line
-                        x1="50"
-                        y1="0"
-                        x2="50"
-                        y2="100"
-                        stroke="currentColor"
-                        strokeWidth="0.3"
-                      />
-                    </svg>
-                  </div>
-                  <div className="relative mx-auto max-w-md">
-                    <div className="micro-label">Step 01 · Compose the first move</div>
-                    <h3 className="mt-3 font-display text-[2rem] leading-[0.95] tracking-[-0.025em] text-foreground">
-                      A sequence is a{" "}
-                      <span className="font-display-italic text-[color:var(--amber-600)]">
-                        series of notes
-                      </span>
-                      .
+                <div className="panel p-6 text-center">
+                  <div className="mx-auto max-w-md">
+                    <div className="micro-label">No steps yet</div>
+                    <h3 className="mt-1 text-[1rem] font-semibold leading-tight tracking-[-0.01em] text-foreground">
+                      Start with a manual email, then layer follow-ups.
                     </h3>
-                    <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted-foreground">
-                      Start with a manual email, layer follow-ups, land the ask. Each step is a
-                      paper slip in the ledger.
+                    <p className="mt-1.5 text-[0.75rem] leading-relaxed text-muted-foreground">
+                      Each step waits, sends, or prompts a task. Wait steps count business days only
+                      if you want.
                     </p>
                     {isDraft ? (
-                      <div className="mt-6 flex justify-center">
+                      <div className="mt-4 flex justify-center">
                         <Button
-                          variant="accent"
+                          variant="ink"
                           size="lg"
                           onClick={() => {
                             setStepForm(emptyStepForm(0));
                             setSheetOpen(true);
                           }}
                         >
-                          <Plus className="mr-1 h-4 w-4" />
+                          <Plus className="mr-1 h-3 w-3" />
                           Add first step
                         </Button>
                       </div>
@@ -705,18 +671,16 @@ function SequenceBuilderPage() {
           </DndContext>
         </div>
 
-        <aside className="rise rise-3 paper space-y-5 p-5">
+        <aside className="panel space-y-4 p-4">
           <div>
             <div className="micro-label flex items-center gap-1.5">
               <Settings className="h-3 w-3" />
               Settings
             </div>
-            <h2 className="mt-1 font-display text-[1.25rem] leading-none tracking-[-0.02em]">
+            <h2 className="mt-0.5 text-[0.9375rem] font-semibold leading-tight tracking-[-0.015em]">
               How it sends
             </h2>
           </div>
-
-          <div className="rule" />
 
           <div className="space-y-2">
             <Label className="micro-label">Timezone</Label>
@@ -779,9 +743,7 @@ function SequenceBuilderPage() {
             <Label className="micro-label">Mailboxes</Label>
             <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-[6px] border border-border bg-background/50 p-2">
               {mailboxes.length === 0 ? (
-                <p className="font-display-italic text-[0.8125rem] text-muted-foreground">
-                  No mailboxes configured.
-                </p>
+                <p className="text-[0.75rem] text-muted-foreground">No mailboxes configured.</p>
               ) : (
                 mailboxes.map((mb) => (
                   <div key={mb.id} className="flex items-center gap-2">
@@ -827,10 +789,10 @@ function SequenceBuilderPage() {
             <div className="micro-label">
               {stepForm.id
                 ? `Editing step ${String(stepForm.index + 1).padStart(2, "0")}`
-                : `New · step ${String(stepForm.index + 1).padStart(2, "0")}`}
+                : `New — step ${String(stepForm.index + 1).padStart(2, "0")}`}
             </div>
-            <SheetTitle className="font-display text-[1.75rem] leading-none tracking-[-0.02em]">
-              {stepForm.id ? "Refine this step" : "Compose a step"}
+            <SheetTitle className="text-[1rem] font-semibold leading-tight tracking-[-0.01em]">
+              {stepForm.id ? "Edit step" : "New step"}
             </SheetTitle>
           </SheetHeader>
 
@@ -959,8 +921,8 @@ function SequenceBuilderPage() {
                 </div>
 
                 {templateWarnings.length > 0 && (
-                  <p className="font-mono text-[0.75rem] text-[color:var(--amber-600)]">
-                    Unknown tokens: {templateWarnings.join(", ")}
+                  <p className="rounded-[3px] border border-border bg-[color:var(--paper-050)] px-2 py-1 font-mono text-[0.75rem] text-foreground">
+                    ⚠ Unknown tokens: {templateWarnings.join(", ")}
                   </p>
                 )}
 
@@ -978,7 +940,7 @@ function SequenceBuilderPage() {
 
                 <button
                   type="button"
-                  className="flex w-full items-center gap-1 text-[0.75rem] font-medium uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--amber-600)] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="flex w-full items-center gap-1 text-[0.75rem] font-medium uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   onClick={() => setStepForm((f) => ({ ...f, showVariantB: !f.showVariantB }))}
                 >
                   <ChevronDown

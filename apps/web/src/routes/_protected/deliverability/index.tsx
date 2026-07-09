@@ -70,14 +70,22 @@ function DeliverabilityGridPage() {
   }, [drawer]);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Deliverability grid</h1>
-        <div className="flex gap-2">
+    <div className="mx-auto max-w-[1200px] px-6 py-6 fade-in">
+      <header className="mb-4 flex items-end justify-between gap-6 border-b border-border pb-4">
+        <div>
+          <div className="micro-label">Signal grid</div>
+          <h1 className="mt-0.5 text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
+            Deliverability
+          </h1>
+          <p className="mt-1 text-[0.75rem] text-muted-foreground">
+            Per-mailbox × gateway delivery rate over the last window.
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
           {[7, 14, 30].map((days) => (
             <Button
               key={days}
-              size="sm"
+              size="default"
               variant={windowDays === days ? "default" : "outline"}
               onClick={() => setWindowDays(days)}
             >
@@ -85,7 +93,7 @@ function DeliverabilityGridPage() {
             </Button>
           ))}
         </div>
-      </div>
+      </header>
 
       {loading && !grid ? (
         <div className="flex justify-center py-12">

@@ -3,23 +3,26 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Badge — status indicator + label. Smaller than shadcn default, tabular so
- * numeric badges (counts, percentages) line up. `subtle` and `accent` are the
- * signature variants; `outline` for the quiet case; `secondary` is kept as an
- * alias to `subtle` for backward-compat with existing callsites.
+ * Badge — status pill. Uses the semantic status colors (green, red, blue,
+ * yellow) intentionally: color always carries meaning, never decoration.
+ * `ink` marks human-authored artifacts. `secondary`/`subtle` = neutral chip.
  */
 const badgeVariants = cva(
-  "inline-flex items-center rounded-[4px] px-1.5 py-0.5 text-[0.6875rem] font-medium tabular tracking-[0.005em] transition-colors",
+  "inline-flex items-center rounded-[3px] px-1.5 py-0.5 text-[0.6875rem] font-medium tabular tracking-[0.005em]",
   {
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground",
-        subtle: "bg-secondary text-secondary-foreground",
-        secondary: "bg-secondary text-secondary-foreground",
-        accent: "bg-[color:var(--accent-soft)] text-[color:var(--amber-600)]",
+        subtle: "bg-[color:var(--paper-100)] text-foreground",
+        secondary: "bg-[color:var(--paper-100)] text-foreground",
         outline: "border border-border text-foreground",
-        success: "bg-[color:var(--success)]/12 text-[color:var(--success)]",
-        destructive: "bg-destructive/12 text-destructive",
+        success: "bg-[color:var(--status-green-050)] text-[color:var(--status-green-600)]",
+        destructive: "bg-[color:var(--status-red-050)] text-[color:var(--status-red-600)]",
+        warning: "bg-[color:var(--status-yellow-050)] text-[color:var(--status-yellow-600)]",
+        info: "bg-[color:var(--status-blue-050)] text-[color:var(--status-blue-600)]",
+        ink: "bg-[color:var(--ink-red-100)] text-[color:var(--ink-red-700)]",
+        // Backwards-compat alias for the old `accent` variant during migration.
+        accent: "bg-[color:var(--paper-100)] text-foreground",
       },
     },
     defaultVariants: { variant: "subtle" },
