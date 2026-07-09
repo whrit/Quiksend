@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.8.0](https://github.com/whrit/Quiksend/compare/v2.7.0...v2.8.0) (2026-07-09)
+
+
+### Features
+
+* **design:** intentional warm-dark broadsheet theme ([#91](https://github.com/whrit/Quiksend/issues/91)) ([2163a85](https://github.com/whrit/Quiksend/commit/2163a85421f3a284e134138632bee795824a5bce))
+* **inbox:** two-pane newspaper reader ([#93](https://github.com/whrit/Quiksend/issues/93)) ([ae3a6bc](https://github.com/whrit/Quiksend/commit/ae3a6bc5f81948fcc3564242b8b5003f9d588bc2))
+* **sequences:** editorial paper-slip step cards + masthead ([#92](https://github.com/whrit/Quiksend/issues/92)) ([5ce5a4a](https://github.com/whrit/Quiksend/commit/5ce5a4a898f99c089c7c9326b54125913a2bcbc6))
+
 ## [2.7.0](https://github.com/whrit/Quiksend/compare/v2.6.2...v2.7.0) (2026-07-09)
 
 
