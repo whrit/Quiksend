@@ -43,6 +43,49 @@ function decryptMailboxSmtp(smtpConfig: unknown): SmtpConfigPlain {
   return decryptSmtpConfigForMailbox(smtpConfig);
 }
 
+/**
+ * Nango's HTTP errors surface through the SDK as AxiosError-shaped objects with
+ * a JSON body of `{ error: { code, message } }`. The default toString is just
+ * "Request failed with status code 400", which tells the user nothing. We parse
+ * the body with Zod at the boundary and rethrow with the actual server code so
+ * callers see, e.g., `unknown_provider_config_key` instead of an opaque 400.
+ */
+const nangoErrorBodySchema = z.object({
+  error: z.object({
+    code: z.string(),
+    message: z.string().optional(),
+  }),
+});
+const axiosErrorShapeSchema = z.object({
+  isAxiosError: z.literal(true),
+  response: z
+    .object({
+      status: z.number(),
+      data: z.unknown(),
+    })
+    .optional(),
+});
+
+function unwrapNangoError(err: unknown): MailboxError {
+  const axios = axiosErrorShapeSchema.safeParse(err);
+  if (!axios.success || !axios.data.response) {
+    return err instanceof MailboxError
+      ? err
+      : new MailboxError(
+          "CONFIG",
+          err instanceof Error ? err.message : "Nango call failed with unknown error",
+        );
+  }
+  const { status, data } = axios.data.response;
+  const body = nangoErrorBodySchema.safeParse(data);
+  const code = body.success ? body.data.error.code : `http_${status}`;
+  const message = body.success ? (body.data.error.message ?? code) : `Nango returned ${status}`;
+  return new MailboxError(
+    status === 401 || status === 403 ? "FORBIDDEN" : "CONFIG",
+    `Nango (${code}): ${message}`,
+  );
+}
+
 const sendWindowSchema = z.object({
   timezone: z.string(),
   window: z.record(z.string(), z.array(z.tuple([z.number(), z.number()]))),
@@ -418,11 +461,16 @@ const microsoftProfileSchema = z.object({
  */
 async function fetchGmailAddressFromNango(connectionId: string): Promise<string> {
   const nango = getNango();
-  const profile = await nango.get({
-    endpoint: "/gmail/v1/users/me/profile",
-    providerConfigKey: "google-mail",
-    connectionId,
-  });
+  let profile;
+  try {
+    profile = await nango.get({
+      endpoint: "/gmail/v1/users/me/profile",
+      providerConfigKey: "google-mail",
+      connectionId,
+    });
+  } catch (err) {
+    throw unwrapNangoError(err);
+  }
   const parsed = gmailProfileSchema.safeParse(profile.data);
   if (!parsed.success) {
     throw new MailboxError(
@@ -438,11 +486,16 @@ async function fetchGmailAddressFromNango(connectionId: string): Promise<string>
  */
 async function fetchMicrosoftAddressFromNango(connectionId: string): Promise<string> {
   const nango = getNango();
-  const me = await nango.get({
-    endpoint: "/v1.0/me",
-    providerConfigKey: "microsoft",
-    connectionId,
-  });
+  let me;
+  try {
+    me = await nango.get({
+      endpoint: "/v1.0/me",
+      providerConfigKey: "microsoft",
+      connectionId,
+    });
+  } catch (err) {
+    throw unwrapNangoError(err);
+  }
   const parsed = microsoftProfileSchema.safeParse(me.data);
   if (!parsed.success) {
     throw new MailboxError(
@@ -466,19 +519,19 @@ export const createGmailConnectSession = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     requireAdmin({ orgContext: context.orgContext });
     const nango = getNango();
-    const session = await nango.createConnectSession({
-      end_user: {
-        id: context.orgContext.userId,
-      },
-      allowed_integrations: ["google-mail"],
-      organization: {
-        id: context.orgContext.organizationId,
-      },
-    });
-    return {
-      sessionToken: session.data.token,
-      connectUrl: session.data.connect_link,
-    };
+    try {
+      const session = await nango.createConnectSession({
+        end_user: { id: context.orgContext.userId },
+        allowed_integrations: ["google-mail"],
+        organization: { id: context.orgContext.organizationId },
+      });
+      return {
+        sessionToken: session.data.token,
+        connectUrl: session.data.connect_link,
+      };
+    } catch (err) {
+      throw unwrapNangoError(err);
+    }
   });
 
 export const createMicrosoftConnectSession = createServerFn({ method: "POST" })
@@ -486,19 +539,19 @@ export const createMicrosoftConnectSession = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     requireAdmin({ orgContext: context.orgContext });
     const nango = getNango();
-    const session = await nango.createConnectSession({
-      end_user: {
-        id: context.orgContext.userId,
-      },
-      allowed_integrations: ["microsoft"],
-      organization: {
-        id: context.orgContext.organizationId,
-      },
-    });
-    return {
-      sessionToken: session.data.token,
-      connectUrl: session.data.connect_link,
-    };
+    try {
+      const session = await nango.createConnectSession({
+        end_user: { id: context.orgContext.userId },
+        allowed_integrations: ["microsoft"],
+        organization: { id: context.orgContext.organizationId },
+      });
+      return {
+        sessionToken: session.data.token,
+        connectUrl: session.data.connect_link,
+      };
+    } catch (err) {
+      throw unwrapNangoError(err);
+    }
   });
 
 /**
@@ -525,20 +578,20 @@ export const createGmailReconnectSession = createServerFn({ method: "POST" })
       throw new MailboxError("CONFIG", "Mailbox has no Nango connection to reconnect");
     }
     const nango = getNango();
-    const session = await nango.createReconnectSession({
-      connection_id: mailbox.nangoConnectionId,
-      integration_id: "google-mail",
-      end_user: {
-        id: context.orgContext.userId,
-      },
-      organization: {
-        id: context.orgContext.organizationId,
-      },
-    });
-    return {
-      sessionToken: session.data.token,
-      connectUrl: session.data.connect_link,
-    };
+    try {
+      const session = await nango.createReconnectSession({
+        connection_id: mailbox.nangoConnectionId,
+        integration_id: "google-mail",
+        end_user: { id: context.orgContext.userId },
+        organization: { id: context.orgContext.organizationId },
+      });
+      return {
+        sessionToken: session.data.token,
+        connectUrl: session.data.connect_link,
+      };
+    } catch (err) {
+      throw unwrapNangoError(err);
+    }
   });
 
 export const createMicrosoftReconnectSession = createServerFn({ method: "POST" })
@@ -560,20 +613,20 @@ export const createMicrosoftReconnectSession = createServerFn({ method: "POST" }
       throw new MailboxError("CONFIG", "Mailbox has no Nango connection to reconnect");
     }
     const nango = getNango();
-    const session = await nango.createReconnectSession({
-      connection_id: mailbox.nangoConnectionId,
-      integration_id: "microsoft",
-      end_user: {
-        id: context.orgContext.userId,
-      },
-      organization: {
-        id: context.orgContext.organizationId,
-      },
-    });
-    return {
-      sessionToken: session.data.token,
-      connectUrl: session.data.connect_link,
-    };
+    try {
+      const session = await nango.createReconnectSession({
+        connection_id: mailbox.nangoConnectionId,
+        integration_id: "microsoft",
+        end_user: { id: context.orgContext.userId },
+        organization: { id: context.orgContext.organizationId },
+      });
+      return {
+        sessionToken: session.data.token,
+        connectUrl: session.data.connect_link,
+      };
+    } catch (err) {
+      throw unwrapNangoError(err);
+    }
   });
 
 export const finalizeGmailMailbox = createServerFn({ method: "POST" })
