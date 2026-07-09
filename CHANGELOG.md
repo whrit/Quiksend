@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.2](https://github.com/whrit/Quiksend/compare/v2.6.1...v2.6.2) (2026-07-09)
+
+
+### Bug Fixes
+
+* **auth:** auto-restore active workspace on logout / restart ([#87](https://github.com/whrit/Quiksend/issues/87)) ([749774a](https://github.com/whrit/Quiksend/commit/749774a61831a98145433971ff059412f700ee65))
+
 ## [2.6.1](https://github.com/whrit/Quiksend/compare/v2.6.0...v2.6.1) (2026-07-06)
 
 
