@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.9.1](https://github.com/whrit/Quiksend/compare/v2.9.0...v2.9.1) (2026-07-09)
+
+
+### Bug Fixes
+
+* **mailbox:** derive OAuth mailbox address from provider, not user input ([#97](https://github.com/whrit/Quiksend/issues/97)) ([0500c83](https://github.com/whrit/Quiksend/commit/0500c83a24d986cc887f225e87e4e22306cc4a16))
+* **web:** make dev-server port configurable via WEB_PORT ([#99](https://github.com/whrit/Quiksend/issues/99)) ([604210d](https://github.com/whrit/Quiksend/commit/604210d9dc9b6b89eccfde055959d48406f6121d))
+
+
+### Documentation
+
+* **nango:** mailbox address is OAuth-derived, not user-typed ([#100](https://github.com/whrit/Quiksend/issues/100)) ([6e14671](https://github.com/whrit/Quiksend/commit/6e14671b5a9ddd84a991c54c1e96f7ef8ba60513))
+
 ## [2.9.0](https://github.com/whrit/Quiksend/compare/v2.8.0...v2.9.0) (2026-07-09)
 
 
