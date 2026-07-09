@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.2](https://github.com/whrit/Quiksend/compare/v2.9.1...v2.9.2) (2026-07-09)
+
+
+### Bug Fixes
+
+* **mailbox:** unwrap Nango axios errors so real code surfaces ([#101](https://github.com/whrit/Quiksend/issues/101)) ([c14c997](https://github.com/whrit/Quiksend/commit/c14c9978e9f6afdf3a8f09976585cf49fff6795b))
+
 ## [2.9.1](https://github.com/whrit/Quiksend/compare/v2.9.0...v2.9.1) (2026-07-09)
 
 
