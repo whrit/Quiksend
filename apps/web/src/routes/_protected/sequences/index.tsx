@@ -190,21 +190,49 @@ function SequencesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-[1200px] px-8 py-10">
+      <header className="rise mb-8 flex items-end justify-between gap-6 border-b border-border pb-6">
         <div>
-          <h1 className="text-2xl font-semibold">Sequences</h1>
-          <p className="text-sm text-muted-foreground">
-            Build multi-step outreach sequences and enroll prospects.
+          <div className="micro-label">Outbound</div>
+          <h1 className="mt-2 font-display text-[2.25rem] leading-none tracking-[-0.02em]">
+            Sequences
+          </h1>
+          <p className="mt-1 font-display-italic text-[0.9375rem] text-muted-foreground">
+            Multi-step outreach, composed with care.
           </p>
         </div>
-        <Button onClick={() => setNewOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New sequence
-        </Button>
-      </div>
+        <div className="flex items-center gap-1.5">
+          {(["draft", "active", "archived"] as const).map((s) => {
+            const active = search.status === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                aria-pressed={active}
+                onClick={() =>
+                  void navigate({
+                    search: { ...search, status: active ? undefined : s },
+                  })
+                }
+                className={
+                  active
+                    ? "inline-flex h-7 items-center rounded-[6px] bg-primary px-2.5 text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-primary-foreground shadow-[inset_0_-1px_0_rgba(255,255,255,0.06),0_1px_2px_rgba(20,15,5,0.15)] transition-[background-color,box-shadow,transform] duration-150 ease-out hover:bg-primary/92 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--amber-600)] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    : "paper inline-flex h-7 items-center rounded-[6px] px-2.5 text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-muted-foreground transition-[background-color,color,box-shadow,transform] duration-150 ease-out hover:-translate-y-[1px] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--amber-600)] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                }
+              >
+                {s}
+              </button>
+            );
+          })}
+          <div className="mx-2 h-5 w-px bg-border" aria-hidden="true" />
+          <Button onClick={() => setNewOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            New sequence
+          </Button>
+        </div>
+      </header>
 
-      <div className="flex gap-3">
+      <div className="rise rise-1 mb-4 flex items-center gap-3">
         <Input
           placeholder="Search sequences…"
           defaultValue={search.search ?? ""}
@@ -217,25 +245,9 @@ function SequencesPage() {
             }
           }}
         />
-        <div className="flex gap-2">
-          {(["draft", "active", "archived"] as const).map((s) => (
-            <Button
-              key={s}
-              size="sm"
-              variant={search.status === s ? "default" : "outline"}
-              onClick={() =>
-                void navigate({
-                  search: { ...search, status: search.status === s ? undefined : s },
-                })
-              }
-            >
-              {s}
-            </Button>
-          ))}
-        </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="rise rise-2 paper overflow-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
