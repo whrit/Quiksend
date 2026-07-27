@@ -6,9 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Quiksend is an open-source, self-hostable sales engagement platform (AI-personalized email
 sequences with Salesforce/HubSpot ops) — an alternative to Outreach.io / Salesforge.ai. It's a
-pnpm + Turborepo monorepo, built in numbered phases. Phases 0–11 are shipped and released as
-`v2.2.0`; Waves 5–7 hardened the engine, closed the review report, and added enterprise
-deliverability (SEG detection + routing + canary). The phase plan lives in
+pnpm + Turborepo monorepo, built in numbered phases. Phases 0–11 are shipped (see the
+`version` field in root `package.json` for the current release; Release Please owns tags
+and `CHANGELOG.md`). Waves 5–7 hardened the engine, closed the review report, and added
+enterprise deliverability (SEG detection + routing + canary). The phase plan lives in
 `docs/implementations/phases/` — Phases 2–10 in one document, Phase 11 (enterprise deliverability)
 in a companion.
 

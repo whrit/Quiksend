@@ -73,18 +73,18 @@ delivery rate drops below 80% mid-campaign, the campaign auto-pauses with an ale
 
 ## Builds on (existing modules Phase 11 attaches to)
 
-| Module                                                            | Origin                        | Phase 11 usage                                                                      |
-| ----------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------- |
-| `packages/mail/src/dns.ts`                                        | Phase 4                       | Extended with MX resolution (`resolveMx`) and MX-based provider classification      |
-| `packages/mail/src/adapters/index.ts` (`createAdapterForMailbox`) | Phase 4 + Wave 5 CR-009       | Content sanitizer path added inside adapter chain when recipient is SEG-tagged      |
-| `packages/core/src/state-machine/entry-conditions.ts`             | Wave 5 BETA COMP-005          | Extended with `if_recipient_gateway_in` / `if_recipient_gateway_not_in`             |
-| `apps/worker/src/sequence/reserve-slot.ts`                        | Wave 5 ALPHA CR-005           | Extended with gateway-aware mailbox selection + lower throttle for SEG destinations |
-| `apps/worker/src/sequence/effects.ts` (`applyMailboxSend`)        | Wave 5 ALPHA CR-004           | Injects `X-Quiksend-Canary-Id` header, calls content sanitizer if recipient is SEG  |
-| `apps/web/src/lib/effect-executor.ts` (`applyWebEffects`)         | Wave 6 OMEGA ARCH-002         | New effect kind `emit_canary` handled here for the web-triggered manual-send path   |
-| `apps/worker/src/handlers/mailbox-poll.ts`                        | Phase 4 + Wave 5 DELTA CR-012 | Pattern reused for seed-inbox polling; separate handler `canary-check.ts`           |
-| `packages/queue/src/jobs.ts`                                      | Phase 6                       | New job types: `gateway.detect`, `canary.poll`, `canary.sweep`                      |
-| `packages/ai/src/classify/sentiment.ts`                           | Wave 5 BETA COMP-006          | Sibling classifier for canary send: `packages/ai/src/classify/canary-arrival.ts`    |
-| `analytics.functions.ts` + `sequence_stats` view                  | Phase 9 + Wave 6 PERF-008     | Extended with `by_gateway` breakdowns                                               |
+| Module                                                            | Origin                        | Phase 11 usage                                                                                                                                                                                      |
+| ----------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/mail/src/dns.ts`                                        | Phase 4                       | Extended with MX resolution (`resolveMx`) and MX-based provider classification                                                                                                                      |
+| `packages/mail/src/adapters/index.ts` (`createAdapterForMailbox`) | Phase 4 + Wave 5 CR-009       | Content sanitizer path added inside adapter chain when recipient is SEG-tagged                                                                                                                      |
+| `packages/core/src/state-machine/entry-conditions.ts`             | Wave 5 BETA COMP-005          | Extended with `if_recipient_gateway_in` / `if_recipient_gateway_not_in`                                                                                                                             |
+| `apps/worker/src/sequence/reserve-slot.ts`                        | Wave 5 ALPHA CR-005           | Extended with gateway-aware mailbox selection + lower throttle for SEG destinations                                                                                                                 |
+| `apps/worker/src/sequence/effects.ts` (`applyMailboxSend`)        | Wave 5 ALPHA CR-004           | Injects `X-Quiksend-Canary-Id` header, calls content sanitizer if recipient is SEG                                                                                                                  |
+| `apps/web/src/lib/effect-executor.ts` (`applyWebEffects`)         | Wave 6 OMEGA ARCH-002         | New effect kind `emit_canary` handled here for the web-triggered manual-send path                                                                                                                   |
+| `apps/worker/src/handlers/mailbox-poll.ts`                        | Phase 4 + Wave 5 DELTA CR-012 | Pattern reused for seed-inbox polling; separate handler `canary-check.ts`                                                                                                                           |
+| `packages/queue/src/jobs.ts`                                      | Phase 6                       | New job types: `gateway.detect_single`, `gateway.detect_bulk`, `gateway.apply_classification`, `gateway.sweep_stale`, `canary.check`, `canary.send`, `seed_inbox.verify`, `deliverability.snapshot` |
+| `packages/ai/src/classify/sentiment.ts`                           | Wave 5 BETA COMP-006          | Sibling classifier for canary send: `packages/ai/src/classify/canary-arrival.ts`                                                                                                                    |
+| `analytics.functions.ts` + `sequence_stats` view                  | Phase 9 + Wave 6 PERF-008     | Extended with `by_gateway` breakdowns                                                                                                                                                               |
 
 Nothing in Phase 11 requires a greenfield architectural addition. Every arrow lands
 on a module that already exists and has been production-hardened.
@@ -243,8 +243,10 @@ No SQL migration — the column is already `jsonb`. The Zod schema in
 
 ```typescript
 export const EntryConditionSchema = z.object({
-  ifNoReplyOnThread: z.boolean().optional(),
-  ifNoBounceOnThread: z.boolean().optional(),
+  // Shipped in Wave 5 BETA — implemented as `kind: "if_no_reply"` (not `ifNoReplyOnThread`).
+  kind: z.literal("if_no_reply").optional(),
+  // Documented in early specs as `ifNoBounceOnThread` — **not implemented** (no
+  // `if_no_bounce` kind; `hasBounceOnThread` exists on the evaluator context only).
   // NEW in Phase 11A:
   recipientGatewayIn: z.array(GatewayTypeSchema).optional(),
   recipientGatewayNotIn: z.array(GatewayTypeSchema).optional(),
