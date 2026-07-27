@@ -1,29 +1,36 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
-import { getSession } from "@/lib/auth.functions";
+import { getOnboardingContext } from "@/lib/protected-guard.ts";
+
+const onboardingSearchSchema = z.object({
+  removed: z.coerce.boolean().optional(),
+});
 
 export const Route = createFileRoute("/onboarding")({
+  validateSearch: (search) => onboardingSearchSchema.parse(search),
   beforeLoad: async () => {
-    const session = await getSession();
-    if (!session) {
-      throw redirect({ to: "/login" });
+    const prep = await getOnboardingContext();
+    if (prep.action === "redirect") {
+      throw redirect({ to: prep.to });
     }
-    if (session.session.activeOrganizationId) {
-      throw redirect({ to: "/dashboard" });
-    }
+    return { removedFromWorkspace: prep.removedFromWorkspace };
   },
   component: OnboardingPage,
 });
 
 function OnboardingPage() {
   const navigate = useNavigate();
+  const { removed } = Route.useSearch();
+  const routeContext = Route.useRouteContext();
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const removedFromWorkspace = routeContext.removedFromWorkspace || removed;
 
   const createWorkspace = async () => {
     if (!name.trim()) return;
@@ -58,6 +65,13 @@ function OnboardingPage() {
           </span>
           <span className="text-[0.9375rem] font-semibold tracking-[-0.015em]">Quiksend</span>
         </div>
+
+        {removedFromWorkspace && (
+          <div className="mb-4 rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-2 text-[0.75rem] leading-relaxed text-[color:var(--status-red-600)]">
+            You no longer have access to your previous workspace. Create a new one below or ask an
+            admin to send you a fresh invite.
+          </div>
+        )}
 
         <div className="micro-label">Step 1 of 1</div>
         <h1 className="mt-1 text-[1.375rem] font-semibold leading-tight tracking-[-0.015em]">

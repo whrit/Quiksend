@@ -7,8 +7,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createSequence } from "@/lib/sequences.functions.ts";
 
+const anchorMessageIdSchema = z
+  .string()
+  .min(3)
+  .max(998)
+  .refine((value) => /^<?[^@\s<>]+@[^@\s<>]+>?$/.test(value.trim()), {
+    message: "Invalid Message-ID",
+  })
+  .optional();
+
 const searchSchema = z.object({
-  anchorMessageId: z.string().uuid().optional(),
+  anchorMessageId: anchorMessageIdSchema,
 });
 
 export const Route = createFileRoute("/_protected/sequences/new")({

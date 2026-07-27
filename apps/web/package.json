@@ -43,6 +43,7 @@
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
     "drizzle-orm": "0.45.2",
+    "isomorphic-dompurify": "^3.19.0",
     "lucide-react": "1.22.0",
     "papaparse": "5.5.4",
     "react": "19.2.7",

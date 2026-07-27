@@ -22,6 +22,7 @@ export { detectAutoReply, type AutoReplyDetection } from "./auto-reply.ts";
 export { buildMime, type BuildMimeInput, type BuildMimeOutput } from "./mime.ts";
 export {
   sanitizeForSeg,
+  sanitizeInboundHtml,
   extractRecipientDomain,
   type BuiltMime,
   type SanitizeForSegOptions,

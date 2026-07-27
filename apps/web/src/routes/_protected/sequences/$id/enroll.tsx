@@ -50,6 +50,7 @@ function EnrollPage() {
   const [loading, setLoading] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [preview, setPreview] = useState<ScheduleRow[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [previewMailboxId, setPreviewMailboxId] = useState<string | null>(null);
   const [segWarning, setSegWarning] = useState<Awaited<
     ReturnType<typeof getEnrollmentSegWarning>
@@ -100,6 +101,11 @@ function EnrollPage() {
       return;
     }
     const firstSelected = [...selected][0];
+    if (!firstSelected) {
+      toast.error("Select at least one prospect");
+      return;
+    }
+    setPreviewLoading(true);
     try {
       const result = await previewSchedule({
         data: {
@@ -111,6 +117,8 @@ function EnrollPage() {
       setPreview(result);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to preview schedule");
+    } finally {
+      setPreviewLoading(false);
     }
   }
 
@@ -251,8 +259,12 @@ function EnrollPage() {
             </div>
           )}
 
-          <Button variant="outline" onClick={() => void loadPreview()}>
-            Preview schedule
+          <Button
+            variant="outline"
+            onClick={() => void loadPreview()}
+            disabled={previewLoading || selected.size === 0 || !previewMailboxId}
+          >
+            {previewLoading ? "Loading…" : "Preview schedule"}
           </Button>
 
           {preview && (

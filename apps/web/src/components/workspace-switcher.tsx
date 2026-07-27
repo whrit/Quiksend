@@ -1,5 +1,6 @@
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,6 +23,7 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
   const { data: active } = authClient.useActiveOrganization();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const initials = useMemo(() => {
     const src = active?.name ?? "?";
@@ -34,19 +36,53 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
   }, [active?.name]);
 
   const create = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || busy) return;
+    setBusy(true);
     const slug = name
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-");
-    await authClient.organization.create({ name: name.trim(), slug });
-    setName("");
-    setCreating(false);
+    try {
+      const result = await authClient.organization.create({ name: name.trim(), slug });
+      if (result.error) {
+        toast.error(result.error.message ?? "Couldn't create workspace");
+        return;
+      }
+      if (result.data?.id) {
+        const activeResult = await authClient.organization.setActive({
+          organizationId: result.data.id,
+        });
+        if (activeResult.error) {
+          toast.error(activeResult.error.message ?? "Workspace created but couldn't switch to it");
+          return;
+        }
+      }
+      toast.success(`Workspace "${name.trim()}" created`);
+      setName("");
+      setCreating(false);
+      window.location.reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create workspace");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const switchTo = async (organizationId: string) => {
-    await authClient.organization.setActive({ organizationId });
-    window.location.reload();
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await authClient.organization.setActive({ organizationId });
+      if (result.error) {
+        toast.error(result.error.message ?? "Couldn't switch workspace");
+        return;
+      }
+      window.location.reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to switch workspace");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -88,6 +124,7 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
           return (
             <DropdownMenuItem
               key={org.id}
+              disabled={busy}
               onSelect={() => void switchTo(org.id)}
               className="flex items-center gap-2 px-2 py-1.5 text-[0.75rem]"
             >
@@ -111,6 +148,7 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
               autoFocus
               placeholder="Workspace name"
               value={name}
+              disabled={busy}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") void create();
@@ -120,7 +158,7 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
                 }
               }}
             />
-            <Button size="sm" onClick={() => void create()}>
+            <Button size="sm" onClick={() => void create()} disabled={busy || !name.trim()}>
               Create
             </Button>
           </div>

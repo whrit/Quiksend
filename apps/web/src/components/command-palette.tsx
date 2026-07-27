@@ -11,11 +11,13 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import {
   BarChart3,
+  Building2,
   Import,
   Inbox,
   KeyRound,
   LayoutDashboard,
   ListChecks,
+  LogOut,
   Mail,
   MailPlus,
   PencilLine,
@@ -99,7 +101,7 @@ const SETTINGS_COMMANDS: CommandAction[] = [
     group: "Settings",
     Icon: Mail,
   },
-  { type: "navigate", to: "/settings/crm", label: "CRM", group: "Settings", Icon: Webhook },
+  { type: "navigate", to: "/settings/crm", label: "CRM", group: "Settings", Icon: Building2 },
   {
     type: "navigate",
     to: "/settings/webhooks",
@@ -205,7 +207,7 @@ export function CommandPalette({
             <CommandSeparator />
             <CommandGroup heading="Session">
               <CommandItem onSelect={() => void signOut()} disabled={signingOut}>
-                <Settings />
+                <LogOut />
                 <span className="flex-1">Sign out</span>
               </CommandItem>
             </CommandGroup>

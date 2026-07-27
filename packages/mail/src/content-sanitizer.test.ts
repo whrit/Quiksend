@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeForSeg } from "./content-sanitizer.ts";
+import { sanitizeForSeg, sanitizeInboundHtml } from "./content-sanitizer.ts";
 
 describe("sanitizeForSeg", () => {
   it("strips tracking pixels on the tracking domain", () => {
@@ -130,5 +130,22 @@ describe("sanitizeForSeg", () => {
     );
     expect(result.html).toBe("");
     expect(result.text).toBe("Hello");
+  });
+});
+
+describe("sanitizeInboundHtml", () => {
+  it("strips script tags and event handlers", () => {
+    const dirty = '<p onclick="alert(1)">Hi</p><script>alert("xss")</script>';
+    const clean = sanitizeInboundHtml(dirty);
+    expect(clean).not.toMatch(/script/i);
+    expect(clean).not.toMatch(/onclick/i);
+    expect(clean).toContain("Hi");
+  });
+
+  it("preserves safe formatting tags", () => {
+    const html = '<p><strong>Hello</strong> <a href="https://example.com">link</a></p>';
+    const clean = sanitizeInboundHtml(html);
+    expect(clean).toContain("<strong>Hello</strong>");
+    expect(clean).toContain('href="https://example.com"');
   });
 });

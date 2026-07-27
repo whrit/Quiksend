@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Building2,
   Command as CommandIcon,
   Inbox,
   KeyRound,
@@ -44,6 +45,9 @@ export const Route = createFileRoute("/_protected")({
       if (access.reason === "unauthenticated") {
         throw redirect({ to: "/login" });
       }
+      if (access.reason === "not_member") {
+        throw redirect({ to: "/onboarding", search: { removed: true } });
+      }
       throw redirect({ to: "/onboarding" });
     }
     return { user: { id: access.userId, email: access.email, name: access.name } };
@@ -86,7 +90,7 @@ const PRIMARY_NAV: Array<{ to: string; label: string; Icon: NavIcon }> = [
 
 const SETTINGS_NAV: Array<{ to: string; label: string; Icon: NavIcon }> = [
   { to: "/settings/mailboxes", label: "Mailboxes", Icon: Mail },
-  { to: "/settings/crm", label: "CRM", Icon: Webhook },
+  { to: "/settings/crm", label: "CRM", Icon: Building2 },
   { to: "/settings/webhooks", label: "Webhooks", Icon: Webhook },
   { to: "/settings/api-keys", label: "API keys", Icon: KeyRound },
   { to: "/settings/value-props", label: "Value props", Icon: Sparkles },
@@ -126,7 +130,7 @@ function ProtectedLayout() {
       <a href="#main" className="skip-link">
         Skip to content
       </a>
-      <div className="flex min-h-screen">
+      <div className="flex h-screen min-h-screen overflow-hidden">
         <aside
           className="sticky top-0 flex h-screen w-[220px] shrink-0 flex-col border-r border-border bg-[color:var(--paper-050)]"
           aria-label="Primary navigation"
@@ -210,7 +214,7 @@ function ProtectedLayout() {
           </div>
         </aside>
 
-        <main id="main" className="min-w-0 flex-1">
+        <main id="main" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Outlet />
         </main>
       </div>

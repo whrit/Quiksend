@@ -1,5 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Ban, Check, Loader2, Reply, Search, Send, X } from "lucide-react";
+import { sanitizeInboundHtml } from "@quiksend/mail";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ import {
   sendReply,
   suppressEmail,
 } from "@/lib/inbox.functions.ts";
+import { getDoneThreadKeys, markThreadDone } from "@/lib/inbox-actions.functions.ts";
 import { listMailboxes } from "@/lib/mailboxes.functions.ts";
 import { listSequences } from "@/lib/sequences.functions.ts";
 
@@ -102,7 +104,13 @@ function InboxPage() {
           limit: 100,
         },
       });
-      setThreads(result.threads);
+      const threadKeys = result.threads.map((thread) => thread.threadKey);
+      const done =
+        threadKeys.length > 0
+          ? await getDoneThreadKeys({ data: { threadKeys } })
+          : { threadKeys: [] as string[] };
+      const doneSet = new Set(done.threadKeys);
+      setThreads(result.threads.filter((thread) => !doneSet.has(thread.threadKey)));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load inbox");
     } finally {
@@ -206,14 +214,20 @@ function InboxPage() {
     setReplyBody("");
   }, []);
 
-  const markDone = useCallback(() => {
-    void loadThreads();
-    closeReader();
-    toast.success("Marked done");
-  }, [loadThreads, closeReader]);
+  const markDone = useCallback(async () => {
+    if (!selectedKey) return;
+    try {
+      await markThreadDone({ data: { threadKey: selectedKey } });
+      toast.success("Marked done");
+      closeReader();
+      void loadThreads();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to mark done");
+    }
+  }, [selectedKey, loadThreads, closeReader]);
 
   return (
-    <div className="flex h-[100dvh] bg-background">
+    <div className="flex min-h-0 flex-1 bg-background">
       {/* ─── Left pane — thread index ─────────────────────────────────── */}
       <aside
         className="flex w-[340px] shrink-0 flex-col border-r border-border"
@@ -635,6 +649,10 @@ function MessageArticle({ message }: { message: InboxMessage }) {
   const ts = message.direction === "inbound" ? message.receivedAt : message.sentAt;
   const isOutbound = message.direction === "outbound";
   const hasHtml = Boolean(message.bodyHtml && message.bodyHtml.trim().length > 0);
+  const safeHtml = useMemo(
+    () => (hasHtml ? sanitizeInboundHtml(message.bodyHtml ?? "") : ""),
+    [hasHtml, message.bodyHtml],
+  );
 
   return (
     <article
@@ -676,7 +694,7 @@ function MessageArticle({ message }: { message: InboxMessage }) {
       {hasHtml ? (
         <div
           className="mt-2.5 text-[0.8125rem] leading-[1.55] text-foreground [&_a]:text-[color:var(--link)] [&_a]:underline [&_a]:underline-offset-2 [&_p]:mb-2 [&_p:last-child]:mb-0"
-          dangerouslySetInnerHTML={{ __html: message.bodyHtml ?? "" }}
+          dangerouslySetInnerHTML={{ __html: safeHtml }}
         />
       ) : (
         <div className="mt-2.5 whitespace-pre-wrap text-[0.8125rem] leading-[1.55] text-foreground">

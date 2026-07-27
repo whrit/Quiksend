@@ -85,8 +85,17 @@ import { cn } from "@/lib/utils";
 
 type SequenceDetail = Awaited<ReturnType<typeof getSequence>>;
 
+const anchorMessageIdSchema = z
+  .string()
+  .min(3)
+  .max(998)
+  .refine((value) => /^<?[^@\s<>]+@[^@\s<>]+>?$/.test(value.trim()), {
+    message: "Invalid Message-ID",
+  })
+  .optional();
+
 const editSearchSchema = z.object({
-  anchorMessageId: z.string().uuid().optional(),
+  anchorMessageId: anchorMessageIdSchema,
 });
 
 export const Route = createFileRoute("/_protected/sequences/$id/edit")({
