@@ -84,6 +84,45 @@ export async function maybeRecoverCampaigns(): Promise<void> {
   }
 }
 
+/**
+ * Canary auto-pause bulk-updates enrollments without per-row pause events. Manual
+ * pauses and no_safe_mailbox pauses emit enrollment-level events, so only resume
+ * paused rows whose latest pause signal is not user- or gateway-initiated.
+ */
+async function resumeCanaryAutoPausedEnrollments(
+  organizationId: string,
+  sequenceId: string,
+  mailboxId: string,
+): Promise<void> {
+  await db.execute(sql`
+    UPDATE enrollment e
+    SET state = 'active', next_run_at = now()
+    WHERE e.organization_id = ${organizationId}
+      AND e.sequence_id = ${sequenceId}
+      AND e.mailbox_id = ${mailboxId}
+      AND e.state = 'paused'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM event ev
+        WHERE ev.organization_id = e.organization_id
+          AND ev.entity_type = 'enrollment'
+          AND ev.entity_id = e.id
+          AND ev.type IN ('enrollment.paused', 'enrollment.no_safe_mailbox_for_gateway')
+          AND ev.created_at > COALESCE(
+            (
+              SELECT MAX(ev2.created_at)
+              FROM event ev2
+              WHERE ev2.organization_id = e.organization_id
+                AND ev2.entity_type = 'enrollment'
+                AND ev2.entity_id = e.id
+                AND ev2.type = 'enrollment.resumed'
+            ),
+            'epoch'::timestamptz
+          )
+      )
+  `);
+}
+
 async function recoverSequenceCampaign(
   organizationId: string,
   sequenceId: string,
@@ -114,17 +153,7 @@ async function recoverSequenceCampaign(
       ),
     );
 
-  await db
-    .update(tables.enrollment)
-    .set({ state: "active", nextRunAt: sql`now()` })
-    .where(
-      and(
-        eq(tables.enrollment.organizationId, organizationId),
-        eq(tables.enrollment.sequenceId, sequenceId),
-        eq(tables.enrollment.mailboxId, details.mailboxId),
-        eq(tables.enrollment.state, "paused"),
-      ),
-    );
+  await resumeCanaryAutoPausedEnrollments(organizationId, sequenceId, details.mailboxId);
 
   await db.insert(tables.event).values({
     organizationId,
