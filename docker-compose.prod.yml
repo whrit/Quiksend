@@ -5,6 +5,12 @@
 #   DATABASE_URL=postgres://quiksend:quiksend@localhost:5432/quiksend pnpm db:migrate
 #
 # Pin a release: QUIKSEND_IMAGE_TAG=v2.1.0
+#
+# Optional env (pass through from host .env — omit or leave blank to use app defaults / disable):
+#   AI: ANTHROPIC_API_KEY, OPENAI_API_KEY, BRAVE_API_KEY, EXA_API_KEY, TAVILY_API_KEY
+#   Phase 11 deliverability: SEG_DAILY_CAP_PER_MAILBOX, TRACKING_PIXEL_DOMAIN,
+#     SYSTEM_SEED_ENCRYPTION_KEY (Quiksend Systems provider seed pool only)
+#   Webhooks: WEBHOOK_DELIVER_CONCURRENCY
 
 services:
   web:
@@ -24,6 +30,17 @@ services:
       SMTP_PORT: "1025"
       SENTRY_DSN: ${SENTRY_DSN:-}
       POSTHOG_KEY: ${POSTHOG_KEY:-}
+      # Optional — AI generation (omit to disable personalized email / research)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      EXA_API_KEY: ${EXA_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      # Optional — Phase 11 SEG routing / deliverability (defaults apply when unset)
+      SEG_DAILY_CAP_PER_MAILBOX: ${SEG_DAILY_CAP_PER_MAILBOX:-50}
+      TRACKING_PIXEL_DOMAIN: ${TRACKING_PIXEL_DOMAIN:-}
+      SYSTEM_SEED_ENCRYPTION_KEY: ${SYSTEM_SEED_ENCRYPTION_KEY:-}
+      WEBHOOK_DELIVER_CONCURRENCY: ${WEBHOOK_DELIVER_CONCURRENCY:-5}
     ports:
       - "3000:3000"
     depends_on:
@@ -47,8 +64,17 @@ services:
       SENTRY_DSN: ${SENTRY_DSN:-}
       POSTHOG_KEY: ${POSTHOG_KEY:-}
       NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=2048}
+      # Optional — AI generation (omit to disable personalized email / research)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      EXA_API_KEY: ${EXA_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      # Optional — Phase 11 SEG routing / deliverability (defaults apply when unset)
+      SEG_DAILY_CAP_PER_MAILBOX: ${SEG_DAILY_CAP_PER_MAILBOX:-50}
+      TRACKING_PIXEL_DOMAIN: ${TRACKING_PIXEL_DOMAIN:-}
+      SYSTEM_SEED_ENCRYPTION_KEY: ${SYSTEM_SEED_ENCRYPTION_KEY:-}
+      WEBHOOK_DELIVER_CONCURRENCY: ${WEBHOOK_DELIVER_CONCURRENCY:-5}
     depends_on:
       postgres:
         condition: service_healthy
-      web:
-        condition: service_started

@@ -10,9 +10,10 @@ ENV PNPM_HOME=/pnpm \
 RUN corepack enable
 WORKDIR /app
 
+# Prune to just @quiksend/worker and the workspace packages it depends on.
 FROM base AS pruner
 COPY . .
-RUN pnpm dlx turbo@2.10.2 prune @quiksend/web --docker    # web
+RUN pnpm dlx turbo@2.10.2 prune @quiksend/worker --docker
 
 FROM base AS runner
 ENV NODE_ENV=production
