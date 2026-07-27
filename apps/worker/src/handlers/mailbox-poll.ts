@@ -616,19 +616,11 @@ async function pollImap(
     );
   }
   if (typeof mailbox.smtpConfig !== "string") {
-    return skipImapPollDueToMissingCredentials(
-      mailbox,
-      cursor,
-      "smtp_config missing or invalid",
-    );
+    return skipImapPollDueToMissingCredentials(mailbox, cursor, "smtp_config missing or invalid");
   }
   const smtp = decryptSmtpConfig(mailbox.smtpConfig, key);
   if (!smtp.auth?.user || !smtp.auth.pass) {
-    return skipImapPollDueToMissingCredentials(
-      mailbox,
-      cursor,
-      "IMAP auth credentials missing",
-    );
+    return skipImapPollDueToMissingCredentials(mailbox, cursor, "IMAP auth credentials missing");
   }
 
   const imapPort = smtp.secure ? 993 : 143;

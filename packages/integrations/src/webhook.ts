@@ -86,11 +86,7 @@ function resolveWebhookSigningKey(override?: string): string | undefined {
   return env.NANGO_WEBHOOK_SECRET;
 }
 
-function matchesHmacSha256(
-  rawBody: string,
-  secret: string,
-  signatureHeader: string,
-): boolean {
+function matchesHmacSha256(rawBody: string, secret: string, signatureHeader: string): boolean {
   const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
   const sig = signatureHeader.trim().toLowerCase();
   const exp = expected.toLowerCase();

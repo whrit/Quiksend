@@ -51,9 +51,7 @@ function OnboardingPage() {
         organizationId: result.data.id,
       });
       if (activeResult.error) {
-        setError(
-          activeResult.error.message ?? "Workspace created but couldn't switch to it",
-        );
+        setError(activeResult.error.message ?? "Workspace created but couldn't switch to it");
         setCreating(false);
         return;
       }

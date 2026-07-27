@@ -54,10 +54,13 @@ describe("Nango inbound webhook signature verification", () => {
     expect(ok).toBe(false);
   });
 
-  it("rejects payloads without a delivery timestamp", () => {
+  it("accepts payloads with no delivery timestamp (auth webhooks omit it)", () => {
+    // Nango auth webhooks and successful syncs carry no delivery-time field.
+    // HMAC proves authenticity; replay is handled by the nangoWebhookProcessed
+    // dedup table, so absence must not be treated as a forgery.
     const body = '{"type":"sync","payload":{}}';
     const ok = verifyNangoWebhook({ rawBody: body, signatureHeader: sign(body), secret });
-    expect(ok).toBe(false);
+    expect(ok).toBe(true);
   });
 
   it("rejects payloads outside the replay window", () => {

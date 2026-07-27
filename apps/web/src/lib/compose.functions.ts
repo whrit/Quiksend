@@ -1,6 +1,6 @@
 import { env } from "@quiksend/config";
 import { buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
-import { db } from "@quiksend/db";
+import { db, isSendSuppressed } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import { and, eq, sql } from "drizzle-orm";
@@ -44,8 +44,9 @@ async function loadProspect(prospectId: string, organizationId: string) {
     email: string;
     first_name: string | null;
     last_name: string | null;
+    status: string;
   }>(sql`
-    select id, organization_id, email, first_name, last_name
+    select id, organization_id, email, first_name, last_name, status
     from prospect
     where id = ${prospectId} and organization_id = ${organizationId}
     limit 1
@@ -58,6 +59,7 @@ async function loadProspect(prospectId: string, organizationId: string) {
     email: row.email,
     firstName: row.first_name,
     lastName: row.last_name,
+    status: row.status,
   };
 }
 
@@ -129,6 +131,18 @@ export const sendComposedMessage = createServerFn({ method: "POST" })
     }
 
     const prospect = await loadProspect(data.prospectId, organizationId);
+
+    // A rep sending by hand must not be able to reach an unsubscribed prospect
+    // any more than the sequence engine can. Same guard, same rule.
+    if (
+      await isSendSuppressed({
+        organizationId,
+        email: prospect.email,
+        prospectStatus: prospect.status,
+      })
+    ) {
+      throw new Error("This prospect is suppressed (unsubscribed, bounced, or do-not-contact)");
+    }
 
     const org = await db.query.organization.findFirst({
       where: eq(tables.organization.id, organizationId),

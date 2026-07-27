@@ -1,5 +1,5 @@
 import { env } from "@quiksend/config";
-import { db } from "@quiksend/db";
+import { db, isSendSuppressed } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
@@ -159,6 +159,17 @@ export const sendReply = createServerFn({ method: "POST" })
         })
       : null;
     if (!prospect) throw new Error("Prospect not found for thread");
+
+    // Replying from the inbox is still an outbound send: honour suppression.
+    if (
+      await isSendSuppressed({
+        organizationId,
+        email: prospect.email,
+        prospectStatus: prospect.status,
+      })
+    ) {
+      throw new Error("This prospect is suppressed (unsubscribed, bounced, or do-not-contact)");
+    }
 
     const org = await db.query.organization.findFirst({
       where: eq(tables.organization.id, organizationId),

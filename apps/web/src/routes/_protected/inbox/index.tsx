@@ -722,7 +722,9 @@ function MessageArticle({ message }: { message: InboxMessage }) {
           <SafeInboundHtml html={message.bodyHtml ?? ""} className={MESSAGE_BODY_CLASS} />
         )
       ) : (
-        <div className={cn(MESSAGE_BODY_CLASS, "whitespace-pre-wrap")}>{message.bodyText ?? ""}</div>
+        <div className={cn(MESSAGE_BODY_CLASS, "whitespace-pre-wrap")}>
+          {message.bodyText ?? ""}
+        </div>
       )}
     </article>
   );

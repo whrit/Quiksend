@@ -1,7 +1,6 @@
 import "@tanstack/react-start/server-only";
 
 import { randomBytes } from "node:crypto";
-import { execFileSync } from "node:child_process";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { env } from "@quiksend/config";
@@ -67,28 +66,6 @@ function isBlockedWebhookResolvedAddress(address: string): boolean {
   return true;
 }
 
-const WEBHOOK_DNS_LOOKUP_INLINE = `
-import { lookup } from "node:dns/promises";
-const host = HOST_PLACEHOLDER;
-const results = await lookup(host, { all: true, verbatim: true });
-process.stdout.write(JSON.stringify(results.map((r) => r.address)));
-`;
-
-function resolveWebhookHostAddressesSync(hostname: string): string[] | null {
-  const script = WEBHOOK_DNS_LOOKUP_INLINE.replace("HOST_PLACEHOLDER", JSON.stringify(hostname));
-  try {
-    const stdout = execFileSync(process.execPath, ["--input-type=module", "-e", script], {
-      encoding: "utf8",
-      timeout: 10_000,
-    });
-    const addresses = JSON.parse(stdout.trim()) as unknown;
-    if (!Array.isArray(addresses)) return null;
-    return addresses.filter((address): address is string => typeof address === "string");
-  } catch {
-    return null;
-  }
-}
-
 function parseWebhookUrl(url: string): URL | null {
   try {
     return new URL(url);
@@ -149,21 +126,21 @@ export async function validateWebhookDeliveryUrl(url: string): Promise<void> {
   }
 }
 
+/**
+ * Registration-time guard: literal-host checks only, no DNS.
+ *
+ * Resolving here cannot stop DNS rebinding (an attacker re-points the record
+ * after registration), so the authoritative check is `assertWebhookUrlAllowed`
+ * in the worker, which resolves immediately before each delivery. Keeping this
+ * synchronous and I/O-free also keeps the 4 registration call sites cheap.
+ * Callers wanting resolve-on-write defence-in-depth can await
+ * `validateWebhookDeliveryUrl`.
+ */
 export function isAllowedWebhookUrl(url: string): boolean {
   const parsed = parseWebhookUrl(url);
   if (!parsed || !validateWebhookUrlProtocol(parsed)) return false;
 
-  const host = normalizeWebhookHost(parsed.hostname);
-  if (isBlockedWebhookLiteralHost(host)) {
-    return false;
-  }
-
-  if (isIP(host)) return true;
-
-  const addresses = resolveWebhookHostAddressesSync(host);
-  if (!addresses || addresses.length === 0) return false;
-
-  return !hasBlockedWebhookResolvedAddresses(addresses);
+  return !isBlockedWebhookLiteralHost(normalizeWebhookHost(parsed.hostname));
 }
 
 export async function fanoutWebhookEvent(input: {
