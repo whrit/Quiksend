@@ -1,6 +1,9 @@
 import "@tanstack/react-start/server-only";
 
 import { randomBytes } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { env } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
@@ -48,7 +51,7 @@ function isBlockedWebhookIpv6(host: string): boolean {
   return false;
 }
 
-function isBlockedWebhookHostname(host: string): boolean {
+function isBlockedWebhookLiteralHost(host: string): boolean {
   const lower = normalizeWebhookHost(host);
   if (BLOCKED_WEBHOOK_HOSTNAMES.has(lower)) return true;
   if (BLOCKED_WEBHOOK_SUFFIXES.some((suffix) => lower.endsWith(suffix))) return true;
@@ -57,18 +60,110 @@ function isBlockedWebhookHostname(host: string): boolean {
   return false;
 }
 
-export function isAllowedWebhookUrl(url: string): boolean {
+function isBlockedWebhookResolvedAddress(address: string): boolean {
+  const version = isIP(address);
+  if (version === 4) return isBlockedWebhookIpv4(address);
+  if (version === 6) return isBlockedWebhookIpv6(address);
+  return true;
+}
+
+const WEBHOOK_DNS_LOOKUP_INLINE = `
+import { lookup } from "node:dns/promises";
+const host = HOST_PLACEHOLDER;
+const results = await lookup(host, { all: true, verbatim: true });
+process.stdout.write(JSON.stringify(results.map((r) => r.address)));
+`;
+
+function resolveWebhookHostAddressesSync(hostname: string): string[] | null {
+  const script = WEBHOOK_DNS_LOOKUP_INLINE.replace("HOST_PLACEHOLDER", JSON.stringify(hostname));
   try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:" && env.NODE_ENV === "production") return false;
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-    if (isBlockedWebhookHostname(parsed.hostname)) {
-      return false;
-    }
-    return true;
+    const stdout = execFileSync(process.execPath, ["--input-type=module", "-e", script], {
+      encoding: "utf8",
+      timeout: 10_000,
+    });
+    const addresses = JSON.parse(stdout.trim()) as unknown;
+    if (!Array.isArray(addresses)) return null;
+    return addresses.filter((address): address is string => typeof address === "string");
   } catch {
+    return null;
+  }
+}
+
+function parseWebhookUrl(url: string): URL | null {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+function validateWebhookUrlProtocol(parsed: URL): boolean {
+  if (parsed.protocol !== "https:" && env.NODE_ENV === "production") return false;
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  return true;
+}
+
+async function resolveWebhookHostAddresses(hostname: string): Promise<string[] | null> {
+  try {
+    const results = await lookup(hostname, { all: true, verbatim: true });
+    if (results.length === 0) return null;
+    return results.map((result) => result.address);
+  } catch {
+    return null;
+  }
+}
+
+function hasBlockedWebhookResolvedAddresses(addresses: string[]): boolean {
+  return addresses.some((address) => isBlockedWebhookResolvedAddress(address));
+}
+
+/** Mirrors worker delivery-time SSRF checks for use at webhook endpoint registration. */
+export async function validateWebhookDeliveryUrl(url: string): Promise<void> {
+  const parsed = parseWebhookUrl(url);
+  if (!parsed) {
+    throw new Error("Invalid webhook URL");
+  }
+
+  if (!validateWebhookUrlProtocol(parsed)) {
+    throw new Error(
+      env.NODE_ENV === "production"
+        ? "Webhook URL must use HTTPS in production"
+        : "Webhook URL must use HTTP or HTTPS",
+    );
+  }
+
+  const host = normalizeWebhookHost(parsed.hostname);
+  if (isBlockedWebhookLiteralHost(host)) {
+    throw new Error("Webhook URL resolves to a blocked host");
+  }
+
+  if (isIP(host)) return;
+
+  const addresses = await resolveWebhookHostAddresses(host);
+  if (!addresses) {
+    throw new Error("Webhook URL hostname did not resolve");
+  }
+
+  if (hasBlockedWebhookResolvedAddresses(addresses)) {
+    throw new Error("Webhook URL resolves to a private or metadata address");
+  }
+}
+
+export function isAllowedWebhookUrl(url: string): boolean {
+  const parsed = parseWebhookUrl(url);
+  if (!parsed || !validateWebhookUrlProtocol(parsed)) return false;
+
+  const host = normalizeWebhookHost(parsed.hostname);
+  if (isBlockedWebhookLiteralHost(host)) {
     return false;
   }
+
+  if (isIP(host)) return true;
+
+  const addresses = resolveWebhookHostAddressesSync(host);
+  if (!addresses || addresses.length === 0) return false;
+
+  return !hasBlockedWebhookResolvedAddresses(addresses);
 }
 
 export async function fanoutWebhookEvent(input: {
