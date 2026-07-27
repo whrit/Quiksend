@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+/** Truthy only for `1` / `true` (matches legacy `process.env.X === "1"` call sites). */
+const envBooleanFlag = z
+  .preprocess((value) => value === "1" || value === "true", z.boolean())
+  .default(false);
+
+const CanaryImapMockMode = z.enum(["inbox", "spam", "quarantine", "not_found", "bounce"]);
+const EngineTestMode = z.enum(["permanent-failure"]);
+
 /**
  * Pure environment schema — no side effects, safe to import anywhere (including tests).
  * The eager, fail-fast loader lives in `env.ts`.
@@ -77,7 +85,24 @@ export const EnvSchema = z
     SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
     POSTHOG_KEY: z.string().optional(),
     POSTHOG_HOST: z.string().url().default("https://us.i.posthog.com"),
+
+    // Worker test / load-test hooks — default off; forcibly disabled in production.
+    QUIKSEND_ENGINE_FAKE_MAIL: envBooleanFlag,
+    QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK: envBooleanFlag,
+    QUIKSEND_ENGINE_TEST_MODE: EngineTestMode.optional(),
+    QUIKSEND_CANARY_IMAP_MOCK: CanaryImapMockMode.optional(),
   })
+  .transform((env) =>
+    env.NODE_ENV === "production"
+      ? {
+          ...env,
+          QUIKSEND_ENGINE_FAKE_MAIL: false,
+          QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK: false,
+          QUIKSEND_ENGINE_TEST_MODE: undefined,
+          QUIKSEND_CANARY_IMAP_MOCK: undefined,
+        }
+      : env,
+  )
   .refine(
     (env) =>
       env.NODE_ENV !== "production" ||
