@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { logger } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
@@ -44,10 +43,10 @@ const authWebhookSchema = z.object({
   eventId: z.string().optional(),
 });
 
-function extractNangoEventId(rawBody: string, body: Record<string, unknown>): string {
+function extractNangoEventId(body: Record<string, unknown>): string | null {
   const explicit = body.event_id ?? body.eventId;
   if (typeof explicit === "string" && explicit.length > 0) return explicit;
-  return createHash("sha256").update(rawBody).digest("hex");
+  return null;
 }
 
 async function claimNangoWebhook(eventId: string, connectionId: string): Promise<boolean> {
@@ -89,14 +88,21 @@ export const Route = createFileRoute("/api/nango/webhook")({
             return Response.json({ received: true });
           }
 
-          const eventId = extractNangoEventId(rawBody, payload);
-          const claimed = await claimNangoWebhook(eventId, payload.connectionId);
-          if (!claimed) {
-            logger.info(
-              { eventId, connectionId: payload.connectionId },
-              "duplicate Nango sync webhook",
+          const eventId = extractNangoEventId(payload);
+          if (eventId) {
+            const claimed = await claimNangoWebhook(eventId, payload.connectionId);
+            if (!claimed) {
+              logger.info(
+                { eventId, connectionId: payload.connectionId },
+                "duplicate Nango sync webhook",
+              );
+              return Response.json({ duplicate: true });
+            }
+          } else {
+            logger.warn(
+              { connectionId: payload.connectionId },
+              "Nango sync webhook missing event id; processing without dedup",
             );
-            return Response.json({ duplicate: true });
           }
 
           const connection = await db.query.crmConnection.findFirst({
@@ -127,14 +133,21 @@ export const Route = createFileRoute("/api/nango/webhook")({
         const parsedAuth = authWebhookSchema.safeParse(body);
         if (parsedAuth.success) {
           const payload = parsedAuth.data;
-          const eventId = extractNangoEventId(rawBody, payload);
-          const claimed = await claimNangoWebhook(eventId, payload.connectionId);
-          if (!claimed) {
-            logger.info(
-              { eventId, connectionId: payload.connectionId },
-              "duplicate Nango auth webhook",
+          const eventId = extractNangoEventId(payload);
+          if (eventId) {
+            const claimed = await claimNangoWebhook(eventId, payload.connectionId);
+            if (!claimed) {
+              logger.info(
+                { eventId, connectionId: payload.connectionId },
+                "duplicate Nango auth webhook",
+              );
+              return Response.json({ duplicate: true });
+            }
+          } else {
+            logger.warn(
+              { connectionId: payload.connectionId },
+              "Nango auth webhook missing event id; processing without dedup",
             );
-            return Response.json({ duplicate: true });
           }
 
           const provider = payload.providerConfigKey as CrmProvider;

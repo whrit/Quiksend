@@ -4,6 +4,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { jsonData, jsonError, withApiAuth } from "@/lib/api/v1/middleware.ts";
 
+function sumAtOrAbove(countsByIndex: Map<number, number>, minIndex: number): number {
+  let total = 0;
+  for (const [index, count] of countsByIndex) {
+    if (index >= minIndex) total += count;
+  }
+  return total;
+}
+
 export const Route = createFileRoute("/api/v1/sequences/$id/analytics")({
   server: {
     handlers: {
@@ -44,35 +52,55 @@ export const Route = createFileRoute("/api/v1/sequences/$id/analytics")({
             return acc;
           }, {});
 
-          const stepRates = await Promise.all(
-            steps.map(async (step) => {
-              const reached = await db
-                .select({ count: sql<number>`count(*)::int` })
-                .from(tables.enrollment)
-                .where(
-                  and(
-                    eq(tables.enrollment.sequenceId, params.id),
-                    eq(tables.enrollment.organizationId, ctx.orgId),
-                    sql`${tables.enrollment.currentStepIndex} >= ${step.stepIndex}`,
-                  ),
-                );
-              const sent = await db
-                .select({ count: sql<number>`count(*)::int` })
-                .from(tables.message)
-                .where(
-                  and(
-                    eq(tables.message.organizationId, ctx.orgId),
-                    sql`${tables.message.enrollmentId} in (select id from enrollment where sequence_id = ${params.id} and organization_id = ${ctx.orgId} and current_step_index >= ${step.stepIndex})`,
-                  ),
-                );
-              return {
-                stepIndex: step.stepIndex,
-                stepType: step.stepType,
-                reached: reached[0]?.count ?? 0,
-                messagesSent: sent[0]?.count ?? 0,
-              };
-            }),
+          const reachedByStepIndex = await db
+            .select({
+              stepIndex: tables.enrollment.currentStepIndex,
+              count: sql<number>`count(*)::int`,
+            })
+            .from(tables.enrollment)
+            .where(
+              and(
+                eq(tables.enrollment.sequenceId, params.id),
+                eq(tables.enrollment.organizationId, ctx.orgId),
+              ),
+            )
+            .groupBy(tables.enrollment.currentStepIndex);
+
+          const reachedCounts = new Map(
+            reachedByStepIndex.map((row) => [row.stepIndex, row.count]),
           );
+
+          const messagesByEnrollmentStep = await db
+            .select({
+              stepIndex: tables.enrollment.currentStepIndex,
+              count: sql<number>`count(*)::int`,
+            })
+            .from(tables.message)
+            .innerJoin(
+              tables.enrollment,
+              and(
+                eq(tables.message.enrollmentId, tables.enrollment.id),
+                eq(tables.enrollment.organizationId, ctx.orgId),
+              ),
+            )
+            .where(
+              and(
+                eq(tables.message.organizationId, ctx.orgId),
+                eq(tables.enrollment.sequenceId, params.id),
+              ),
+            )
+            .groupBy(tables.enrollment.currentStepIndex);
+
+          const messageCounts = new Map(
+            messagesByEnrollmentStep.map((row) => [row.stepIndex, row.count]),
+          );
+
+          const stepRates = steps.map((step) => ({
+            stepIndex: step.stepIndex,
+            stepType: step.stepType,
+            reached: sumAtOrAbove(reachedCounts, step.stepIndex),
+            messagesSent: sumAtOrAbove(messageCounts, step.stepIndex),
+          }));
 
           return jsonData({
             sequenceId: params.id,

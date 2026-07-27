@@ -105,11 +105,14 @@ export const Route = createFileRoute("/api/v1/webhooks")({
           const id = url.searchParams.get("id");
           if (!id) return jsonError("VALIDATION", "Missing id query parameter", 400);
 
+          const uuid = z.string().uuid().safeParse(id);
+          if (!uuid.success) return jsonError("VALIDATION", "Webhook id must be a UUID", 400);
+
           const [deleted] = await db
             .delete(tables.webhookEndpoint)
             .where(
               and(
-                eq(tables.webhookEndpoint.id, id),
+                eq(tables.webhookEndpoint.id, uuid.data),
                 eq(tables.webhookEndpoint.organizationId, ctx.orgId),
               ),
             )
