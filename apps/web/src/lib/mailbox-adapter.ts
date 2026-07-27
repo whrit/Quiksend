@@ -3,13 +3,14 @@ import "@tanstack/react-start/server-only";
 import { env } from "@quiksend/config";
 import { getNango } from "@quiksend/integrations";
 import { createAdapterForMailbox, decryptSmtpConfig } from "@quiksend/mail";
+import type { ComplianceInput } from "@quiksend/mail";
 import type { MailboxAdapter, MailProvider } from "@quiksend/mail";
 import type { NangoProxyClient } from "@quiksend/mail/nango-proxy";
 
 type MailboxRow = {
   provider: MailProvider;
   nangoConnectionId: string | null;
-  smtpConfig: string | null;
+  smtpConfig: unknown;
   address: string;
   fromName: string | null;
 };
@@ -34,7 +35,10 @@ function createNangoProxyClient(): NangoProxyClient {
 }
 
 /** Web-app wiring for OAuth + SMTP mailbox adapters. */
-export function getMailboxAdapter(mailbox: MailboxRow): MailboxAdapter {
+export function getMailboxAdapter(
+  mailbox: MailboxRow,
+  compliance: ComplianceInput,
+): MailboxAdapter {
   const nangoProxy =
     mailbox.provider === "gmail" || mailbox.provider === "microsoft"
       ? createNangoProxyClient()
@@ -53,6 +57,7 @@ export function getMailboxAdapter(mailbox: MailboxRow): MailboxAdapter {
         address: mailbox.address,
         fromName: mailbox.fromName,
       },
+      compliance,
       nangoProxy,
     );
   }
@@ -65,6 +70,7 @@ export function getMailboxAdapter(mailbox: MailboxRow): MailboxAdapter {
       address: mailbox.address,
       fromName: mailbox.fromName,
     },
+    compliance,
     nangoProxy,
   );
 }

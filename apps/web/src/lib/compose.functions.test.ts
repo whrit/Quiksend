@@ -8,37 +8,39 @@ const mockSend = vi.fn<MailboxAdapter["send"]>(async () => ({
   sentAt: new Date("2026-01-01T12:00:00Z"),
 }));
 
-vi.mock("./mailboxes.server.ts", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./mailboxes.server.ts")>();
-  return {
-    ...actual,
-    resolveMailboxAdapter: vi.fn<typeof actual.resolveMailboxAdapter>(() => ({
-      provider: "gmail" as const,
-      send: mockSend,
-      listInbound: vi.fn<MailboxAdapter["listInbound"]>(),
-      verifyIdentity: vi.fn<MailboxAdapter["verifyIdentity"]>(),
-    })),
-  };
-});
+vi.mock("./mailbox-adapter.ts", () => ({
+  getMailboxAdapter: vi.fn<() => MailboxAdapter>(() => ({
+    provider: "gmail" as const,
+    send: mockSend,
+    listInbound: vi.fn<MailboxAdapter["listInbound"]>(),
+    verifyIdentity: vi.fn<MailboxAdapter["verifyIdentity"]>(),
+  })),
+}));
 
-import { resolveMailboxAdapter } from "./mailboxes.server.ts";
+import { getMailboxAdapter } from "./mailbox-adapter.ts";
 import { buildThreadingHeaders } from "@quiksend/mail/threading";
 
 describe("compose send via adapter", () => {
   beforeEach(() => {
     mockSend.mockClear();
-    vi.mocked(resolveMailboxAdapter).mockClear();
+    vi.mocked(getMailboxAdapter).mockClear();
   });
 
   it("sends Gmail compose through adapter with threading", async () => {
-    const adapter = resolveMailboxAdapter({
-      id: "mb-1",
-      provider: "gmail",
-      address: "rep@example.com",
-      fromName: "Rep",
-      nangoConnectionId: "nango-1",
-      smtpConfig: null,
-    } as never);
+    const adapter = getMailboxAdapter(
+      {
+        provider: "gmail",
+        address: "rep@example.com",
+        fromName: "Rep",
+        nangoConnectionId: "nango-1",
+        smtpConfig: null,
+      },
+      {
+        unsubscribeUrl: "http://localhost/u",
+        senderPostalAddress: "1 Main St",
+        senderOrgName: "Acme",
+      },
+    );
 
     const threading = buildThreadingHeaders({
       messageId: "<inbound@example.com>",
@@ -54,7 +56,6 @@ describe("compose send via adapter", () => {
       html: "<p>Reply body</p>",
       text: "Reply body",
       threading,
-      extraHeaders: { "List-Unsubscribe": "<http://localhost/u>" },
     });
 
     expect(mockSend).toHaveBeenCalledOnce();
@@ -63,7 +64,6 @@ describe("compose send via adapter", () => {
         threading: expect.objectContaining({
           inReplyTo: "<inbound@example.com>",
         }),
-        extraHeaders: expect.objectContaining({ "List-Unsubscribe": expect.any(String) }),
       }),
     );
   });

@@ -25,7 +25,7 @@ export interface SmtpAdapterConfig {
    * falls back to a placeholder unsubscribe URL. Used when `send()` builds MIME
    * internally (e.g. test sends).
    */
-  readonly compliance?: ComplianceInput;
+  readonly compliance: ComplianceInput;
   /** Inject for tests. */
   readonly transport?: Transporter;
 }

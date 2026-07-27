@@ -18,7 +18,7 @@ export interface GmailAdapterConfig {
   readonly nangoConnectionId: string;
   readonly fromAddress: string;
   readonly fromName?: string;
-  readonly compliance?: ComplianceInput;
+  readonly compliance: ComplianceInput;
   readonly nango: NangoProxyClient;
 }
 
@@ -40,7 +40,7 @@ export function createGmailAdapter(config: GmailAdapterConfig): MailboxAdapter {
     email: config.fromAddress,
     name: config.fromName,
   };
-  const compliance = config.compliance ?? minimalCompliance();
+  const compliance = config.compliance;
 
   return {
     provider: "gmail",
@@ -158,14 +158,6 @@ function encodeBase64Url(raw: string): string {
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
-}
-
-function minimalCompliance(): ComplianceInput {
-  return {
-    unsubscribeUrl: "https://app.example.com/u/pending",
-    senderPostalAddress: "1 Main St, City",
-    senderOrgName: "Quiksend",
-  };
 }
 
 function classifyGmailError(err: unknown): SendError {

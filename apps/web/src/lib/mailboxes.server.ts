@@ -5,6 +5,7 @@ import type { tables } from "@quiksend/db";
 import {
   createAdapterForMailbox,
   decryptSmtpConfig,
+  type ComplianceInput,
   type MailboxAdapter,
   type SmtpConfigPlain,
 } from "@quiksend/mail";
@@ -40,21 +41,30 @@ export function decryptSmtpConfigForMailbox(smtpConfig: unknown): SmtpConfigPlai
 }
 
 /** Resolves a send adapter for any mailbox provider (SMTP, Gmail, Microsoft). */
-export function resolveMailboxAdapter(mailbox: MailboxRow): MailboxAdapter {
+export function resolveMailboxAdapter(
+  mailbox: MailboxRow,
+  compliance: ComplianceInput,
+): MailboxAdapter {
   if (mailbox.provider === "smtp") {
-    return createAdapterForMailbox({
+    return createAdapterForMailbox(
+      {
+        provider: mailbox.provider,
+        nangoConnectionId: mailbox.nangoConnectionId,
+        smtpConfig: decryptSmtpConfigForMailbox(mailbox.smtpConfig),
+        address: mailbox.address,
+        fromName: mailbox.fromName,
+      },
+      compliance,
+    );
+  }
+  return createAdapterForMailbox(
+    {
       provider: mailbox.provider,
       nangoConnectionId: mailbox.nangoConnectionId,
-      smtpConfig: decryptSmtpConfigForMailbox(mailbox.smtpConfig),
+      smtpConfig: null,
       address: mailbox.address,
       fromName: mailbox.fromName,
-    });
-  }
-  return createAdapterForMailbox({
-    provider: mailbox.provider,
-    nangoConnectionId: mailbox.nangoConnectionId,
-    smtpConfig: null,
-    address: mailbox.address,
-    fromName: mailbox.fromName,
-  });
+    },
+    compliance,
+  );
 }

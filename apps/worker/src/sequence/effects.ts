@@ -3,14 +3,10 @@ import { isSegGateway } from "@quiksend/core/deliverability";
 import { env } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
-import {
-  buildComplianceParts,
-  buildUnsubscribeUrl,
-  mintUnsubscribeToken,
-  sanitizeForSeg,
-} from "@quiksend/mail";
+import { buildUnsubscribeUrl, mintUnsubscribeToken, sanitizeForSeg } from "@quiksend/mail";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
-import { and, eq } from "drizzle-orm";
+import type { ComplianceInput, OutboundEmail } from "@quiksend/mail";
+import { and, eq, or, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type * as schema from "@quiksend/db/schema";
 import { backoffUntil } from "./backoff.ts";
@@ -30,6 +26,7 @@ import {
   reserveSendSlotInTx,
 } from "./reserve-slot.ts";
 import { handleEmitEvent } from "./execute-effects.ts";
+import { isProspectStatusSuppressed } from "./guards.ts";
 import { getWorkspacePostalAddress } from "./workspace-postal.ts";
 import { selectMailboxForSend } from "./mailbox-router.ts";
 
@@ -246,7 +243,7 @@ async function scheduleAt(tx: DbTx, ctx: EnrollmentContext, at: Date): Promise<E
 }
 
 async function handleSendAuto(
-  tx: DbTx,
+  _tx: DbTx,
   ctx: EnrollmentContext,
   stepIndex: number,
   attempt: number,
@@ -255,165 +252,164 @@ async function handleSendAuto(
   if (!step || step.stepType !== "auto_email") return ctx;
 
   const at = new Date();
-  let working = ctx;
 
-  const routing = await selectMailboxForSend(
-    tx,
-    ctx.organizationId,
-    ctx.enrollment,
-    ctx.mailbox,
-    ctx.prospect.emailGateway,
-    ctx.deliverabilityPolicy,
-    at,
-  );
+  const prep = await db.transaction(async (tx) => {
+    let working = ctx;
 
-  if (routing.kind === "skip") {
-    const snapshot = toSnapshot(working);
-    const result = transition(snapshot, { kind: "no_safe_mailbox", at });
-    return applyTransitionEffects(tx, working, result.effects, attempt, result.nextState);
-  }
-
-  for (const eventType of routing.emitEvents) {
-    await handleEmitEvent(tx, working, eventType);
-  }
-
-  if (routing.mailboxId !== working.mailbox.id) {
-    const swapped = await tx.query.mailbox.findFirst({
-      where: and(
-        eq(tables.mailbox.id, routing.mailboxId),
-        eq(tables.mailbox.organizationId, working.organizationId),
-      ),
-    });
-    if (!swapped) throw new Error(`Routed mailbox not found: ${routing.mailboxId}`);
-    working = { ...working, mailbox: swapped };
-  }
-
-  const slot = await reserveSendSlotInTx(
-    tx,
-    working.mailbox.id,
-    working.enrollmentId,
-    working.organizationId,
-    at,
-    working.settings,
-    {
-      recipientEmail: working.prospect.email,
-      recipientGateway: working.prospect.emailGateway,
-    },
-  );
-
-  if (!slot.ok) {
-    const scheduled = await scheduleAt(tx, working, slot.deferUntil);
-    await enqueueSequenceStepAt(
-      { enrollmentId: working.enrollmentId, attempt: 0 },
-      slot.deferUntil,
-    );
-    return scheduled;
-  }
-
-  const idempotencyKey = makeIdempotencyKey(working.enrollmentId, step.id, attempt);
-  const existing = await tx.query.message.findFirst({
-    where: and(
-      eq(tables.message.idempotencyKey, idempotencyKey),
-      eq(tables.message.organizationId, working.organizationId),
-    ),
-  });
-
-  if (existing?.status === "sent") {
-    await markReservationSentInTx(tx, slot.reservationId);
-    const snapshot = toSnapshot(working);
-    const result = transition(snapshot, {
-      kind: "auto_sent",
-      providerMessageId: existing.providerMessageId ?? "",
+    const routing = await selectMailboxForSend(
+      tx,
+      ctx.organizationId,
+      ctx.enrollment,
+      ctx.mailbox,
+      ctx.prospect.emailGateway,
+      ctx.deliverabilityPolicy,
       at,
-    });
-    return applyTransitionEffects(tx, working, result.effects, attempt, result.nextState);
-  }
+    );
 
-  if (!working.anchorMessage?.messageIdHeader) {
-    await releaseReservationInTx(tx, slot.reservationId);
-    throw new Error("Cannot send auto email without anchor");
-  }
+    if (routing.kind === "skip") {
+      const snapshot = toSnapshot(working);
+      const result = transition(snapshot, { kind: "no_safe_mailbox", at });
+      const updated = await applyTransitionEffects(
+        tx,
+        working,
+        result.effects,
+        attempt,
+        result.nextState,
+      );
+      return { kind: "done" as const, ctx: updated };
+    }
 
-  const config = step.config as EmailStepConfig;
-  const templateCtx = {
-    firstName: working.prospect.firstName,
-    lastName: working.prospect.lastName,
-    email: working.prospect.email,
-    title: working.prospect.title,
-    companyName: working.company?.name ?? null,
-    companyDomain: working.company?.domain ?? null,
-    senderFirstName: working.senderFirstName,
-    senderSignature: working.senderSignature,
-  };
+    for (const eventType of routing.emitEvents) {
+      await handleEmitEvent(tx, working, eventType);
+    }
 
-  const subject = renderTemplate(config.subject, templateCtx);
-  let bodyHtml = renderTemplate(config.body_template, templateCtx);
-  let bodyText = stripHtml(bodyHtml);
-  const signature = working.mailbox.signatureHtml ? `\n\n${working.mailbox.signatureHtml}` : "";
+    if (routing.mailboxId !== working.mailbox.id) {
+      const swapped = await tx.query.mailbox.findFirst({
+        where: and(
+          eq(tables.mailbox.id, routing.mailboxId),
+          eq(tables.mailbox.organizationId, working.organizationId),
+        ),
+      });
+      if (!swapped) throw new Error(`Routed mailbox not found: ${routing.mailboxId}`);
+      working = { ...working, mailbox: swapped };
+    }
 
-  const shouldSanitize =
-    ctx.deliverabilityPolicy.contentSanitizerEnabled && isSegGateway(working.prospect.emailGateway);
-  if (shouldSanitize) {
-    const sanitized = sanitizeForSeg(
-      { html: bodyHtml, text: bodyText },
+    const slot = await reserveSendSlotInTx(
+      tx,
+      working.mailbox.id,
+      working.enrollmentId,
+      working.organizationId,
+      at,
+      working.settings,
       {
-        stripTrackingPixel: true,
-        stripExternalImages: true,
-        preferPlainText: true,
+        recipientEmail: working.prospect.email,
+        recipientGateway: working.prospect.emailGateway,
       },
     );
-    bodyHtml = sanitized.html;
-    bodyText = sanitized.text;
-  }
 
-  const token = mintUnsubscribeToken({
-    prospectId: working.prospect.id,
-    orgId: working.organizationId,
-  });
-  const baseUrl = env.BETTER_AUTH_URL ?? "http://localhost:3000";
-  const senderPostalAddress = await getWorkspacePostalAddress(working.organizationId);
-  const compliance = buildComplianceParts({
-    unsubscribeUrl: buildUnsubscribeUrl(baseUrl, token),
-    senderPostalAddress,
-    senderOrgName: working.sequence.name,
-  });
+    if (!slot.ok) {
+      const scheduled = await scheduleAt(tx, working, slot.deferUntil);
+      await enqueueSequenceStepAt(
+        { enrollmentId: working.enrollmentId, attempt: 0 },
+        slot.deferUntil,
+      );
+      return { kind: "done" as const, ctx: scheduled };
+    }
 
-  const priorRefs = working.priorOutbound
-    .map((m) => m.messageIdHeader)
-    .filter((id): id is string => Boolean(id));
-
-  const threading = buildThreadingHeaders({
-    messageId: working.anchorMessage.messageIdHeader,
-    subject: working.anchorMessage.subject ?? subject,
-    providerThreadId: working.enrollment.anchorThreadId,
-    priorReferences: priorRefs,
-  });
-
-  const adapter = createMailboxAdapter(working.mailbox, working.organizationId);
-
-  try {
-    await tx.insert(tables.message).values({
-      organizationId: working.organizationId,
-      mailboxId: working.mailbox.id,
-      prospectId: working.prospect.id,
-      enrollmentId: working.enrollmentId,
-      direction: "outbound",
-      subject,
-      bodyHtml,
-      bodyText,
-      messageIdHeader: null,
-      providerMessageId: null,
-      providerThreadId: working.enrollment.anchorThreadId,
-      inReplyTo: normalizeMessageId(working.anchorMessage.messageIdHeader),
-      referencesHeader: [
-        ...priorRefs.map(normalizeMessageId),
-        normalizeMessageId(working.anchorMessage.messageIdHeader),
-      ].join(" "),
-      status: "sending",
-      idempotencyKey,
+    const idempotencyKey = makeIdempotencyKey(working.enrollmentId, step.id, attempt);
+    const existing = await tx.query.message.findFirst({
+      where: and(
+        eq(tables.message.idempotencyKey, idempotencyKey),
+        eq(tables.message.organizationId, working.organizationId),
+      ),
     });
 
-    const sendResult = await adapter.send({
+    if (existing?.status === "sent") {
+      await releaseReservationInTx(tx, slot.reservationId);
+      const snapshot = toSnapshot(working);
+      const result = transition(snapshot, {
+        kind: "auto_sent",
+        providerMessageId: existing.providerMessageId ?? "",
+        at,
+      });
+      const updated = await applyTransitionEffects(
+        tx,
+        working,
+        result.effects,
+        attempt,
+        result.nextState,
+      );
+      return { kind: "done" as const, ctx: updated };
+    }
+
+    const guard = await recheckSendAllowedInTx(tx, working);
+    if (!guard.ok) {
+      await releaseReservationInTx(tx, slot.reservationId);
+      return { kind: "done" as const, ctx: working };
+    }
+
+    if (!working.anchorMessage?.messageIdHeader) {
+      await releaseReservationInTx(tx, slot.reservationId);
+      throw new Error("Cannot send auto email without anchor");
+    }
+
+    const config = step.config as EmailStepConfig;
+    const templateCtx = {
+      firstName: working.prospect.firstName,
+      lastName: working.prospect.lastName,
+      email: working.prospect.email,
+      title: working.prospect.title,
+      companyName: working.company?.name ?? null,
+      companyDomain: working.company?.domain ?? null,
+      senderFirstName: working.senderFirstName,
+      senderSignature: working.senderSignature,
+    };
+
+    const subject = renderTemplate(config.subject, templateCtx);
+    let bodyHtml = renderTemplate(config.body_template, templateCtx);
+    let bodyText = stripHtml(bodyHtml);
+    const signature = working.mailbox.signatureHtml ? `\n\n${working.mailbox.signatureHtml}` : "";
+
+    const shouldSanitize =
+      ctx.deliverabilityPolicy.contentSanitizerEnabled &&
+      isSegGateway(working.prospect.emailGateway);
+    if (shouldSanitize) {
+      const sanitized = sanitizeForSeg(
+        { html: bodyHtml, text: bodyText },
+        {
+          stripTrackingPixel: true,
+          stripExternalImages: true,
+          preferPlainText: true,
+        },
+      );
+      bodyHtml = sanitized.html;
+      bodyText = sanitized.text;
+    }
+
+    const token = mintUnsubscribeToken({
+      prospectId: working.prospect.id,
+      orgId: working.organizationId,
+    });
+    const baseUrl = env.BETTER_AUTH_URL ?? "http://localhost:3000";
+    const senderPostalAddress = await getWorkspacePostalAddress(working.organizationId);
+    const compliance: ComplianceInput = {
+      unsubscribeUrl: buildUnsubscribeUrl(baseUrl, token),
+      senderPostalAddress,
+      senderOrgName: working.sequence.name,
+    };
+
+    const priorRefs = working.priorOutbound
+      .map((m) => m.messageIdHeader)
+      .filter((id): id is string => Boolean(id));
+
+    const threading = buildThreadingHeaders({
+      messageId: working.anchorMessage.messageIdHeader,
+      subject: working.anchorMessage.subject ?? subject,
+      providerThreadId: working.enrollment.anchorThreadId,
+      priorReferences: priorRefs,
+    });
+
+    const sendInput: OutboundEmail = {
       from: { email: working.mailbox.address, name: working.mailbox.fromName ?? undefined },
       to: [
         {
@@ -424,56 +420,220 @@ async function handleSendAuto(
         },
       ],
       subject: threading.subject,
-      html: `${bodyHtml}${signature}${compliance.footerHtml}`,
-      text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}${compliance.footerText}`,
+      html: `${bodyHtml}${signature}`,
+      text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}`,
       threading,
       idempotencyKey,
-    });
+    };
 
-    if (process.env.QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK === "1") {
+    if (!existing) {
+      await tx.insert(tables.message).values({
+        organizationId: working.organizationId,
+        mailboxId: working.mailbox.id,
+        prospectId: working.prospect.id,
+        enrollmentId: working.enrollmentId,
+        direction: "outbound",
+        subject,
+        bodyHtml,
+        bodyText,
+        messageIdHeader: null,
+        providerMessageId: null,
+        providerThreadId: working.enrollment.anchorThreadId,
+        inReplyTo: normalizeMessageId(working.anchorMessage.messageIdHeader),
+        referencesHeader: [
+          ...priorRefs.map(normalizeMessageId),
+          normalizeMessageId(working.anchorMessage.messageIdHeader),
+        ].join(" "),
+        status: "sending",
+        idempotencyKey,
+      });
+    }
+
+    return {
+      kind: "ready" as const,
+      working,
+      slot,
+      idempotencyKey,
+      compliance,
+      sendInput,
+      attempt,
+    };
+  });
+
+  if (prep.kind === "done") return prep.ctx;
+
+  const adapter = createMailboxAdapter(
+    prep.working.mailbox,
+    prep.working.organizationId,
+    prep.compliance,
+  );
+
+  try {
+    const sendResult = await adapter.send(prep.sendInput);
+
+    if (env.QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK) {
       throw new Error("Forced outer rollback after adapter.send (load test)");
     }
 
-    const messageIdHeader = normalizeMessageId(sendResult.messageId);
+    return await db.transaction(async (tx) => {
+      const guard = await recheckSendAllowedInTx(tx, prep.working);
+      if (!guard.ok) {
+        await releaseReservationInTx(tx, prep.slot.reservationId);
+        await tx
+          .update(tables.message)
+          .set({ status: "failed" })
+          .where(
+            and(
+              eq(tables.message.idempotencyKey, prep.idempotencyKey),
+              eq(tables.message.organizationId, prep.working.organizationId),
+            ),
+          );
+        return prep.working;
+      }
 
-    await tx
-      .update(tables.message)
-      .set({
-        messageIdHeader,
+      const messageIdHeader = normalizeMessageId(sendResult.messageId);
+
+      await tx
+        .update(tables.message)
+        .set({
+          messageIdHeader,
+          providerMessageId: sendResult.providerMessageId,
+          providerThreadId: sendResult.providerThreadId ?? prep.working.enrollment.anchorThreadId,
+          status: "sent",
+          sentAt: sendResult.sentAt,
+        })
+        .where(
+          and(
+            eq(tables.message.idempotencyKey, prep.idempotencyKey),
+            eq(tables.message.organizationId, prep.working.organizationId),
+          ),
+        );
+
+      await markReservationSentInTx(tx, prep.slot.reservationId);
+
+      const snapshot = toSnapshot(prep.working);
+      const result = transition(snapshot, {
+        kind: "auto_sent",
         providerMessageId: sendResult.providerMessageId,
-        providerThreadId: sendResult.providerThreadId ?? working.enrollment.anchorThreadId,
-        status: "sent",
-        sentAt: sendResult.sentAt,
-      })
-      .where(
-        and(
-          eq(tables.message.idempotencyKey, idempotencyKey),
-          eq(tables.message.organizationId, working.organizationId),
-        ),
+        at: sendResult.sentAt,
+      });
+      return applyTransitionEffects(
+        tx,
+        prep.working,
+        result.effects,
+        prep.attempt,
+        result.nextState,
       );
-
-    await markReservationSentInTx(tx, slot.reservationId);
-
-    const snapshot = toSnapshot(working);
-    const result = transition(snapshot, {
-      kind: "auto_sent",
-      providerMessageId: sendResult.providerMessageId,
-      at: sendResult.sentAt,
     });
-    return applyTransitionEffects(tx, working, result.effects, attempt, result.nextState);
   } catch (err) {
-    await releaseReservationInTx(tx, slot.reservationId);
-    await tx
-      .update(tables.message)
-      .set({ status: "failed" })
-      .where(
-        and(
-          eq(tables.message.idempotencyKey, idempotencyKey),
-          eq(tables.message.organizationId, working.organizationId),
-        ),
-      );
+    await db.transaction(async (tx) => {
+      await releaseReservationInTx(tx, prep.slot.reservationId);
+      await tx
+        .update(tables.message)
+        .set({ status: "failed" })
+        .where(
+          and(
+            eq(tables.message.idempotencyKey, prep.idempotencyKey),
+            eq(tables.message.organizationId, prep.working.organizationId),
+          ),
+        );
+    });
     throw err;
   }
+}
+
+function emailDomain(email: string): string {
+  const at = email.lastIndexOf("@");
+  return at >= 0 ? email.slice(at + 1).toLowerCase() : email.toLowerCase();
+}
+
+async function isSuppressionListedInTx(
+  tx: DbTx,
+  organizationId: string,
+  email: string,
+): Promise<boolean> {
+  const normalized = email.toLowerCase();
+  const domain = emailDomain(normalized);
+
+  const rows = await tx
+    .select({ id: tables.suppression.id })
+    .from(tables.suppression)
+    .where(
+      and(
+        eq(tables.suppression.organizationId, organizationId),
+        or(
+          and(eq(tables.suppression.valueType, "email"), eq(tables.suppression.value, normalized)),
+          and(eq(tables.suppression.valueType, "domain"), eq(tables.suppression.value, domain)),
+        ),
+      ),
+    )
+    .limit(1);
+
+  return rows.length > 0;
+}
+
+async function hasReplyOnThreadInTx(tx: DbTx, ctx: EnrollmentContext): Promise<boolean> {
+  if (!ctx.enrollment.anchorThreadId && !ctx.enrollment.anchorMessageId) return false;
+
+  const conditions = [eq(tables.message.organizationId, ctx.organizationId)];
+  const threadId = ctx.enrollment.anchorThreadId;
+  const anchorId = ctx.enrollment.anchorMessageId;
+
+  if (threadId) {
+    const rows = await tx
+      .select({ id: tables.message.id })
+      .from(tables.message)
+      .where(
+        and(
+          ...conditions,
+          eq(tables.message.direction, "inbound"),
+          eq(tables.message.providerThreadId, threadId),
+        ),
+      )
+      .limit(1);
+    if (rows.length > 0) return true;
+  }
+
+  if (anchorId) {
+    const rows = await tx.execute<{ id: string }>(sql`
+      select id from message
+      where organization_id = ${ctx.organizationId}
+        and direction = 'inbound'
+        and (
+          in_reply_to = ${anchorId}
+          or references_header ilike ${`%${anchorId}%`}
+        )
+      limit 1
+    `);
+    if (rows.length > 0) return true;
+  }
+
+  return false;
+}
+
+async function recheckSendAllowedInTx(
+  tx: DbTx,
+  ctx: EnrollmentContext,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const enrollment = await tx.query.enrollment.findFirst({
+    where: and(
+      eq(tables.enrollment.id, ctx.enrollmentId),
+      eq(tables.enrollment.organizationId, ctx.organizationId),
+    ),
+  });
+  if (!enrollment) return { ok: false, reason: "enrollment_missing" };
+  if (enrollment.state !== "active") return { ok: false, reason: "enrollment_not_active" };
+
+  if (isProspectStatusSuppressed(ctx.prospect.status)) return { ok: false, reason: "suppressed" };
+  if (await isSuppressionListedInTx(tx, ctx.organizationId, ctx.prospect.email)) {
+    return { ok: false, reason: "suppressed" };
+  }
+
+  if (ctx.stopOnReply && (await hasReplyOnThreadInTx(tx, ctx))) {
+    return { ok: false, reason: "reply_received" };
+  }
+
+  return { ok: true };
 }
 
 export async function logJobStart(

@@ -1,4 +1,5 @@
 import type { MailboxAdapter, MailProvider } from "../adapter.ts";
+import type { ComplianceInput } from "../compliance.ts";
 import type { SmtpConfigPlain } from "../crypto.ts";
 import type { NangoProxyClient } from "../nango-proxy.ts";
 import { createGmailAdapter } from "./gmail.ts";
@@ -19,6 +20,7 @@ export function createAdapterForMailbox(
     address: string;
     fromName: string | null;
   },
+  compliance: ComplianceInput,
   nangoProxy?: NangoProxyClient,
 ): MailboxAdapter {
   const fromName = mailbox.fromName ?? undefined;
@@ -37,6 +39,7 @@ export function createAdapterForMailbox(
         nangoConnectionId: mailbox.nangoConnectionId,
         fromAddress: mailbox.address,
         fromName,
+        compliance,
         nango: nangoProxy,
       });
     }
@@ -53,6 +56,7 @@ export function createAdapterForMailbox(
         nangoConnectionId: mailbox.nangoConnectionId,
         fromAddress: mailbox.address,
         fromName,
+        compliance,
         nango: nangoProxy,
       });
     }
@@ -67,6 +71,7 @@ export function createAdapterForMailbox(
         auth: mailbox.smtpConfig.auth,
         fromAddress: mailbox.address,
         fromName,
+        compliance,
       });
     }
     default: {

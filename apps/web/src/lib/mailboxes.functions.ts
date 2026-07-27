@@ -2,12 +2,7 @@ import { isAdminOrOwner } from "@quiksend/core";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { getNango } from "@quiksend/integrations";
-import {
-  buildComplianceParts,
-  checkDomainAuth,
-  encryptSmtpConfig,
-  type SmtpConfigPlain,
-} from "@quiksend/mail";
+import { checkDomainAuth, encryptSmtpConfig, type SmtpConfigPlain } from "@quiksend/mail";
 import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -398,21 +393,20 @@ export const testMailboxSend = createServerFn({ method: "POST" })
     });
     if (!mailbox) throw new MailboxError("NOT_FOUND", "Mailbox not found");
 
-    const adapter = resolveMailboxAdapter(mailbox);
-    const complianceParts = buildComplianceParts({
+    const compliance = {
       unsubscribeUrl: "https://app.example.com/u/pending",
       senderPostalAddress: "1 Main St, City",
       senderOrgName: "Quiksend",
-    });
+    };
+    const adapter = resolveMailboxAdapter(mailbox, compliance);
     const html = "<p>This is a Quiksend test message.</p>";
     const text = "This is a Quiksend test message.";
     const result = await adapter.send({
       from: { email: mailbox.address, name: mailbox.fromName ?? undefined },
       to: [{ email: data.toEmail }],
       subject: "Quiksend test",
-      html: `${html}${complianceParts.footerHtml}`,
-      text: `${text}${complianceParts.footerText}`,
-      extraHeaders: complianceParts.headers,
+      html,
+      text,
     });
     return {
       messageId: result.messageId,

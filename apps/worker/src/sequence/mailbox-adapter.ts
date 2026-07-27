@@ -1,6 +1,7 @@
 import { env } from "@quiksend/config";
 import { createAdapterForMailbox, createFakeAdapter, SendError } from "@quiksend/mail";
 import { decryptSmtpConfig } from "@quiksend/mail";
+import type { ComplianceInput } from "@quiksend/mail";
 import type { MailboxAdapter } from "@quiksend/mail";
 import type { tables } from "@quiksend/db";
 
@@ -28,12 +29,13 @@ function createPermanentFailureAdapter(): MailboxAdapter {
 export function createMailboxAdapter(
   mailbox: typeof tables.mailbox.$inferSelect,
   _organizationId: string,
+  compliance: ComplianceInput,
 ): MailboxAdapter {
-  if (process.env.QUIKSEND_ENGINE_TEST_MODE === "permanent-failure") {
+  if (env.QUIKSEND_ENGINE_TEST_MODE === "permanent-failure") {
     return createPermanentFailureAdapter();
   }
 
-  if (process.env.QUIKSEND_ENGINE_FAKE_MAIL === "1") {
+  if (env.QUIKSEND_ENGINE_FAKE_MAIL) {
     return createFakeAdapter().adapter;
   }
 
@@ -42,20 +44,26 @@ export function createMailboxAdapter(
     if (!key || typeof mailbox.smtpConfig !== "string") {
       throw new Error("SMTP mailbox configuration is unavailable");
     }
-    return createAdapterForMailbox({
-      provider: mailbox.provider,
-      nangoConnectionId: mailbox.nangoConnectionId,
-      smtpConfig: decryptSmtpConfig(mailbox.smtpConfig, key),
-      address: mailbox.address,
-      fromName: mailbox.fromName,
-    });
+    return createAdapterForMailbox(
+      {
+        provider: mailbox.provider,
+        nangoConnectionId: mailbox.nangoConnectionId,
+        smtpConfig: decryptSmtpConfig(mailbox.smtpConfig, key),
+        address: mailbox.address,
+        fromName: mailbox.fromName,
+      },
+      compliance,
+    );
   }
 
-  return createAdapterForMailbox({
-    provider: mailbox.provider,
-    nangoConnectionId: mailbox.nangoConnectionId,
-    smtpConfig: null,
-    address: mailbox.address,
-    fromName: mailbox.fromName,
-  });
+  return createAdapterForMailbox(
+    {
+      provider: mailbox.provider,
+      nangoConnectionId: mailbox.nangoConnectionId,
+      smtpConfig: null,
+      address: mailbox.address,
+      fromName: mailbox.fromName,
+    },
+    compliance,
+  );
 }

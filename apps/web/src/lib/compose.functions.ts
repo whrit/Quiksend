@@ -1,5 +1,5 @@
 import { env } from "@quiksend/config";
-import { buildUnsubscribeUrl, buildComplianceParts, mintUnsubscribeToken } from "@quiksend/mail";
+import { buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
@@ -8,7 +8,7 @@ import { z } from "zod";
 import { captureManualAnchorForEnrollment } from "./anchor.functions.ts";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
-import { resolveMailboxAdapter } from "./mailboxes.server.ts";
+import { getMailboxAdapter } from "./mailbox-adapter.ts";
 
 const anchorSchema = z.object({
   messageId: z.string().min(1),
@@ -136,14 +136,14 @@ export const sendComposedMessage = createServerFn({ method: "POST" })
     const senderOrgName = org?.name ?? "Quiksend";
     const senderPostalAddress = parseOrgPostalAddress(org?.metadata ?? null);
 
-    const compliance = buildComplianceParts({
+    const compliance = {
       unsubscribeUrl: buildUnsubscribeUrl(
         env.BETTER_AUTH_URL ?? "http://localhost:3000",
         mintUnsubscribeToken({ prospectId: prospect.id, orgId: organizationId }),
       ),
       senderPostalAddress,
       senderOrgName,
-    });
+    };
 
     const bodyText = data.bodyText ?? stripHtml(data.bodyHtml);
     const signature = mailbox.signatureHtml ? `\n\n${mailbox.signatureHtml}` : "";
@@ -157,15 +157,14 @@ export const sendComposedMessage = createServerFn({ method: "POST" })
         })
       : null;
 
-    const adapter = resolveMailboxAdapter(mailbox);
+    const adapter = getMailboxAdapter(mailbox, compliance);
     const sendResult = await adapter.send({
       from: { email: mailbox.address, name: mailbox.fromName ?? undefined },
       to: [{ email: prospect.email, name: formatProspectName(prospect) }],
       subject: threading?.subject ?? data.subject,
-      html: `${data.bodyHtml}${signature}${compliance.footerHtml}`,
-      text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}${compliance.footerText}`,
+      html: `${data.bodyHtml}${signature}`,
+      text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}`,
       threading: threading ?? undefined,
-      extraHeaders: compliance.headers,
     });
 
     const messageIdHeader = normalizeMessageId(sendResult.messageId);

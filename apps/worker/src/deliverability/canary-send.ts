@@ -140,7 +140,7 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
     canaryToken: row.canaryToken,
   });
 
-  const adapter = createMailboxAdapter(mailbox, row.organizationId);
+  const adapter = createMailboxAdapter(mailbox, row.organizationId, complianceInput);
   const sentAt = new Date();
 
   if (mailbox.provider === "smtp" && env.SMTP_HOST) {

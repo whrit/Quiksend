@@ -18,7 +18,7 @@ export interface MicrosoftAdapterConfig {
   readonly nangoConnectionId: string;
   readonly fromAddress: string;
   readonly fromName?: string;
-  readonly compliance?: ComplianceInput;
+  readonly compliance: ComplianceInput;
   readonly nango: NangoProxyClient;
 }
 
@@ -39,7 +39,7 @@ export function createMicrosoftAdapter(config: MicrosoftAdapterConfig): MailboxA
     email: config.fromAddress,
     name: config.fromName,
   };
-  const compliance = config.compliance ?? minimalCompliance();
+  const compliance = config.compliance;
 
   return {
     provider: "microsoft",
@@ -169,14 +169,6 @@ function threadingToAnchor(
 
 function encodeBase64(raw: string): string {
   return Buffer.from(raw, "utf8").toString("base64");
-}
-
-function minimalCompliance(): ComplianceInput {
-  return {
-    unsubscribeUrl: "https://app.example.com/u/pending",
-    senderPostalAddress: "1 Main St, City",
-    senderOrgName: "Quiksend",
-  };
 }
 
 function classifyMicrosoftError(err: unknown): SendError {

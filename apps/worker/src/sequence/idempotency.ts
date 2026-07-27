@@ -40,5 +40,13 @@ export async function enqueueSequenceStepAt(
 ): Promise<string | null> {
   const validated = sequenceStepSchema.parse(payload);
   const boss = await getBoss();
-  return boss.sendAfter("sequence.step", validated, STEP_RETRY_OPTIONS, at);
+  return boss.sendAfter(
+    "sequence.step",
+    validated,
+    {
+      ...STEP_RETRY_OPTIONS,
+      singletonKey: `${validated.enrollmentId}:${validated.attempt}`,
+    },
+    at,
+  );
 }

@@ -49,34 +49,41 @@ describe("resolveMailboxAdapter", () => {
   });
 
   it("uses createAdapterForMailbox for Gmail mailboxes", async () => {
-    const adapter = resolveMailboxAdapter({
-      id: "mb-1",
-      organizationId: "org-1",
-      ownerUserId: "user-1",
-      provider: "gmail",
-      address: "sender@example.com",
-      displayName: null,
-      fromName: "Sender",
-      nangoConnectionId: "nango-conn-1",
-      smtpConfig: null,
-      dailyCap: 50,
-      sendWindow: { timezone: "UTC", window: {} },
-      throttleSeconds: 90,
-      signatureHtml: null,
-      spfOk: null,
-      dkimOk: null,
-      dmarcOk: null,
-      healthCheckedAt: null,
-      healthNotes: null,
-      pollCursor: null,
-      enterpriseSafe: false,
-      enterpriseSafeReason: null,
-      enterpriseSafeDeclaredAt: null,
-      enterpriseSafeAutoDowngraded: false,
-      status: "active",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    const adapter = resolveMailboxAdapter(
+      {
+        id: "mb-1",
+        organizationId: "org-1",
+        ownerUserId: "user-1",
+        provider: "gmail",
+        address: "sender@example.com",
+        displayName: null,
+        fromName: "Sender",
+        nangoConnectionId: "nango-conn-1",
+        smtpConfig: null,
+        dailyCap: 50,
+        sendWindow: { timezone: "UTC", window: {} },
+        throttleSeconds: 90,
+        signatureHtml: null,
+        spfOk: null,
+        dkimOk: null,
+        dmarcOk: null,
+        healthCheckedAt: null,
+        healthNotes: null,
+        pollCursor: null,
+        enterpriseSafe: false,
+        enterpriseSafeReason: null,
+        enterpriseSafeDeclaredAt: null,
+        enterpriseSafeAutoDowngraded: false,
+        status: "active",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        unsubscribeUrl: "https://app.example.com/u/test",
+        senderPostalAddress: "1 Main St",
+        senderOrgName: "Acme",
+      },
+    );
 
     const threading = buildThreadingHeaders({
       messageId: "<anchor@example.com>",
@@ -99,6 +106,9 @@ describe("resolveMailboxAdapter", () => {
       expect.objectContaining({
         provider: "gmail",
         nangoConnectionId: "nango-conn-1",
+      }),
+      expect.objectContaining({
+        unsubscribeUrl: "https://app.example.com/u/test",
       }),
     );
     expect(mockSend).toHaveBeenCalledWith(

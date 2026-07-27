@@ -8,8 +8,8 @@ const mockSend = vi.fn<MailboxAdapter["send"]>(async () => ({
   sentAt: new Date("2026-01-02T12:00:00Z"),
 }));
 
-vi.mock("./mailboxes.server.ts", () => ({
-  resolveMailboxAdapter: vi.fn<() => MailboxAdapter>(() => ({
+vi.mock("./mailbox-adapter.ts", () => ({
+  getMailboxAdapter: vi.fn<() => MailboxAdapter>(() => ({
     provider: "gmail",
     send: mockSend,
     listInbound: vi.fn<MailboxAdapter["listInbound"]>(),
@@ -17,17 +17,30 @@ vi.mock("./mailboxes.server.ts", () => ({
   })),
 }));
 
-import { resolveMailboxAdapter } from "./mailboxes.server.ts";
+import { getMailboxAdapter } from "./mailbox-adapter.ts";
 import { buildThreadingHeaders } from "@quiksend/mail/threading";
 
 describe("inbox reply send via adapter", () => {
   beforeEach(() => {
     mockSend.mockClear();
-    vi.mocked(resolveMailboxAdapter).mockClear();
+    vi.mocked(getMailboxAdapter).mockClear();
   });
 
   it("uses adapter.send for Gmail reply with MIME threading", async () => {
-    const adapter = resolveMailboxAdapter({ provider: "gmail" } as never);
+    const adapter = getMailboxAdapter(
+      {
+        provider: "gmail",
+        smtpConfig: null,
+        nangoConnectionId: "n-1",
+        address: "r@example.com",
+        fromName: null,
+      },
+      {
+        unsubscribeUrl: "http://localhost/u",
+        senderPostalAddress: "1 Main St",
+        senderOrgName: "Acme",
+      },
+    );
     const threading = buildThreadingHeaders({
       messageId: "<inbound@example.com>",
       subject: "Re: Outreach",
@@ -42,10 +55,9 @@ describe("inbox reply send via adapter", () => {
       html: "<p>Thanks for your note</p>",
       text: "Thanks for your note",
       threading,
-      extraHeaders: { "List-Unsubscribe": "<http://localhost/u>" },
     });
 
-    expect(resolveMailboxAdapter).toHaveBeenCalled();
+    expect(getMailboxAdapter).toHaveBeenCalled();
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({
         threading: expect.objectContaining({ subject: "Re: Outreach" }),

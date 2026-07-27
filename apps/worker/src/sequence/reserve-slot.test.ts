@@ -30,15 +30,13 @@ const settings = {
 describe("reserveSendSlotInTx SEG throttles", () => {
   beforeEach(() => {
     process.env.QUIKSEND_ENGINE_FAKE_MAIL = "1";
-    process.env.SEG_DAILY_CAP_PER_MAILBOX = "2";
   });
 
   afterEach(() => {
     delete process.env.QUIKSEND_ENGINE_FAKE_MAIL;
-    delete process.env.SEG_DAILY_CAP_PER_MAILBOX;
   });
 
-  it("applies SEG sub-cap lower than mailbox daily cap", async () => {
+  it("applies effective daily cap for SEG recipients", async () => {
     await withTestOrgs(async ({ orgA }) => {
       const [mailbox] = await db
         .insert(tables.mailbox)
@@ -47,7 +45,7 @@ describe("reserveSendSlotInTx SEG throttles", () => {
           ownerUserId: orgA.userId,
           provider: "smtp",
           address: `cap-${randomUUID().slice(0, 6)}@test.local`,
-          dailyCap: 50,
+          dailyCap: 2,
           throttleSeconds: 0,
           sendWindow: WIDE_WINDOW,
           status: "active",

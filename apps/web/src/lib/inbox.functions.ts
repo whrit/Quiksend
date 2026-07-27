@@ -1,13 +1,13 @@
 import { env } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
-import { buildComplianceParts, buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
+import { buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
-import { resolveMailboxAdapter } from "./mailboxes.server.ts";
+import { getMailboxAdapter } from "./mailbox-adapter.ts";
 
 const inboxFilterSchema = z.object({
   unread: z.boolean().optional(),
@@ -171,14 +171,14 @@ export const sendReply = createServerFn({ method: "POST" })
     const replyToId = anchor.messageIdHeader ?? anchor.inReplyTo;
     if (!replyToId) throw new Error("Cannot thread reply without anchor Message-ID");
 
-    const compliance = buildComplianceParts({
+    const compliance = {
       unsubscribeUrl: buildUnsubscribeUrl(
         env.BETTER_AUTH_URL ?? "http://localhost:3000",
         mintUnsubscribeToken({ prospectId: prospect.id, orgId: organizationId }),
       ),
       senderPostalAddress: parseOrgPostalAddress(org?.metadata ?? null),
       senderOrgName: org?.name ?? "Quiksend",
-    });
+    };
 
     const bodyText = data.bodyText ?? stripHtml(data.bodyHtml);
     const signature = mailbox.signatureHtml ? `\n\n${mailbox.signatureHtml}` : "";
@@ -193,7 +193,7 @@ export const sendReply = createServerFn({ method: "POST" })
       priorReferences: priorRefs,
     });
 
-    const adapter = resolveMailboxAdapter(mailbox);
+    const adapter = getMailboxAdapter(mailbox, compliance);
     const sendResult = await adapter.send({
       from: { email: mailbox.address, name: mailbox.fromName ?? undefined },
       to: [
@@ -203,10 +203,9 @@ export const sendReply = createServerFn({ method: "POST" })
         },
       ],
       subject: threading.subject,
-      html: `${data.bodyHtml}${signature}${compliance.footerHtml}`,
-      text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}${compliance.footerText}`,
+      html: `${data.bodyHtml}${signature}`,
+      text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}`,
       threading,
-      extraHeaders: compliance.headers,
     });
 
     const messageIdHeader = normalizeMessageId(sendResult.messageId);

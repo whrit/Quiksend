@@ -35,7 +35,7 @@ export interface OutboundEmail {
   readonly html: string;
   readonly text: string;
   readonly threading?: ThreadingHeaders;
-  /** Extra RFC-822 headers. `List-Unsubscribe` + compliance footer are already applied by the caller. */
+  /** Extra RFC-822 headers. Compliance (`List-Unsubscribe` + footer) is applied by the adapter via `buildMime`. */
   readonly extraHeaders?: Readonly<Record<string, string>>;
   /** Stable id from the engine — providers that support it MUST echo it back. */
   readonly idempotencyKey?: string;

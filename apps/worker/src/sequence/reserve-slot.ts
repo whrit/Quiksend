@@ -108,9 +108,7 @@ async function oldestReservationTime(tx: DbTx, mailboxId: string, at: Date): Pro
 }
 
 function segDailyCapPerMailbox(): number {
-  const raw = process.env.SEG_DAILY_CAP_PER_MAILBOX ?? String(env.SEG_DAILY_CAP_PER_MAILBOX);
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 50;
+  return env.SEG_DAILY_CAP_PER_MAILBOX;
 }
 
 function effectiveDailyCap(
@@ -139,7 +137,7 @@ export async function reserveSendSlotInTx(
 
   const mailbox = await loadMailbox(tx, mailboxId, organizationId);
   const schedule = toMailboxSchedule(mailbox.sendWindow, mailbox, settings);
-  const skipWindow = process.env.QUIKSEND_ENGINE_FAKE_MAIL === "1";
+  const skipWindow = env.QUIKSEND_ENGINE_FAKE_MAIL;
   const recipientDomain = options.recipientEmail
     ? extractRecipientDomain(options.recipientEmail)
     : null;
@@ -168,7 +166,13 @@ export async function reserveSendSlotInTx(
   const usedInWindow = await countReservationsInWindow(tx, mailboxId, at);
   if (usedInWindow >= cap) {
     const oldestInWindow = await oldestReservationTime(tx, mailboxId, at);
-    const deferUntil = new Date(oldestInWindow.getTime() + ROLLING_WINDOW_MS);
+    const rawDefer = new Date(oldestInWindow.getTime() + ROLLING_WINDOW_MS);
+    let deferUntil = rawDefer;
+    try {
+      deferUntil = nextOpenSlot(rawDefer, schedule, settings.business_days_only);
+    } catch {
+      // Fall back to the raw cap rollover when the mailbox window has no legal slot.
+    }
     return { ok: false, deferUntil };
   }
 
