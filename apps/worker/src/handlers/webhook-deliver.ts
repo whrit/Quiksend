@@ -191,14 +191,35 @@ export async function sweepPendingWebhookDeliveries(
   return pending.length;
 }
 
+let webhookSweepInterval: ReturnType<typeof setInterval> | null = null;
+let webhookDeliverShutdownHooksRegistered = false;
+
+export function shutdownWebhookDeliver(): void {
+  if (webhookSweepInterval !== null) {
+    clearInterval(webhookSweepInterval);
+    webhookSweepInterval = null;
+  }
+}
+
+function registerWebhookDeliverShutdownHooks(): void {
+  if (webhookDeliverShutdownHooksRegistered) return;
+  webhookDeliverShutdownHooksRegistered = true;
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.on(signal, shutdownWebhookDeliver);
+  }
+}
+
 export async function registerWebhookSweep(): Promise<void> {
+  registerWebhookDeliverShutdownHooks();
+  shutdownWebhookDeliver();
+
   const { intervalMs, batchSize } = getWebhookSweepConfig();
-  const interval = setInterval(() => {
+  webhookSweepInterval = setInterval(() => {
     void sweepPendingWebhookDeliveries(batchSize).catch((err) => {
       logger.error({ err }, "webhook delivery sweep failed");
     });
   }, intervalMs);
-  interval.unref();
+  webhookSweepInterval.unref();
 }
 
 export async function registerWebhookDeliverHandler(): Promise<void> {
