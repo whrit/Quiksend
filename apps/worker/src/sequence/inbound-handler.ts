@@ -30,7 +30,7 @@ export async function handleInboundReply(
   inbound: InboundEmail,
   enrollmentId: string,
 ): Promise<void> {
-  const ctx = await loadContext(enrollmentId);
+  const ctx = await loadContext(enrollmentId, inbound.organizationId);
   const snapshot = toSnapshot(ctx);
   const { nextState, effects } = transition(snapshot, {
     kind: "reply_received",
@@ -59,7 +59,7 @@ export async function handleInboundBounce(
   enrollmentId: string,
 ): Promise<void> {
   const bounceType = inbound.bounceType ?? "hard";
-  const ctx = await loadContext(enrollmentId);
+  const ctx = await loadContext(enrollmentId, inbound.organizationId);
   const snapshot = toSnapshot(ctx);
   const { nextState, effects } = transition(snapshot, {
     kind: "bounce_received",
@@ -70,8 +70,8 @@ export async function handleInboundBounce(
   await db.transaction(async (tx) => {
     await applyTransitionEffects(tx, ctx, effects, 0, nextState);
 
-    if (bounceType === "hard" && inbound.fromEmail) {
-      const email = inbound.fromEmail.toLowerCase();
+    if (bounceType === "hard") {
+      const email = (inbound.fromEmail ?? ctx.prospect.email).toLowerCase();
       await tx
         .insert(tables.suppression)
         .values({

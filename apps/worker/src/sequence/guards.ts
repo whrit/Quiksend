@@ -60,6 +60,7 @@ export async function hasReplyOnThread(ctx: EnrollmentContext): Promise<boolean>
         and(
           ...conditions,
           eq(tables.message.direction, "inbound"),
+          eq(tables.message.isAutoReply, false),
           eq(tables.message.providerThreadId, threadId),
         ),
       )
@@ -72,6 +73,7 @@ export async function hasReplyOnThread(ctx: EnrollmentContext): Promise<boolean>
       select id from message
       where organization_id = ${ctx.organizationId}
         and direction = 'inbound'
+        and is_auto_reply = false
         and (
           in_reply_to = ${anchorId}
           or references_header ilike ${`%${anchorId}%`}
