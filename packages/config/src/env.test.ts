@@ -90,4 +90,47 @@ describe("EnvSchema", () => {
     expect(parsed.EXA_API_KEY).toBeUndefined();
     expect(parsed.TAVILY_API_KEY).toBeUndefined();
   });
+
+  it("defaults worker test hooks to off", () => {
+    const parsed = EnvSchema.parse({
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+    });
+    expect(parsed.QUIKSEND_ENGINE_FAKE_MAIL).toBe(false);
+    expect(parsed.QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK).toBe(false);
+    expect(parsed.QUIKSEND_ENGINE_TEST_MODE).toBeUndefined();
+    expect(parsed.QUIKSEND_CANARY_IMAP_MOCK).toBeUndefined();
+  });
+
+  it("parses worker test hook flags from env strings", () => {
+    const parsed = EnvSchema.parse({
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      QUIKSEND_ENGINE_FAKE_MAIL: "1",
+      QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK: "1",
+      QUIKSEND_ENGINE_TEST_MODE: "permanent-failure",
+      QUIKSEND_CANARY_IMAP_MOCK: "spam",
+    });
+    expect(parsed.QUIKSEND_ENGINE_FAKE_MAIL).toBe(true);
+    expect(parsed.QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK).toBe(true);
+    expect(parsed.QUIKSEND_ENGINE_TEST_MODE).toBe("permanent-failure");
+    expect(parsed.QUIKSEND_CANARY_IMAP_MOCK).toBe("spam");
+  });
+
+  it("forces worker test hooks off in production even when set", () => {
+    const parsed = EnvSchema.parse({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      BETTER_AUTH_SECRET: "a".repeat(32),
+      NANGO_WEBHOOK_SECRET: "nango-secret",
+      MAILBOX_ENCRYPTION_KEY: "mailbox-key",
+      UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
+      QUIKSEND_ENGINE_FAKE_MAIL: "1",
+      QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK: "1",
+      QUIKSEND_ENGINE_TEST_MODE: "permanent-failure",
+      QUIKSEND_CANARY_IMAP_MOCK: "inbox",
+    });
+    expect(parsed.QUIKSEND_ENGINE_FAKE_MAIL).toBe(false);
+    expect(parsed.QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK).toBe(false);
+    expect(parsed.QUIKSEND_ENGINE_TEST_MODE).toBeUndefined();
+    expect(parsed.QUIKSEND_CANARY_IMAP_MOCK).toBeUndefined();
+  });
 });

@@ -61,6 +61,7 @@ export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg" }),
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
+  trustedOrigins: env.BETTER_AUTH_URL ? [env.BETTER_AUTH_URL] : [],
   emailAndPassword: { enabled: true },
   socialProviders: {
     ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
@@ -84,7 +85,19 @@ export const auth = betterAuth({
   },
   plugins: [
     organization(),
-    apiKey(),
+    apiKey({
+      defaultPrefix: "qs_",
+      keyExpiration: {
+        defaultExpiresIn: 365 * 24 * 60 * 60 * 1000,
+        minExpiresIn: 1,
+        maxExpiresIn: 365,
+      },
+      rateLimit: {
+        enabled: true,
+        timeWindow: 60_000,
+        maxRequests: 100,
+      },
+    }),
     tanstackStartCookies(), // must be last
   ],
 });
