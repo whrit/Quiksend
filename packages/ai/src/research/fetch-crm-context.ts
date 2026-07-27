@@ -1,3 +1,4 @@
+import { logger } from "@quiksend/config";
 import { db, tables } from "@quiksend/db";
 import { getNango } from "@quiksend/integrations/nango";
 import { env } from "@quiksend/config";
@@ -162,7 +163,16 @@ export async function fetchCrmContext(input: FetchCrmContextInput): Promise<CrmC
           date: n.properties?.hs_timestamp ?? "",
         })) ?? [],
     };
-  } catch {
+  } catch (err) {
+    logger.warn(
+      {
+        err,
+        organizationId: input.organizationId,
+        prospectId: input.prospectId,
+        provider: connection.provider,
+      },
+      "fetchCrmContext failed",
+    );
     return null;
   }
 }

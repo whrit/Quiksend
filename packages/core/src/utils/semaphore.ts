@@ -25,16 +25,14 @@ export class Semaphore {
       return Promise.resolve();
     }
     return new Promise((resolve) => {
-      this.waiters.push(() => {
-        this.inFlight++;
-        resolve();
-      });
+      this.waiters.push(resolve);
     });
   }
 
   private releaseSlot(): void {
     const next = this.waiters.shift();
     if (next) {
+      // Slot transfers to the waiter — inFlight stays unchanged.
       next();
     } else {
       this.inFlight--;
