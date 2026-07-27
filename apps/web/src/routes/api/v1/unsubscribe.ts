@@ -5,6 +5,7 @@ import { enqueue } from "@quiksend/queue";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
 import { insertDomainEventAndFanout } from "@/lib/api/v1/helpers.ts";
+import { checkAuthIpRateLimit } from "@/lib/api/v1/middleware.ts";
 
 async function enqueueCrmWriteback(organizationId: string, prospectId: string): Promise<void> {
   const prospect = await db.query.prospect.findFirst({
@@ -42,92 +43,141 @@ function confirmationHtml(message: string): string {
 </html>`;
 }
 
+type UnsubscribeOutcome =
+  | { kind: "invalid_token" }
+  | { kind: "success"; alreadySuppressed: boolean };
+
+async function processUnsubscribe(token: string): Promise<UnsubscribeOutcome> {
+  const payload = verifyUnsubscribeToken(token);
+  if (!payload) return { kind: "invalid_token" };
+
+  const prospect = await db.query.prospect.findFirst({
+    where: and(
+      eq(tables.prospect.id, payload.prospectId),
+      eq(tables.prospect.organizationId, payload.orgId),
+    ),
+  });
+
+  // Canary/seed sends may mint tokens with a sentinel prospect id — accept and no-op.
+  if (!prospect) return { kind: "success", alreadySuppressed: true };
+
+  const existing = await db.query.suppression.findFirst({
+    where: and(
+      eq(tables.suppression.organizationId, payload.orgId),
+      eq(tables.suppression.value, prospect.email),
+      eq(tables.suppression.reason, "unsubscribe"),
+    ),
+  });
+
+  if (existing) return { kind: "success", alreadySuppressed: true };
+
+  await db.insert(tables.suppression).values({
+    organizationId: payload.orgId,
+    value: prospect.email,
+    valueType: "email",
+    reason: "unsubscribe",
+    notes: "One-click unsubscribe link",
+  });
+
+  await db
+    .update(tables.prospect)
+    .set({ status: "unsubscribed" })
+    .where(
+      and(
+        eq(tables.prospect.id, payload.prospectId),
+        eq(tables.prospect.organizationId, payload.orgId),
+      ),
+    );
+
+  await enqueueCrmWriteback(payload.orgId, payload.prospectId);
+
+  await insertDomainEventAndFanout({
+    organizationId: payload.orgId,
+    eventType: "prospect.unsubscribed",
+    payload: {
+      prospectId: payload.prospectId,
+      email: prospect.email,
+    },
+  });
+
+  return { kind: "success", alreadySuppressed: false };
+}
+
+function htmlResponse(message: string, status: number): Response {
+  return new Response(confirmationHtml(message), {
+    status,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
+
+async function rateLimitedUnsubscribe(
+  request: Request,
+  handler: () => Promise<Response>,
+): Promise<Response> {
+  const outcome = await checkAuthIpRateLimit(request);
+  if (!outcome.ok) {
+    return new Response(JSON.stringify({ error: "rate_limited" }), {
+      status: 429,
+      headers: {
+        "Retry-After": String(outcome.retryAfter),
+        "Content-Type": "application/json",
+      },
+    });
+  }
+  return handler();
+}
+
+function extractToken(request: Request): string | null {
+  return new URL(request.url).searchParams.get("token");
+}
+
 export const Route = createFileRoute("/api/v1/unsubscribe")({
   server: {
     handlers: {
-      GET: async ({ request }: { request: Request }) => {
-        const token = new URL(request.url).searchParams.get("token");
-        if (!token) {
-          return new Response(confirmationHtml("This unsubscribe link is invalid."), {
-            status: 400,
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          });
-        }
+      GET: ({ request }: { request: Request }) =>
+        rateLimitedUnsubscribe(request, async () => {
+          const token = extractToken(request);
+          if (!token) {
+            return htmlResponse("This unsubscribe link is invalid.", 400);
+          }
 
-        const payload = verifyUnsubscribeToken(token);
-        if (!payload) {
-          return new Response(
-            confirmationHtml("This unsubscribe link is invalid or has expired."),
-            {
-              status: 400,
-              headers: { "Content-Type": "text/html; charset=utf-8" },
-            },
-          );
-        }
+          const result = await processUnsubscribe(token);
+          if (result.kind === "invalid_token") {
+            return htmlResponse("This unsubscribe link is invalid or has expired.", 400);
+          }
 
-        const prospect = await db.query.prospect.findFirst({
-          where: and(
-            eq(tables.prospect.id, payload.prospectId),
-            eq(tables.prospect.organizationId, payload.orgId),
-          ),
-        });
-
-        if (!prospect) {
-          return new Response(confirmationHtml("We could not find this subscription."), {
-            status: 404,
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          });
-        }
-
-        const existing = await db.query.suppression.findFirst({
-          where: and(
-            eq(tables.suppression.organizationId, payload.orgId),
-            eq(tables.suppression.value, prospect.email),
-            eq(tables.suppression.reason, "unsubscribe"),
-          ),
-        });
-
-        if (!existing) {
-          await db.insert(tables.suppression).values({
-            organizationId: payload.orgId,
-            value: prospect.email,
-            valueType: "email",
-            reason: "unsubscribe",
-            notes: "One-click unsubscribe link",
-          });
-
-          await db
-            .update(tables.prospect)
-            .set({ status: "unsubscribed" })
-            .where(
-              and(
-                eq(tables.prospect.id, payload.prospectId),
-                eq(tables.prospect.organizationId, payload.orgId),
-              ),
-            );
-
-          await enqueueCrmWriteback(payload.orgId, payload.prospectId);
-
-          await insertDomainEventAndFanout({
-            organizationId: payload.orgId,
-            eventType: "prospect.unsubscribed",
-            payload: {
-              prospectId: payload.prospectId,
-              email: prospect.email,
-            },
-          });
-        }
-
-        return new Response(
-          confirmationHtml(
+          return htmlResponse(
             "You have been unsubscribed. You will not receive further emails from this sender.",
-          ),
-          {
-            status: 200,
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          },
-        );
-      },
+            200,
+          );
+        }),
+
+      POST: ({ request }: { request: Request }) =>
+        rateLimitedUnsubscribe(request, async () => {
+          const token = extractToken(request);
+          if (!token) {
+            return new Response(null, { status: 400 });
+          }
+
+          const contentType = request.headers.get("Content-Type") ?? "";
+          if (!contentType.includes("application/x-www-form-urlencoded")) {
+            return new Response(null, { status: 400 });
+          }
+
+          const body = await request.text();
+          const params = new URLSearchParams(body);
+          if (params.get("List-Unsubscribe") !== "One-Click") {
+            return new Response(null, { status: 400 });
+          }
+
+          const result = await processUnsubscribe(token);
+          if (result.kind === "invalid_token") {
+            return new Response(null, { status: 400 });
+          }
+
+          // RFC 8058: mail clients expect a 2xx with an empty body.
+          return new Response(null, { status: 200 });
+        }),
     },
   },
 });
