@@ -1,6 +1,6 @@
 {
-  "id": "a4ec7a17-e3c5-4d45-9542-5986b9f4dd71",
-  "prevId": "167399d6-8e99-4218-899e-0e3825e06af4",
+  "id": "1a6c6279-9259-4daf-9939-28480b880282",
+  "prevId": "a4ec7a17-e3c5-4d45-9542-5986b9f4dd71",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1238,6 +1238,19 @@
             "type": "stored"
           }
         },
+        "is_auto_reply": {
+          "name": "is_auto_reply",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "done_at": {
+          "name": "done_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "error": {
           "name": "error",
           "type": "text",
@@ -1455,6 +1468,33 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "message_org_thread_auto_reply_idx": {
+          "name": "message_org_thread_auto_reply_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provider_thread_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "is_auto_reply",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1475,6 +1515,24 @@
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "message_prospect_id_prospect_id_fk": {
+          "name": "message_prospect_id_prospect_id_fk",
+          "tableFrom": "message",
+          "tableTo": "prospect",
+          "columnsFrom": ["prospect_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "message_enrollment_id_enrollment_id_fk": {
+          "name": "message_enrollment_id_enrollment_id_fk",
+          "tableFrom": "message",
+          "tableTo": "enrollment",
+          "columnsFrom": ["enrollment_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1485,6 +1543,760 @@
           "columns": ["idempotency_key"]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.canary_send": {
+      "name": "canary_send",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence_id": {
+          "name": "sequence_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enrollment_id": {
+          "name": "enrollment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mailbox_id": {
+          "name": "mailbox_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seed_inbox_id": {
+          "name": "seed_inbox_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canary_token": {
+          "name": "canary_token",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "step_index": {
+          "name": "step_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expected_arrival_at": {
+          "name": "expected_arrival_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "arrived_at": {
+          "name": "arrived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "arrival_gateway_headers": {
+          "name": "arrival_gateway_headers",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "arrival_folder": {
+          "name": "arrival_folder",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "arrival_status": {
+          "name": "arrival_status",
+          "type": "canary_arrival_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "canary_send_token_uidx": {
+          "name": "canary_send_token_uidx",
+          "columns": [
+            {
+              "expression": "canary_token",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "canary_send_org_sequence_idx": {
+          "name": "canary_send_org_sequence_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sequence_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "canary_send_pending_idx": {
+          "name": "canary_send_pending_idx",
+          "columns": [
+            {
+              "expression": "arrival_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expected_arrival_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"canary_send\".\"arrival_status\" = 'pending'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "canary_send_seed_inbox_idx": {
+          "name": "canary_send_seed_inbox_idx",
+          "columns": [
+            {
+              "expression": "seed_inbox_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "canary_send_pending_sent_at_idx": {
+          "name": "canary_send_pending_sent_at_idx",
+          "columns": [
+            {
+              "expression": "sent_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"canary_send\".\"arrival_status\" = 'pending' AND \"canary_send\".\"sent_at\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "canary_send_sequence_mailbox_idx": {
+          "name": "canary_send_sequence_mailbox_idx",
+          "columns": [
+            {
+              "expression": "sequence_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "mailbox_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "canary_send_organization_id_organization_id_fk": {
+          "name": "canary_send_organization_id_organization_id_fk",
+          "tableFrom": "canary_send",
+          "tableTo": "organization",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "canary_send_sequence_id_sequence_id_fk": {
+          "name": "canary_send_sequence_id_sequence_id_fk",
+          "tableFrom": "canary_send",
+          "tableTo": "sequence",
+          "columnsFrom": ["sequence_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "canary_send_enrollment_id_enrollment_id_fk": {
+          "name": "canary_send_enrollment_id_enrollment_id_fk",
+          "tableFrom": "canary_send",
+          "tableTo": "enrollment",
+          "columnsFrom": ["enrollment_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "canary_send_mailbox_id_mailbox_id_fk": {
+          "name": "canary_send_mailbox_id_mailbox_id_fk",
+          "tableFrom": "canary_send",
+          "tableTo": "mailbox",
+          "columnsFrom": ["mailbox_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "canary_send_seed_inbox_id_seed_inbox_id_fk": {
+          "name": "canary_send_seed_inbox_id_seed_inbox_id_fk",
+          "tableFrom": "canary_send",
+          "tableTo": "seed_inbox",
+          "columnsFrom": ["seed_inbox_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.deliverability_snapshot": {
+      "name": "deliverability_snapshot",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mailbox_id": {
+          "name": "mailbox_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gateway": {
+          "name": "gateway",
+          "type": "gateway_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "window_days": {
+          "name": "window_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 7
+        },
+        "window_start": {
+          "name": "window_start",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "window_end": {
+          "name": "window_end",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canary_total": {
+          "name": "canary_total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "canary_delivered": {
+          "name": "canary_delivered",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "canary_spam": {
+          "name": "canary_spam",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "canary_quarantine": {
+          "name": "canary_quarantine",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "canary_silent_dropped": {
+          "name": "canary_silent_dropped",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "deliverability_pct": {
+          "name": "deliverability_pct",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "deliverability_snapshot_tuple_uidx": {
+          "name": "deliverability_snapshot_tuple_uidx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "mailbox_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "gateway",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "window_days",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "window_start",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deliverability_snapshot_org_window_idx": {
+          "name": "deliverability_snapshot_org_window_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "window_start",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "deliverability_snapshot_organization_id_organization_id_fk": {
+          "name": "deliverability_snapshot_organization_id_organization_id_fk",
+          "tableFrom": "deliverability_snapshot",
+          "tableTo": "organization",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deliverability_snapshot_mailbox_id_mailbox_id_fk": {
+          "name": "deliverability_snapshot_mailbox_id_mailbox_id_fk",
+          "tableFrom": "deliverability_snapshot",
+          "tableTo": "mailbox",
+          "columnsFrom": ["mailbox_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gateway_classification": {
+      "name": "gateway_classification",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email_domain": {
+          "name": "email_domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gateway": {
+          "name": "gateway",
+          "type": "gateway_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mx_records": {
+          "name": "mx_records",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "gateway_classification_confidence",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "classified_at": {
+          "name": "classified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "ttl_until": {
+          "name": "ttl_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "gateway_classification_gateway_idx": {
+          "name": "gateway_classification_gateway_idx",
+          "columns": [
+            {
+              "expression": "gateway",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "gateway_classification_ttl_idx": {
+          "name": "gateway_classification_ttl_idx",
+          "columns": [
+            {
+              "expression": "ttl_until",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "gateway_classification_email_domain_unique": {
+          "name": "gateway_classification_email_domain_unique",
+          "nullsNotDistinct": false,
+          "columns": ["email_domain"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.seed_inbox": {
+      "name": "seed_inbox",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gateway": {
+          "name": "gateway",
+          "type": "gateway_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "imap_config": {
+          "name": "imap_config",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pool_tag": {
+          "name": "pool_tag",
+          "type": "seed_inbox_pool_tag",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "seed_inbox_org_idx": {
+          "name": "seed_inbox_org_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "seed_inbox_org_active_idx": {
+          "name": "seed_inbox_org_active_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "seed_inbox_gateway_active_idx": {
+          "name": "seed_inbox_gateway_active_idx",
+          "columns": [
+            {
+              "expression": "gateway",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "seed_inbox_provider_gateway_active_idx": {
+          "name": "seed_inbox_provider_gateway_active_idx",
+          "columns": [
+            {
+              "expression": "gateway",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"seed_inbox\".\"organization_id\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "seed_inbox_email_uidx": {
+          "name": "seed_inbox_email_uidx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "seed_inbox_organization_id_organization_id_fk": {
+          "name": "seed_inbox_organization_id_organization_id_fk",
+          "tableFrom": "seed_inbox",
+          "tableTo": "organization",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2944,6 +3756,22 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "enrollment_idempotency_key_uidx": {
+          "name": "enrollment_idempotency_key_uidx",
+          "columns": [
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"enrollment\".\"idempotency_key\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -2996,7 +3824,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "enrollment_state_check": {
+          "name": "enrollment_state_check",
+          "value": "\"enrollment\".\"state\" IN ('active', 'waiting', 'waiting_manual', 'paused', 'stopped', 'completed', 'replied', 'bounced', 'failed')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.sequence": {
@@ -3036,6 +3869,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'{\"timezone\":\"UTC\",\"throttle_seconds\":90,\"mailbox_ids\":[],\"stop_on_reply\":true,\"business_days_only\":true}'::jsonb"
+        },
+        "canary_config": {
+          "name": "canary_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_by_user_id": {
           "name": "created_by_user_id",
@@ -5036,6 +5875,11 @@
         "silent_drop",
         "bounced"
       ]
+    },
+    "public.gateway_classification_confidence": {
+      "name": "gateway_classification_confidence",
+      "schema": "public",
+      "values": ["high", "medium", "low"]
     },
     "public.gateway_type": {
       "name": "gateway_type",

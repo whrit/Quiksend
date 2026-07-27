@@ -1,19 +1,12 @@
 import { sql, type SQL } from "drizzle-orm";
-import {
-  boolean,
-  index,
-  integer,
-  jsonb,
-  pgEnum,
-  pgTable,
-  text,
-  timestamp,
-  unique,
-  uuid,
-} from "drizzle-orm/pg-core";
-import { organization, user } from "./auth.ts";
+import { boolean, index, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { organization } from "./auth.ts";
+import { mailbox } from "./mailbox.ts";
+import { prospect } from "./prospects.ts";
+import { enrollment } from "./sequences.ts";
 
-export const mailboxProviderEnum = pgEnum("mailbox_provider", ["gmail", "microsoft", "smtp"]);
+export { mailbox, mailboxProviderEnum } from "./mailbox.ts";
+
 export const messageDirectionEnum = pgEnum("message_direction", ["outbound", "inbound"]);
 export const messageSentimentEnum = pgEnum("message_sentiment", [
   "interested",
@@ -22,68 +15,6 @@ export const messageSentimentEnum = pgEnum("message_sentiment", [
   "out_of_office",
   "unsubscribe_request",
 ]);
-
-const defaultSendWindow = {
-  timezone: "UTC",
-  window: {
-    mon: [[9, 17]],
-    tue: [[9, 17]],
-    wed: [[9, 17]],
-    thu: [[9, 17]],
-    fri: [[9, 17]],
-  },
-} as const;
-
-export const mailbox = pgTable(
-  "mailbox",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organization.id, { onDelete: "cascade" }),
-    ownerUserId: text("owner_user_id")
-      .notNull()
-      .references(() => user.id),
-    provider: mailboxProviderEnum("provider").notNull(),
-    address: text("address").notNull(),
-    displayName: text("display_name"),
-    fromName: text("from_name"),
-    nangoConnectionId: text("nango_connection_id"),
-    smtpConfig: jsonb("smtp_config"),
-    dailyCap: integer("daily_cap").default(50).notNull(),
-    sendWindow: jsonb("send_window").default(defaultSendWindow).notNull(),
-    throttleSeconds: integer("throttle_seconds").default(90).notNull(),
-    signatureHtml: text("signature_html"),
-    spfOk: boolean("spf_ok"),
-    dkimOk: boolean("dkim_ok"),
-    dmarcOk: boolean("dmarc_ok"),
-    healthCheckedAt: timestamp("health_checked_at", { withTimezone: true }),
-    healthNotes: jsonb("health_notes"),
-    pollCursor: jsonb("poll_cursor"),
-    enterpriseSafe: boolean("enterprise_safe").notNull().default(false),
-    enterpriseSafeReason: text("enterprise_safe_reason"),
-    enterpriseSafeDeclaredAt: timestamp("enterprise_safe_declared_at", { withTimezone: true }),
-    enterpriseSafeAutoDowngraded: boolean("enterprise_safe_auto_downgraded")
-      .notNull()
-      .default(false),
-    // CR-35 (PERF-014): enterprise_safe routing filter has no dedicated composite index;
-    // scan-all-active-mailboxes is fine at <20 mailboxes/workspace.
-    status: text("status").default("active").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .$onUpdate(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-    unique("mailbox_org_address_provider_uidx").on(
-      table.organizationId,
-      table.address,
-      table.provider,
-    ),
-    index("mailbox_status_id_idx").on(table.status, table.id),
-  ],
-);
 
 export const message = pgTable(
   "message",
@@ -95,9 +26,8 @@ export const message = pgTable(
     mailboxId: uuid("mailbox_id")
       .notNull()
       .references(() => mailbox.id, { onDelete: "cascade" }),
-    // FK to prospect.id (ON DELETE SET NULL) — declared when Track 2's prospect table lands.
-    prospectId: uuid("prospect_id"),
-    enrollmentId: uuid("enrollment_id"),
+    prospectId: uuid("prospect_id").references(() => prospect.id, { onDelete: "set null" }),
+    enrollmentId: uuid("enrollment_id").references(() => enrollment.id, { onDelete: "set null" }),
     direction: messageDirectionEnum("direction").default("outbound").notNull(),
     subject: text("subject"),
     bodyHtml: text("body_html"),
@@ -116,6 +46,8 @@ export const message = pgTable(
     threadAt: timestamp("thread_at", { withTimezone: true }).generatedAlwaysAs(
       (): SQL => sql`coalesce(${message.receivedAt}, ${message.sentAt})`,
     ),
+    isAutoReply: boolean("is_auto_reply").default(false).notNull(),
+    doneAt: timestamp("done_at", { withTimezone: true }),
     error: text("error"),
     idempotencyKey: text("idempotency_key").unique(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -145,5 +77,10 @@ export const message = pgTable(
       .on(table.mailboxId, table.sentAt.desc())
       .where(sql`${table.direction} = 'outbound' AND ${table.status} = 'sent'`),
     index("message_org_thread_at_idx").on(table.organizationId, table.threadAt.desc()),
+    index("message_org_thread_auto_reply_idx").on(
+      table.organizationId,
+      table.providerThreadId,
+      table.isAutoReply,
+    ),
   ],
 );

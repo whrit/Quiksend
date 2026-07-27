@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -12,8 +13,21 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth.ts";
-import { mailbox } from "./mail.ts";
+import { mailbox } from "./mailbox.ts";
 import { prospect } from "./prospects.ts";
+
+/** Matches `EnrollmentState` in `@quiksend/core` — CHECK not pgEnum so states can be retired. */
+const ENROLLMENT_STATE_VALUES = [
+  "active",
+  "waiting",
+  "waiting_manual",
+  "paused",
+  "stopped",
+  "completed",
+  "replied",
+  "bounced",
+  "failed",
+] as const;
 
 export const sequenceStatusEnum = pgEnum("sequence_status", ["draft", "active", "archived"]);
 
@@ -132,6 +146,13 @@ export const enrollment = pgTable(
     index("enrollment_org_sequence_idx").on(table.organizationId, table.sequenceId),
     index("enrollment_org_state_idx").on(table.organizationId, table.state),
     index("enrollment_org_prospect_idx").on(table.organizationId, table.prospectId),
+    uniqueIndex("enrollment_idempotency_key_uidx")
+      .on(table.idempotencyKey)
+      .where(sql`${table.idempotencyKey} IS NOT NULL`),
+    check(
+      "enrollment_state_check",
+      sql`${table.state} IN (${sql.raw(ENROLLMENT_STATE_VALUES.map((s) => `'${s}'`).join(", "))})`,
+    ),
   ],
 );
 

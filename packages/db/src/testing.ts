@@ -23,6 +23,8 @@ export interface TestOrgs {
  * `prospect`/`company`/`list`; Phase 4 adds `mailbox`/`message`; etc.
  */
 export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
+  "auth_rate_bucket",
+  "nango_webhook_processed",
   "apikey",
   "webhook_delivery",
   "webhook_endpoint",

@@ -13,7 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { GatewayEvidence } from "@quiksend/mail/gateway-detect";
 import { organization } from "./auth.ts";
-import { mailbox } from "./mail.ts";
+import { mailbox } from "./mailbox.ts";
 import { enrollment, sequence } from "./sequences.ts";
 import {
   canaryArrivalStatusEnum,

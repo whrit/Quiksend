@@ -11,7 +11,10 @@ import * as schema from "./schema/index.ts";
  * break across pooled connections. Direct/session Postgres endpoints can omit it.
  */
 const usePool = env.DATABASE_POOLER_MODE === "transaction";
-const client = postgres(env.DATABASE_URL, usePool ? { prepare: false } : {});
+const client = postgres(env.DATABASE_URL, {
+  max: 10,
+  ...(usePool ? { prepare: false } : {}),
+});
 
 export const db = drizzle(client, { schema, casing: "snake_case" });
 export { client, schema };

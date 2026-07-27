@@ -10,7 +10,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth.ts";
-import { mailbox } from "./mail.ts";
+import { mailbox } from "./mailbox.ts";
 import { enrollment, sequenceStep } from "./sequences.ts";
 
 export const taskTypeEnum = pgEnum("task_type", ["compose", "generic"]);

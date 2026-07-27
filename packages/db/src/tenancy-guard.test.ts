@@ -14,14 +14,21 @@ import { describe, expect, it } from "vitest";
  */
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..");
+
+/**
+ * Tables without `organizationId` are intentionally omitted — they are scoped
+ * indirectly: `listMember` via `list`, `importError` via `importBatch`,
+ * `sendReservation` via `mailbox`/`enrollment`, `jobLog` is global worker telemetry.
+ */
 const APP_SCOPED_TABLES: readonly string[] = [
+  // Auth (Better Auth org plugin):
+  "member",
+  "invitation",
   // Phase 2:
   "company",
   "prospect",
   "list",
-  "listMember",
   "importBatch",
-  "importError",
   // Phase 3:
   "crmConnection",
   "syncState",
@@ -38,8 +45,6 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "generation",
   // Phase 6:
   "task",
-  "sendReservation",
-  "jobLog",
   // Phase 10:
   "apiKeyUsage",
   "webhookEndpoint",

@@ -148,6 +148,13 @@
       "when": 1783041000000,
       "tag": "0021_wave8_omicron_canary_step_index",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785116230676,
+      "tag": "0022_wave1_schema_integrity",
+      "breakpoints": true
     }
   ]
 }
