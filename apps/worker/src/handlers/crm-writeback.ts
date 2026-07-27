@@ -24,6 +24,21 @@ const ENROLLMENT_STATUS_LABEL: Record<string, string> = {
   completed: "Completed",
 };
 
+type WritebackEntityType = "prospect" | "message" | "enrollment";
+
+function entityTypeForEvent(
+  eventType: "send" | "reply" | "status" | "contact_upsert",
+): WritebackEntityType {
+  switch (eventType) {
+    case "contact_upsert":
+    case "status":
+      return "prospect";
+    case "send":
+    case "reply":
+      return "message";
+  }
+}
+
 type WritebackContext = {
   organizationId: string;
   connectionId: string;
@@ -234,18 +249,21 @@ export async function registerCrmWritebackHandler(): Promise<void> {
   await registerHandler(
     "crm.writeback",
     async ({ connectionId, eventType, entityId, idempotencyKey, organizationId }) => {
+      const ctx = await loadWritebackContext(connectionId, organizationId);
+      if (!ctx) {
+        logger.warn({ connectionId }, "crm.writeback: connection not found or inactive");
+        return;
+      }
+
       const existing = await db.query.crmWritebackLog.findFirst({
-        where: eq(tables.crmWritebackLog.idempotencyKey, idempotencyKey),
+        where: and(
+          eq(tables.crmWritebackLog.idempotencyKey, idempotencyKey),
+          eq(tables.crmWritebackLog.organizationId, ctx.organizationId),
+        ),
       });
 
       if (existing?.status === "succeeded") {
         logger.info({ idempotencyKey }, "crm.writeback already succeeded — skipping");
-        return;
-      }
-
-      const ctx = await loadWritebackContext(connectionId, organizationId);
-      if (!ctx) {
-        logger.warn({ connectionId }, "crm.writeback: connection not found or inactive");
         return;
       }
 
@@ -262,7 +280,7 @@ export async function registerCrmWritebackHandler(): Promise<void> {
                 : eventType === "contact_upsert"
                   ? "contact_upsert"
                   : "activity_log",
-            entityType: eventType === "contact_upsert" ? "prospect" : "message",
+            entityType: entityTypeForEvent(eventType),
             entityId,
             idempotencyKey,
             status: "pending",

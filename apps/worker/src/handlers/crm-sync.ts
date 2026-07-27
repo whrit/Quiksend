@@ -21,6 +21,13 @@ import { addContactsToTargetList, resolveSyncModifiedAfter } from "./crm-sync-to
 
 const syncDb = drizzle(client, { casing: "snake_case" });
 
+/** Pace Nango/CRM list-records pages (~100 req/10s HubSpot; SF burst-safe). */
+const CRM_SYNC_PAGE_DELAY_MS = 250;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function registerCrmSyncHandler(): Promise<void> {
   await registerHandler("crm.sync", async (payload: CrmSyncPayload) => {
     const { connectionId, model, targetListId } = payload;
@@ -135,6 +142,10 @@ export async function registerCrmSyncHandler(): Promise<void> {
           .where(eq(tables.syncState.id, syncStateId));
 
         logger.info({ organizationId, connectionId, model, page }, "crm.sync page processed");
+
+        if (nextNangoCursor) {
+          await sleep(CRM_SYNC_PAGE_DELAY_MS);
+        }
       } while (nextNangoCursor);
 
       await db
