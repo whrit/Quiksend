@@ -608,12 +608,27 @@ async function pollImap(
   since: Date,
 ): Promise<{ messages: ParsedInbound[]; cursor: PollCursor }> {
   const key = env.MAILBOX_ENCRYPTION_KEY;
-  if (!key || typeof mailbox.smtpConfig !== "string") {
-    return { messages: [], cursor };
+  if (!key) {
+    return skipImapPollDueToMissingCredentials(
+      mailbox,
+      cursor,
+      "MAILBOX_ENCRYPTION_KEY is not configured",
+    );
+  }
+  if (typeof mailbox.smtpConfig !== "string") {
+    return skipImapPollDueToMissingCredentials(
+      mailbox,
+      cursor,
+      "smtp_config missing or invalid",
+    );
   }
   const smtp = decryptSmtpConfig(mailbox.smtpConfig, key);
   if (!smtp.auth?.user || !smtp.auth.pass) {
-    return { messages: [], cursor };
+    return skipImapPollDueToMissingCredentials(
+      mailbox,
+      cursor,
+      "IMAP auth credentials missing",
+    );
   }
 
   const imapPort = smtp.secure ? 993 : 143;
@@ -652,6 +667,43 @@ async function pollImap(
   }
 
   return { messages, cursor: { ...cursor, imapLastUid: maxUid } };
+}
+
+async function skipImapPollDueToMissingCredentials(
+  mailbox: typeof tables.mailbox.$inferSelect,
+  cursor: PollCursor,
+  reason: string,
+): Promise<{ messages: ParsedInbound[]; cursor: PollCursor }> {
+  logger.warn({ mailboxId: mailbox.id, reason }, "SMTP IMAP poll skipped: credentials unavailable");
+  await markMailboxImapPollUnhealthy(mailbox, reason);
+  return { messages: [], cursor };
+}
+
+async function markMailboxImapPollUnhealthy(
+  mailbox: typeof tables.mailbox.$inferSelect,
+  reason: string,
+): Promise<void> {
+  const existingNotes =
+    mailbox.healthNotes &&
+    typeof mailbox.healthNotes === "object" &&
+    !Array.isArray(mailbox.healthNotes)
+      ? { ...(mailbox.healthNotes as Record<string, unknown>) }
+      : {};
+  await db
+    .update(tables.mailbox)
+    .set({
+      healthCheckedAt: new Date(),
+      healthNotes: {
+        ...existingNotes,
+        imapPoll: { ok: false, reason },
+      },
+    })
+    .where(
+      and(
+        eq(tables.mailbox.id, mailbox.id),
+        eq(tables.mailbox.organizationId, mailbox.organizationId),
+      ),
+    );
 }
 
 async function parseRawMime(
