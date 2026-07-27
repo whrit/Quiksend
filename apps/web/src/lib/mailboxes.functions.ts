@@ -329,6 +329,7 @@ export const checkMailboxHealth = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
+    requireAdmin({ orgContext: context.orgContext });
     const mailbox = await db.query.mailbox.findFirst({
       where: and(
         eq(tables.mailbox.id, data.id),
@@ -385,6 +386,7 @@ export const testMailboxSend = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
+    requireAdmin({ orgContext: context.orgContext });
     const mailbox = await db.query.mailbox.findFirst({
       where: and(
         eq(tables.mailbox.id, data.id),

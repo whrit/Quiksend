@@ -121,10 +121,15 @@ export const Route = createFileRoute("/api/v1/enrollments")({
             where: and(
               eq(tables.mailbox.organizationId, ctx.orgId),
               inArray(tables.mailbox.id, settings.mailbox_ids),
+              eq(tables.mailbox.status, "active"),
             ),
           });
           if (mailboxes.length === 0) {
-            return jsonError("VALIDATION", "No valid mailboxes found", 400);
+            return jsonError(
+              "VALIDATION",
+              "No active mailboxes configured for this sequence — resume or reconnect a mailbox before enrolling",
+              400,
+            );
           }
 
           const prospects = await db.query.prospect.findMany({

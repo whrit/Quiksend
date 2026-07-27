@@ -138,7 +138,7 @@ export type EnrollmentSegWarning = {
 export const getEnrollmentSegWarning = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((data: unknown) =>
-    z.object({ prospectIds: z.array(z.string().uuid()).min(1) }).parse(data),
+    z.object({ prospectIds: z.array(z.string().uuid()).min(1).max(500) }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const organizationId = context.orgContext.organizationId;

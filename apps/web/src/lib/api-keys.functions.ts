@@ -2,9 +2,8 @@ import { auth } from "@quiksend/auth";
 import { isAdminOrOwner } from "@quiksend/core";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
-import { eq } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import { z } from "zod";
-import { parseKeyMetadata } from "./api/v1/middleware.ts";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
 
@@ -13,16 +12,18 @@ const createApiKeySchema = z.object({
   expiresIn: z.number().int().positive().optional(),
 });
 
+const LIST_API_KEYS_LIMIT = 100;
+
 export const listApiKeys = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .validator(z.object({}))
   .handler(async ({ context }) => {
     const { organizationId } = context.orgContext;
     const result = await auth.api.listApiKeys({
-      query: { organizationId, limit: 100 },
+      query: { organizationId, limit: LIST_API_KEYS_LIMIT },
       headers: context.authHeaders,
     });
-    return (result.apiKeys ?? []).map((key) => ({
+    const keys = (result.apiKeys ?? []).map((key) => ({
       id: key.id,
       name: key.name,
       prefix: key.prefix,
@@ -31,6 +32,7 @@ export const listApiKeys = createServerFn({ method: "GET" })
       expiresAt: key.expiresAt,
       lastRequest: key.lastRequest,
     }));
+    return Object.assign(keys, { truncated: keys.length >= LIST_API_KEYS_LIMIT });
   });
 
 export const createApiKey = createServerFn({ method: "POST" })
@@ -71,14 +73,12 @@ export const revokeApiKey = createServerFn({ method: "POST" })
     }
     const { organizationId } = context.orgContext;
 
-    const existing = await auth.api.getApiKey({
-      query: { id: data.keyId },
+    const listed = await auth.api.listApiKeys({
+      query: { organizationId, limit: LIST_API_KEYS_LIMIT },
       headers: context.authHeaders,
     });
-
-    let keyOrgId: string | undefined;
-    keyOrgId = parseKeyMetadata(existing.metadata).organizationId;
-    if (keyOrgId !== organizationId) {
+    const existing = (listed.apiKeys ?? []).find((key) => key.id === data.keyId);
+    if (!existing) {
       throw new Error("API key not found in this workspace");
     }
 
@@ -97,17 +97,21 @@ export const getApiUsageSummary = createServerFn({ method: "GET" })
     const { organizationId } = context.orgContext;
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
+    const conditions = [
+      eq(tables.apiKeyUsage.organizationId, organizationId),
+      gte(tables.apiKeyUsage.timestamp, since),
+    ];
+    if (data.apiKeyId) {
+      conditions.push(eq(tables.apiKeyUsage.apiKeyId, data.apiKeyId));
+    }
+
     const rows = await db.query.apiKeyUsage.findMany({
-      where: eq(tables.apiKeyUsage.organizationId, organizationId),
-      limit: 5000,
+      where: and(...conditions),
     });
 
-    const recent = rows.filter(
-      (r) => r.timestamp >= since && (!data.apiKeyId || r.apiKeyId === data.apiKeyId),
-    );
     return {
-      total24h: recent.length,
-      byStatus: recent.reduce<Record<number, number>>((acc, row) => {
+      total24h: rows.length,
+      byStatus: rows.reduce<Record<number, number>>((acc, row) => {
         acc[row.statusCode] = (acc[row.statusCode] ?? 0) + 1;
         return acc;
       }, {}),

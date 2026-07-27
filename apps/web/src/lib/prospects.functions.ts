@@ -703,16 +703,28 @@ export const removeFromList = createServerFn({ method: "POST" })
     });
     if (!targetList) notFound();
 
-    await db
+    const removed = await db
       .delete(tables.listMember)
       .where(
         and(
           eq(tables.listMember.listId, data.listId),
-          inArray(tables.listMember.prospectId, data.prospectIds),
+          inArray(
+            tables.listMember.prospectId,
+            db
+              .select({ id: tables.prospect.id })
+              .from(tables.prospect)
+              .where(
+                and(
+                  eq(tables.prospect.organizationId, organizationId),
+                  inArray(tables.prospect.id, data.prospectIds),
+                ),
+              ),
+          ),
         ),
-      );
+      )
+      .returning({ prospectId: tables.listMember.prospectId });
 
-    return { removed: data.prospectIds.length };
+    return { removed: removed.length };
   });
 
 export const startImport = createServerFn({ method: "POST" })
