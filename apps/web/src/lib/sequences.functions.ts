@@ -870,7 +870,10 @@ export const enrollProspects = createServerFn({ method: "POST" })
       }
 
       const mailbox = mailboxes[mailboxIndex % mailboxes.length];
-      if (!mailbox) continue;
+      if (!mailbox) {
+        skipped.push(prospectId);
+        continue;
+      }
       mailboxIndex++;
 
       const nextRunAt = computeNextRunAt(steps, settings, mailbox, 0, anchor);
