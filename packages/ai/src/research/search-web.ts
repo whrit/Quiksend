@@ -2,8 +2,15 @@ import { env } from "@quiksend/config";
 import { createSearchProvider } from "../search/provider.ts";
 import type { SearchProvider, SearchResult } from "../search/types.ts";
 
+/**
+ * Selection is by configured key. A key set for a provider MUST route to that
+ * provider — silently falling through to "fake" would hand callers fabricated
+ * research while the operator believes real search is running.
+ */
 function resolveSearchProviderId(): SearchProvider["id"] {
   if (env.BRAVE_API_KEY) return "brave";
+  if (env.EXA_API_KEY) return "exa";
+  if (env.TAVILY_API_KEY) return "tavily";
   return "fake";
 }
 
