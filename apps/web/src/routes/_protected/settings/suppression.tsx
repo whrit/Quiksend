@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Download, Loader2, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -14,6 +13,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Absent, EmptyState, Pill, SkeletonRows } from "@/components/ui/primitives.tsx";
+import { formatDate, suppressionTone } from "@/lib/semantic.ts";
 import {
   bulkUnsuppressEmails,
   listSuppressions,
@@ -29,11 +38,12 @@ function SuppressionPage() {
   const [items, setItems] = useState<Awaited<ReturnType<typeof listSuppressions>>["items"]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [bulkBusy, setBulkBusy] = useState(false);
   const [addEmail, setAddEmail] = useState("");
   const [addBusy, setAddBusy] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; email: string } | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -73,16 +83,18 @@ function SuppressionPage() {
     setSelected(next);
   };
 
-  const handleRemove = async (email: string, id: string) => {
-    setBusyId(id);
+  const confirmRemove = async () => {
+    if (!removeTarget) return;
+    setRemoving(true);
     try {
-      await unsuppressEmail({ data: { email } });
-      toast.success(`${email} removed from suppression list`);
+      await unsuppressEmail({ data: { email: removeTarget.email } });
+      toast.success(`${removeTarget.email} removed from suppression list`);
+      setRemoveTarget(null);
       void reload();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to remove");
     } finally {
-      setBusyId(null);
+      setRemoving(false);
     }
   };
 
@@ -132,7 +144,7 @@ function SuppressionPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6 px-6 py-6 fade-in w-full min-w-0">
       <div className="flex items-center gap-4">
         <Link to="/inbox" className={buttonVariants({ variant: "ghost", size: "sm" })}>
           <ArrowLeft className="mr-1 h-4 w-4" />
@@ -185,7 +197,8 @@ function SuppressionPage() {
           <>
             <Button
               size="sm"
-              variant="destructive"
+              variant="secondary"
+              className="text-[color:var(--neg)]"
               disabled={bulkBusy}
               onClick={() => void handleBulkDelete()}
             >
@@ -194,7 +207,7 @@ function SuppressionPage() {
               ) : (
                 <Trash2 className="mr-1 h-4 w-4" />
               )}
-              Delete selected ({selectedEmails.length})
+              Remove selected ({selectedEmails.length})
             </Button>
             <Button size="sm" variant="outline" onClick={handleExportCsv}>
               <Download className="mr-1 h-4 w-4" />
@@ -211,8 +224,15 @@ function SuppressionPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <div className="panel overflow-hidden">
+          <SkeletonRows rows={5} cols={5} />
+        </div>
+      ) : items.length === 0 && !search ? (
+        <div className="panel">
+          <EmptyState
+            title="Suppression list is empty"
+            body="Emails are added automatically when a bounce or unsubscribe is detected, or manually above."
+          />
         </div>
       ) : (
         <Table>
@@ -234,8 +254,8 @@ function SuppressionPage() {
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
-                  No suppressions found.
+                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                  No suppressions match &ldquo;{search}&rdquo; — try a different search.
                 </TableCell>
               </TableRow>
             ) : (
@@ -248,25 +268,27 @@ function SuppressionPage() {
                       aria-label={`Select ${row.value}`}
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-sm">{row.value}</TableCell>
+                  <TableCell className="max-w-[28ch] truncate font-mono text-sm" title={row.value}>
+                    {row.value}
+                  </TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{row.reason}</Badge>
+                    <Pill tone={suppressionTone(row.reason)} dot>
+                      {row.reason}
+                    </Pill>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {new Date(row.createdAt).toLocaleDateString()}
+                    {formatDate(row.createdAt) ?? <Absent />}
                   </TableCell>
                   <TableCell>
                     <Button
                       size="sm"
-                      variant="ghost"
-                      disabled={busyId === row.id}
-                      onClick={() => void handleRemove(row.value, row.id)}
+                      variant="secondary"
+                      className="text-[color:var(--neg)]"
+                      aria-label={`Remove ${row.value} from suppression list`}
+                      onClick={() => setRemoveTarget({ id: row.id, email: row.value })}
                     >
-                      {busyId === row.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      Remove
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -275,6 +297,28 @@ function SuppressionPage() {
           </TableBody>
         </Table>
       )}
+
+      {/* ── Remove confirmation dialog ───────────────────────────────────── */}
+      <Dialog open={removeTarget !== null} onOpenChange={(open) => !open && setRemoveTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove from suppression list?</DialogTitle>
+            <DialogDescription>
+              <strong className="font-mono">{removeTarget?.email}</strong> will be allowed to
+              receive future sends again. Re-add it manually if needed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={removing} onClick={() => void confirmRemove()}>
+              {removing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

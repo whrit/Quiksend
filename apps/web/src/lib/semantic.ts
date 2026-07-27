@@ -98,6 +98,68 @@ const STEP: Record<string, { cat: Cat; label: string }> = {
 export const stepMeta = (kind: string): { cat: Cat; label: string } =>
   STEP[kind] ?? { cat: "c6", label: kind };
 
+/* ── Mailbox sending provider — TYPE, so categorical ─────────────────────── */
+
+const PROVIDER: Record<string, { cat: Cat; label: string }> = {
+  gmail: { cat: "c2", label: "Gmail" },
+  microsoft: { cat: "c1", label: "Microsoft" },
+  smtp: { cat: "c4", label: "SMTP" },
+};
+
+export const providerMeta = (p: string | null | undefined): { cat: Cat; label: string } =>
+  (p && PROVIDER[p]) || { cat: "c6", label: p ?? "Unknown" };
+
+/* ── Mailbox status ──────────────────────────────────────────────────────── */
+
+const MAILBOX_STATUS_TONE: Record<string, Tone> = {
+  active: "pos",
+  inactive: "neutral",
+  error: "neg",
+  paused: "warn",
+};
+
+export const mailboxStatusTone = (status: string): Tone => MAILBOX_STATUS_TONE[status] ?? "neutral";
+
+/* ── CRM / webhook status ────────────────────────────────────────────────── */
+
+const CONNECTION_STATUS_TONE: Record<string, Tone> = {
+  active: "pos",
+  error: "neg",
+  syncing: "warn",
+  inactive: "neutral",
+  active_enabled: "pos",
+  active_disabled: "warn",
+};
+
+export const connectionStatusTone = (status: string): Tone =>
+  CONNECTION_STATUS_TONE[status] ?? "neutral";
+
+/* ── Suppression reason ──────────────────────────────────────────────────── */
+
+const SUPPRESSION_TONE: Record<string, Tone> = {
+  bounce: "neg",
+  complaint: "neg",
+  unsubscribe: "neg",
+  manual: "warn",
+  do_not_contact: "neg",
+};
+
+export const suppressionTone = (reason: string): Tone => SUPPRESSION_TONE[reason] ?? "neutral";
+
+/* ── Inbound reply sentiment ─────────────────────────────────────────────── */
+
+const SENTIMENT: Record<string, { tone: Tone; label: string }> = {
+  interested: { tone: "pos", label: "Interested" },
+  not_now: { tone: "warn", label: "Not now" },
+  objection: { tone: "neg", label: "Objection" },
+  out_of_office: { tone: "warn", label: "Out of office" },
+  unsubscribe_request: { tone: "neg", label: "Unsubscribe request" },
+};
+
+/** Tone and human label for an inbound reply sentiment. Returns null when the value is absent or unrecognised. */
+export const sentimentMeta = (s: string | null | undefined): { tone: Tone; label: string } | null =>
+  s ? (SENTIMENT[s] ?? null) : null;
+
 /* ── Formatting ──────────────────────────────────────────────────────────── */
 
 const DATE_FMT = new Intl.DateTimeFormat("en-GB", {

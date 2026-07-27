@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { getOnboardingContext } from "@/lib/auth.functions.ts";
+import { Tile } from "@/components/ui/primitives.tsx";
 
 const onboardingSearchSchema = z.object({
   removed: z.coerce.boolean().optional(),
@@ -80,8 +81,13 @@ function OnboardingPage() {
           </div>
         )}
 
-        <div className="micro-label">Step 1 of 1</div>
-        <h1 className="mt-1 text-[1.375rem] font-semibold leading-tight tracking-[-0.015em]">
+        <div className="flex items-center gap-2">
+          <Tile size="xs" hue="brand">
+            1
+          </Tile>
+          <span className="micro-label">Step 1 of 1</span>
+        </div>
+        <h1 className="mt-2 text-[1.375rem] font-semibold leading-tight tracking-[-0.015em]">
           Name your workspace
         </h1>
         <p className="mt-2 text-[0.75rem] leading-relaxed text-muted-foreground">

@@ -55,7 +55,7 @@ function MappingPage() {
   const companyFields = Object.keys(defaults.company) as CompanyField[];
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6 px-6 py-6 fade-in w-full min-w-0">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[1.125rem] font-semibold capitalize leading-tight tracking-[-0.015em]">

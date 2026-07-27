@@ -1,11 +1,13 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { ArrowRight, Import, Plus } from "lucide-react";
+import { Activity, ArrowRight, Import, Layers, Mail, MailWarning, Plus } from "lucide-react";
 import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
+import { GatewayBadge } from "@/components/gateway-badge.tsx";
 import { buttonVariants } from "@/components/ui/button";
+import { Absent, EmptyState, Metric, Pill, Tile } from "@/components/ui/primitives.tsx";
 import { getGatewayMixForOrg } from "@/lib/prospects.functions.ts";
+import { formatCount, gatewayMeta, sequenceTone } from "@/lib/semantic.ts";
 import { getSequencePerformance, getWorkspaceOverview } from "@/lib/analytics.functions.ts";
 import { Route as ProtectedRoute } from "@/routes/_protected";
-import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_protected/dashboard")({
   loader: async () => {
@@ -19,90 +21,7 @@ export const Route = createFileRoute("/_protected/dashboard")({
   component: Dashboard,
 });
 
-const num = new Intl.NumberFormat("en-US");
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
-
-/* ─── Compact metric — number + label + inline sparkline ────────────────── */
-function Metric({
-  label,
-  value,
-  sub,
-  trend,
-  to,
-  variant = "default",
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  trend?: number[];
-  to?: string;
-  variant?: "default" | "warn";
-}) {
-  const trendData = trend?.map((v, i) => ({ i, v }));
-  const body = (
-    <div className="panel group flex h-full min-h-[92px] flex-col justify-between px-3 py-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="micro-label">{label}</span>
-        {to && (
-          <ArrowRight className="h-3 w-3 text-[color:var(--paper-300)] transition-colors group-hover:text-foreground" />
-        )}
-      </div>
-      <div className="mt-1.5 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <div
-            className={cn(
-              "font-mono text-[1.75rem] font-medium leading-none tabular tracking-[-0.02em]",
-              variant === "warn" && "text-[color:var(--status-yellow-600)]",
-            )}
-          >
-            {value}
-          </div>
-          {sub && <div className="mt-1 text-[0.6875rem] text-muted-foreground truncate">{sub}</div>}
-        </div>
-        {trendData && trendData.length > 1 && (
-          <div className="h-9 w-24 shrink-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData}>
-                <Line
-                  type="monotone"
-                  dataKey="v"
-                  stroke="var(--foreground)"
-                  strokeWidth={1.25}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-  if (to) return <Link to={to}>{body}</Link>;
-  return body;
-}
-
-const STATUS_STYLE: Record<"draft" | "active" | "archived", string> = {
-  draft: "text-muted-foreground bg-[color:var(--paper-100)]",
-  active: "text-[color:var(--status-green-600)] bg-[color:var(--status-green-050)]",
-  archived: "text-muted-foreground bg-[color:var(--paper-100)]",
-};
-
-/* ─── Getting-started row — quiet, dense ────────────────────────────────── */
-function StartLink({ to, label, hint }: { to: string; label: string; hint: string }) {
-  return (
-    <Link
-      to={to}
-      className="group flex items-center justify-between gap-3 border-b border-border py-2 last:border-b-0 hover:text-foreground"
-    >
-      <div className="min-w-0">
-        <div className="text-[0.75rem] font-medium text-foreground">{label}</div>
-        <div className="text-[0.6875rem] text-muted-foreground truncate">{hint}</div>
-      </div>
-      <ArrowRight className="h-3 w-3 shrink-0 text-[color:var(--paper-300)] transition-colors group-hover:text-foreground" />
-    </Link>
-  );
-}
 
 function Dashboard() {
   const { user } = ProtectedRoute.useRouteContext();
@@ -116,15 +35,15 @@ function Dashboard() {
 
   const trendReplies = overview.dailyTrend.map((d) => d.replies);
   const trendSent = overview.dailyTrend.map((d) => d.sent);
+  const hasActivity = overview.dailyTrend.some((d) => d.sent > 0 || d.replies > 0);
 
-  const bounceVariant = overview.bounceRate > 0.03 ? "warn" : "default";
   const totalGatewayShare = gatewayMix.mix.reduce((s, m) => s + m.pct, 0);
   const firstName = (user.name || user.email.split("@")[0] || "").trim();
 
   return (
-    <div className="mx-auto max-w-[1180px] px-6 py-6 fade-in">
+    <div className="mx-auto max-w-[1180px] px-6 py-6 fade-in w-full min-w-0">
       {/* Header */}
-      <header className="mb-5 flex flex-wrap items-end justify-between gap-3 pb-4 border-b border-border">
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
         <div>
           <div className="micro-label">Dashboard</div>
           <h1 className="mt-0.5 text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
@@ -148,39 +67,34 @@ function Dashboard() {
         <EmptyDashboard />
       ) : (
         <>
-          {/* Metrics row — compact, sparklines inline */}
-          <section className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-            <Metric
-              label="Active sequences"
-              value={num.format(overview.activeSequences)}
-              sub={
-                overview.activeSequences === 1 ? "1 running" : `${overview.activeSequences} running`
-              }
-              to="/sequences"
-            />
-            <Metric
-              label="Live enrollments"
-              value={num.format(overview.activeEnrollments)}
-              sub="prospects mid-sequence"
-              to="/sequences"
-            />
-            <Metric
-              label="Replies · 7d"
-              value={num.format(overview.repliesThisWeek)}
-              trend={trendReplies.slice(-14)}
-              to="/inbox"
-            />
-            <Metric
-              label="Bounce · 30d"
-              value={pct(overview.bounceRate)}
-              sub={overview.bounceRate > 0.03 ? "above 3% threshold" : "within threshold"}
-              variant={bounceVariant}
-              to="/deliverability"
-            />
-          </section>
+          {/* Metrics — hair-grid, four comparable instruments */}
+          <div className="hair-grid mb-3" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+            <Link to="/sequences" className="block">
+              <Metric value={formatCount(overview.activeSequences)} label="Active sequences" />
+            </Link>
+            <Link to="/sequences" className="block">
+              <Metric value={formatCount(overview.activeEnrollments)} label="Live enrollments" />
+            </Link>
+            <Link to="/inbox" className="block">
+              <Metric value={formatCount(overview.repliesThisWeek)} label="Replies · 7d" />
+            </Link>
+            <Link to="/deliverability" className="block">
+              <Metric
+                value={
+                  <span
+                    className={overview.bounceRate > 0.03 ? "text-[color:var(--warn)]" : undefined}
+                  >
+                    {pct(overview.bounceRate)}
+                  </span>
+                }
+                label="Bounce rate · 30d"
+              />
+            </Link>
+          </div>
 
           {/* Main grid: sequences table + side column */}
-          <section className="mt-3 grid gap-3 lg:grid-cols-[1.6fr_1fr]">
+          <section className="grid gap-3 lg:grid-cols-[1.6fr_1fr]">
+            {/* Sequence performance table */}
             <div className="panel overflow-hidden">
               <div className="flex items-baseline justify-between border-b border-border px-3 py-2">
                 <div>
@@ -195,16 +109,17 @@ function Dashboard() {
                 </Link>
               </div>
               {sequences.length === 0 ? (
-                <div className="p-8 text-center text-[0.75rem] text-muted-foreground">
-                  No sequences yet.{" "}
-                  <Link
-                    to="/sequences/new"
-                    className="font-medium text-foreground underline-offset-4 hover:underline"
-                  >
-                    Create one
-                  </Link>
-                  .
-                </div>
+                <EmptyState
+                  icon={<Layers />}
+                  hue="neutral"
+                  title="No sequences yet"
+                  body="Create a sequence and enroll prospects to see per-sequence performance."
+                  action={
+                    <Link to="/sequences/new" className={buttonVariants({ size: "default" })}>
+                      <Plus /> Create sequence
+                    </Link>
+                  }
+                />
               ) : (
                 <table className="data-table">
                   <thead>
@@ -224,42 +139,40 @@ function Dashboard() {
                           <Link
                             to="/sequences/$id/edit"
                             params={{ id: s.sequenceId }}
-                            className="font-medium hover:underline"
+                            className="block max-w-[28ch] truncate font-medium hover:underline"
+                            title={s.sequenceName}
                           >
                             {s.sequenceName}
                           </Link>
                         </td>
                         <td>
-                          <span
-                            className={cn(
-                              "inline-flex items-center rounded-[3px] px-1.5 py-0.5 text-[0.625rem] font-medium",
-                              STATUS_STYLE[s.sequenceStatus],
-                            )}
-                          >
+                          <Pill tone={sequenceTone(s.sequenceStatus)} dot>
                             {s.sequenceStatus}
-                          </span>
+                          </Pill>
                         </td>
-                        <td className="num">{num.format(s.sent)}</td>
-                        <td className="num">{num.format(s.replied)}</td>
+                        <td className="num">{formatCount(s.sent)}</td>
+                        <td className="num">{formatCount(s.replied)}</td>
                         <td className="num">
-                          <span
-                            className={
-                              s.bounced > 0
-                                ? "text-[color:var(--status-red-600)]"
-                                : "text-muted-foreground"
-                            }
-                          >
-                            {num.format(s.bounced)}
-                          </span>
+                          {s.bounced > 0 ? (
+                            <span className="text-[color:var(--neg)]">
+                              {formatCount(s.bounced)}
+                            </span>
+                          ) : (
+                            formatCount(s.bounced)
+                          )}
                         </td>
                         <td className="num">
-                          <span
-                            className={
-                              s.replyRate >= 0.05 ? "text-foreground" : "text-muted-foreground"
-                            }
-                          >
-                            {pct(s.replyRate)}
-                          </span>
+                          {s.sent === 0 ? (
+                            <Absent>No sends</Absent>
+                          ) : (
+                            <span
+                              className={
+                                s.replyRate >= 0.05 ? "text-foreground" : "text-muted-foreground"
+                              }
+                            >
+                              {pct(s.replyRate)}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -277,7 +190,7 @@ function Dashboard() {
                     <div className="text-[0.6875rem] text-muted-foreground">daily</div>
                   </div>
                   <div className="font-mono text-[0.6875rem] tabular text-muted-foreground">
-                    Σ {num.format(trendReplies.reduce((a, b) => a + b, 0))}
+                    Σ {formatCount(trendReplies.reduce((a, b) => a + b, 0))}
                   </div>
                 </div>
                 <div className="mt-2 h-20">
@@ -316,7 +229,7 @@ function Dashboard() {
                 </div>
               </div>
 
-              {/* Gateway mix — compact list */}
+              {/* Gateway mix — categorically coloured bars */}
               <div className="panel overflow-hidden">
                 <div className="flex items-baseline justify-between border-b border-border px-3 py-2">
                   <div>
@@ -327,25 +240,38 @@ function Dashboard() {
                   </div>
                 </div>
                 {gatewayMix.mix.length === 0 ? (
-                  <div className="p-4 text-center text-[0.6875rem] text-muted-foreground">
-                    No classified prospects yet.
-                  </div>
+                  <EmptyState
+                    icon={<MailWarning />}
+                    hue="neutral"
+                    title="No gateway data yet"
+                    body="Import prospects so Quiksend can classify their email gateways."
+                    action={
+                      <Link
+                        to="/prospects/import"
+                        className={buttonVariants({ variant: "outline", size: "default" })}
+                      >
+                        Import prospects
+                      </Link>
+                    }
+                  />
                 ) : (
                   <div className="p-2">
                     {gatewayMix.mix.map((row) => {
                       const width = totalGatewayShare > 0 ? (row.pct / totalGatewayShare) * 100 : 0;
+                      const { cat } = gatewayMeta(row.gateway);
                       return (
                         <div
                           key={row.gateway}
-                          className="grid grid-cols-[80px_1fr_44px] items-center gap-2 py-1 text-[0.6875rem]"
+                          className="grid grid-cols-[1fr_80px_44px] items-center gap-2 py-1 text-[0.6875rem]"
                         >
-                          <span className="truncate text-muted-foreground">
-                            {row.gateway.replace(/_/g, " ")}
-                          </span>
+                          <GatewayBadge gateway={row.gateway} />
                           <div className="h-1 rounded-full bg-[color:var(--paper-100)]">
                             <div
-                              className="h-full rounded-full bg-[color:var(--paper-700)]"
-                              style={{ width: `${width}%` }}
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${width}%`,
+                                background: `var(--cat-${cat.slice(1)})`,
+                              }}
                             />
                           </div>
                           <span className="text-right font-mono tabular text-foreground">
@@ -358,93 +284,153 @@ function Dashboard() {
                 )}
               </div>
 
-              {/* Getting started */}
-              <div className="panel px-3 py-2">
-                <div className="text-[0.8125rem] font-medium">Getting started</div>
-                <div className="mt-1">
-                  <StartLink
-                    to="/sequences/new"
-                    label="Create a sequence"
-                    hint="multi-step outbound cadence"
-                  />
-                  <StartLink to="/prospects/import" label="Import prospects" hint="upload a CSV" />
-                  <StartLink
-                    to="/settings/mailboxes"
-                    label="Connect a mailbox"
-                    hint="Gmail, Microsoft, or SMTP"
-                  />
+              {/* Getting started — option-card anatomy */}
+              <div className="panel overflow-hidden">
+                <div className="border-b border-border px-3 py-2">
+                  <div className="text-[0.8125rem] font-medium">Getting started</div>
                 </div>
+                <Link
+                  to="/sequences/new"
+                  className="group flex items-center gap-3 border-b border-border px-3 py-3 hover:bg-[color:var(--paper-050)]"
+                >
+                  <Tile size="md" hue="brand" tint>
+                    <Layers />
+                  </Tile>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[0.8125rem] font-semibold leading-tight">
+                      Create a sequence
+                    </div>
+                    <div className="text-[0.6875rem] text-muted-foreground">
+                      Build a multi-step outbound cadence and enroll prospects
+                    </div>
+                  </div>
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[color:var(--paper-300)] transition-colors group-hover:text-foreground" />
+                </Link>
+                <Link
+                  to="/prospects/import"
+                  className="group flex items-center gap-3 border-b border-border px-3 py-3 hover:bg-[color:var(--paper-050)]"
+                >
+                  <Tile size="md" hue="neutral" tint>
+                    <Import />
+                  </Tile>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[0.8125rem] font-semibold leading-tight">
+                      Import prospects
+                    </div>
+                    <div className="text-[0.6875rem] text-muted-foreground">
+                      Upload a CSV to populate your contact list
+                    </div>
+                  </div>
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[color:var(--paper-300)] transition-colors group-hover:text-foreground" />
+                </Link>
+                <Link
+                  to="/settings/mailboxes"
+                  className="group flex items-center gap-3 px-3 py-3 hover:bg-[color:var(--paper-050)]"
+                >
+                  <Tile size="md" hue="neutral" tint>
+                    <Mail />
+                  </Tile>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[0.8125rem] font-semibold leading-tight">
+                      Connect a mailbox
+                    </div>
+                    <div className="text-[0.6875rem] text-muted-foreground">
+                      Link Gmail, Microsoft 365 or SMTP to start sending
+                    </div>
+                  </div>
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[color:var(--paper-300)] transition-colors group-hover:text-foreground" />
+                </Link>
               </div>
             </div>
           </section>
 
-          {/* Reply cadence — 30-day sent vs replies */}
-          <section className="mt-3 panel px-3 py-2.5">
-            <div className="flex items-baseline justify-between">
+          {/* Sent vs replies — 30d */}
+          <section className="mt-3 panel overflow-hidden">
+            <div className="flex items-baseline justify-between border-b border-border px-3 py-2">
               <div>
                 <div className="text-[0.8125rem] font-medium">Sent vs replies · 30d</div>
                 <div className="text-[0.6875rem] text-muted-foreground">
-                  {num.format(trendSent.reduce((a, b) => a + b, 0))} sent ·{" "}
-                  {num.format(trendReplies.reduce((a, b) => a + b, 0))} replies
+                  {formatCount(trendSent.reduce((a, b) => a + b, 0))} sent ·{" "}
+                  {formatCount(trendReplies.reduce((a, b) => a + b, 0))} replies
                 </div>
               </div>
             </div>
-            <div className="mt-2 h-32">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={overview.dailyTrend.map((d) => ({
-                    day: d.day.slice(5),
-                    sent: d.sent,
-                    replies: d.replies,
-                  }))}
-                >
-                  <XAxis
-                    dataKey="day"
-                    tick={{ fontSize: 9, fill: "var(--paper-500)", fontFamily: "IBM Plex Mono" }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval={2}
-                  />
-                  <Tooltip
-                    cursor={{ stroke: "var(--paper-200)", strokeDasharray: "2 2" }}
-                    contentStyle={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 4,
-                      padding: "3px 6px",
-                      fontSize: 11,
-                      fontFamily: "IBM Plex Mono",
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="sent"
-                    stroke="var(--paper-400)"
-                    strokeWidth={1.25}
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="replies"
-                    stroke="var(--foreground)"
-                    strokeWidth={1.5}
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-2 flex items-center gap-4 text-[0.625rem] font-mono text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-px w-3 bg-[color:var(--paper-400)]" />
-                sent
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-px w-3 bg-foreground" />
-                replies
-              </span>
-            </div>
+            {hasActivity ? (
+              <div className="px-3 py-2.5">
+                <div className="h-32">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={overview.dailyTrend.map((d) => ({
+                        day: d.day.slice(5),
+                        sent: d.sent,
+                        replies: d.replies,
+                      }))}
+                    >
+                      <XAxis
+                        dataKey="day"
+                        tick={{
+                          fontSize: 9,
+                          fill: "var(--paper-500)",
+                          fontFamily: "IBM Plex Mono",
+                        }}
+                        axisLine={false}
+                        tickLine={false}
+                        interval={2}
+                      />
+                      <Tooltip
+                        cursor={{ stroke: "var(--paper-200)", strokeDasharray: "2 2" }}
+                        contentStyle={{
+                          background: "var(--card)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 4,
+                          padding: "3px 6px",
+                          fontSize: 11,
+                          fontFamily: "IBM Plex Mono",
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="sent"
+                        stroke="var(--paper-400)"
+                        strokeWidth={1.25}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="replies"
+                        stroke="var(--foreground)"
+                        strokeWidth={1.5}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-2 flex items-center gap-4 font-mono text-[0.625rem] text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-px w-3 bg-[color:var(--paper-400)]" />
+                    sent
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-px w-3 bg-foreground" />
+                    replies
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <EmptyState
+                icon={<Activity />}
+                hue="neutral"
+                title="No activity yet"
+                body="Run a sequence to start tracking sends and replies over time."
+                action={
+                  <Link to="/sequences/new" className={buttonVariants({ size: "default" })}>
+                    <Plus /> Create sequence
+                  </Link>
+                }
+              />
+            )}
           </section>
         </>
       )}
@@ -452,7 +438,7 @@ function Dashboard() {
   );
 }
 
-/* ─── Empty state — direct copy, no italic hero ─────────────────────────── */
+/* ─── Empty state — shown when workspace has no data at all ─────────────── */
 function EmptyDashboard() {
   return (
     <div className="panel px-6 py-8">

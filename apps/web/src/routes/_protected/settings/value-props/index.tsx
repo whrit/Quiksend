@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Loader2, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +22,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Absent, EmptyState, Pill, SkeletonRows } from "@/components/ui/primitives.tsx";
+import { formatDate, formatRelative } from "@/lib/semantic.ts";
 import {
   createValueProp,
   deleteValueProp,
@@ -43,10 +44,6 @@ type FormState = {
 
 const emptyForm: FormState = { title: "", body: "", tags: "" };
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString();
-}
-
 function parseTags(raw: string): string[] {
   return raw
     .split(",")
@@ -61,7 +58,8 @@ function ValuePropsPage() {
   const [editing, setEditing] = useState<PublicValueProp | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PublicValueProp | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const reload = useCallback(async () => {
     setIsLoading(true);
@@ -123,8 +121,23 @@ function ValuePropsPage() {
       .finally(() => setSaving(false));
   };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteValueProp({ data: { id: deleteTarget.id } });
+      toast.success("Value prop deleted");
+      setDeleteTarget(null);
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 px-6 py-6 fade-in w-full min-w-0">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
@@ -141,15 +154,23 @@ function ValuePropsPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="panel overflow-hidden">
+          <SkeletonRows rows={3} cols={4} />
         </div>
       ) : valueProps.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <Sparkles className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-          <p className="text-muted-foreground">
-            No value props yet. Add your first messaging pillar to prepare for AI-assisted outreach.
-          </p>
+        <div className="panel">
+          <EmptyState
+            icon={<Sparkles className="h-5 w-5" />}
+            hue="brand"
+            title="No value props yet"
+            body="Add your first messaging pillar to prepare for AI-assisted outreach."
+            action={
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Add value prop
+              </Button>
+            }
+          />
         </div>
       ) : (
         <Table>
@@ -164,46 +185,47 @@ function ValuePropsPage() {
           <TableBody>
             {valueProps.map((vp) => (
               <TableRow key={vp.id}>
-                <TableCell className="font-medium">{vp.title}</TableCell>
+                <TableCell className="max-w-[28ch] truncate font-medium" title={vp.title}>
+                  {vp.title}
+                </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
                     {vp.tags.length === 0 ? (
-                      <span className="text-muted-foreground">—</span>
+                      <Absent>No tags</Absent>
                     ) : (
                       vp.tags.map((tag) => (
-                        <Badge key={tag} variant="secondary">
+                        <Pill key={tag} tone="neutral">
                           {tag}
-                        </Badge>
+                        </Pill>
                       ))
                     )}
                   </div>
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  {formatDate(vp.updatedAt)}
+                  <span title={formatDate(vp.updatedAt) ?? undefined}>
+                    {formatRelative(vp.updatedAt) ?? <Absent />}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Button size="icon" variant="ghost" title="Edit" onClick={() => openEdit(vp)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
                     <Button
                       size="icon"
                       variant="ghost"
-                      title="Delete"
-                      disabled={busyId === vp.id}
-                      onClick={() => {
-                        if (!confirm(`Delete value prop "${vp.title}"?`)) return;
-                        setBusyId(vp.id);
-                        void deleteValueProp({ data: { id: vp.id } })
-                          .then(() => {
-                            toast.success("Value prop deleted");
-                            return reload();
-                          })
-                          .catch((err: Error) => toast.error(err.message))
-                          .finally(() => setBusyId(null));
-                      }}
+                      aria-label={`Edit value prop "${vp.title}"`}
+                      title="Edit"
+                      onClick={() => openEdit(vp)}
                     >
-                      <Trash2 className="h-4 w-4 text-destructive" />
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="text-[color:var(--neg)]"
+                      aria-label={`Delete value prop "${vp.title}"`}
+                      onClick={() => setDeleteTarget(vp)}
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      Delete
                     </Button>
                   </div>
                 </TableCell>
@@ -213,6 +235,7 @@ function ValuePropsPage() {
         </Table>
       )}
 
+      {/* ── Create / edit dialog ─────────────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -222,17 +245,24 @@ function ValuePropsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="vp-title">Title</Label>
+            <div className="space-y-1">
+              <Label htmlFor="vp-title" className="text-[0.8125rem] font-semibold">
+                Title <span className="text-[color:var(--neg)]">*</span>
+              </Label>
               <Input
                 id="vp-title"
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                 placeholder="e.g. Cut manual research time"
               />
+              <p className="text-[0.6875rem] text-muted-foreground">
+                Short headline — shown in the sequence builder when picking a pillar.
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="vp-body">Body</Label>
+            <div className="space-y-1">
+              <Label htmlFor="vp-body" className="text-[0.8125rem] font-semibold">
+                Body <span className="text-[color:var(--neg)]">*</span>
+              </Label>
               <Textarea
                 id="vp-body"
                 rows={6}
@@ -240,15 +270,23 @@ function ValuePropsPage() {
                 onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
                 placeholder="Full value proposition text for the AI prompt builder…"
               />
+              <p className="text-[0.6875rem] text-muted-foreground">
+                The AI reads this verbatim when matching prospects to pillars — be specific.
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="vp-tags">Tags (comma-separated)</Label>
+            <div className="space-y-1">
+              <Label htmlFor="vp-tags" className="text-[0.8125rem] font-semibold">
+                Tags
+              </Label>
               <Input
                 id="vp-tags"
                 value={form.tags}
                 onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
                 placeholder="efficiency, research, enterprise"
               />
+              <p className="text-[0.6875rem] text-muted-foreground">
+                Comma-separated. Used to filter which pillars the AI considers for a sequence.
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -256,7 +294,30 @@ function ValuePropsPage() {
               Cancel
             </Button>
             <Button disabled={saving} onClick={handleSave}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+              {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete confirmation dialog ───────────────────────────────────── */}
+      <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete value prop?</DialogTitle>
+            <DialogDescription>
+              <strong>{deleteTarget?.title}</strong> will be permanently removed. Sequences that
+              reference this pillar will no longer surface it in AI generation.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={deleting} onClick={() => void confirmDelete()}>
+              {deleting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

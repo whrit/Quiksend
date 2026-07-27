@@ -17,10 +17,14 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import {
+  Bot,
+  CheckSquare2,
   ChevronDown,
   ChevronLeft,
+  Clock,
   Copy,
   GripVertical,
+  Mail,
   MoreHorizontal,
   Plus,
   Settings,
@@ -31,6 +35,8 @@ import {
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { Tile } from "@/components/ui/primitives.tsx";
+import { stepMeta } from "@/lib/semantic.ts";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -252,6 +258,14 @@ function formToStepPayload(form: StepFormState) {
   };
 }
 
+/** Icon for each step type — shown inside the categorical Tile. */
+function stepIcon(type: StepType) {
+  if (type === "manual_email") return <Mail />;
+  if (type === "auto_email") return <Bot />;
+  if (type === "wait") return <Clock />;
+  return <CheckSquare2 />;
+}
+
 function SortableStepCard({
   step,
   isDraft,
@@ -290,31 +304,34 @@ function SortableStepCard({
   const taskInstr =
     step.type === "task" && "instructions" in step.config ? step.config.instructions : "";
 
+  const { cat, label: kindLabel } = stepMeta(step.type);
+
   return (
     <article
       ref={setNodeRef}
       style={style}
-      className="panel group relative flex gap-3 p-3 transition-colors duration-120 hover:border-[color:var(--paper-300)]"
+      className="panel group relative flex min-h-[64px] items-start gap-3 p-3 transition-colors duration-120 hover:border-[color:var(--paper-300)]"
     >
-      {/* Number column — mono digit, small, no serif */}
-      <div className="flex w-10 shrink-0 flex-col items-start border-r border-border pr-3">
-        <div className="font-mono tabular text-[0.875rem] font-semibold leading-none text-foreground">
+      {/* Step number */}
+      <div className="flex w-8 shrink-0 flex-col items-center pt-0.5">
+        <div className="font-mono tabular text-[0.75rem] font-semibold leading-none text-muted-foreground">
           {String(step.index + 1).padStart(2, "0")}
         </div>
-        {step.type === "wait" ? (
-          <div className="mt-1.5 font-mono tabular text-[0.625rem] text-muted-foreground">
-            +{waitMinutes}m
-          </div>
-        ) : step.delayMinutes > 0 ? (
-          <div className="mt-1.5 font-mono tabular text-[0.625rem] text-muted-foreground">
+        {step.type !== "wait" && step.delayMinutes > 0 ? (
+          <div className="mt-1 font-mono tabular text-[0.5625rem] text-muted-foreground">
             +{step.delayMinutes}m
           </div>
         ) : null}
       </div>
 
+      {/* Categorical tile — type, never state */}
+      <Tile size="md" hue={cat} tint>
+        {stepIcon(step.type)}
+      </Tile>
+
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <div className="micro-label">{STEP_TYPE_LABELS[step.type]}</div>
+          <div className="micro-label">{kindLabel}</div>
           {step.entryCondition?.kind === "if_no_reply" ? (
             <span className="font-mono text-[0.625rem] text-muted-foreground">if no reply</span>
           ) : null}
@@ -323,10 +340,12 @@ function SortableStepCard({
         {step.type === "manual_email" || step.type === "auto_email" ? (
           <>
             <div className="mt-1 truncate text-[0.8125rem] font-medium text-foreground">
-              {emailSubject || <span className="text-muted-foreground">Untitled email</span>}
+              {emailSubject || (
+                <span className="font-normal text-muted-foreground">No subject set</span>
+              )}
             </div>
             {emailBody ? (
-              <p className="mt-0.5 line-clamp-2 text-[0.75rem] leading-snug text-muted-foreground">
+              <p className="mt-0.5 line-clamp-1 text-[0.75rem] leading-snug text-muted-foreground">
                 {emailBody}
               </p>
             ) : (
@@ -338,7 +357,7 @@ function SortableStepCard({
         ) : null}
 
         {step.type === "wait" ? (
-          <div className="mt-1 text-[0.875rem] font-medium text-foreground">
+          <div className="mt-1 text-[0.8125rem] font-medium text-foreground">
             Wait {waitMinutes} minutes
             {step.businessDaysOnly ? (
               <span className="ml-2 text-[0.6875rem] font-normal text-muted-foreground">
@@ -351,13 +370,17 @@ function SortableStepCard({
         {step.type === "task" ? (
           <>
             <div className="mt-1 truncate text-[0.8125rem] font-medium text-foreground">
-              {taskTitle || <span className="text-muted-foreground">Untitled task</span>}
+              {taskTitle || <span className="font-normal text-muted-foreground">No title set</span>}
             </div>
             {taskInstr ? (
-              <p className="mt-0.5 line-clamp-2 text-[0.75rem] leading-snug text-muted-foreground">
+              <p className="mt-0.5 line-clamp-1 text-[0.75rem] leading-snug text-muted-foreground">
                 {taskInstr}
               </p>
-            ) : null}
+            ) : (
+              <p className="mt-0.5 text-[0.75rem] text-muted-foreground">
+                No instructions — add a description of what to do.
+              </p>
+            )}
           </>
         ) : null}
       </div>
@@ -522,7 +545,7 @@ function SequenceBuilderPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-6 fade-in">
+    <div className="mx-auto max-w-[1200px] px-6 py-6 fade-in w-full min-w-0">
       <div className="mb-2">
         <Link
           to="/sequences"
@@ -806,8 +829,11 @@ function SequenceBuilderPage() {
           </SheetHeader>
 
           <div className="mt-6 space-y-5">
-            <div className="space-y-2">
-              <Label className="micro-label">Step type</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[0.8125rem] font-bold">Step type</Label>
+              <p className="text-[0.75rem] text-muted-foreground">
+                Cannot change after the step is saved.
+              </p>
               <Select
                 value={stepForm.type}
                 onValueChange={(v) => setStepForm((f) => ({ ...f, type: v as StepType }))}
@@ -826,8 +852,13 @@ function SequenceBuilderPage() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label className="micro-label">Delay after previous step · minutes</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[0.8125rem] font-bold">
+                Delay after previous step · minutes
+              </Label>
+              <p className="text-[0.75rem] text-muted-foreground">
+                Added on top of the wait step; 0 sends immediately when eligible.
+              </p>
               <Input
                 type="number"
                 min={0}
@@ -910,8 +941,16 @@ function SequenceBuilderPage() {
                   </Button>
                 ) : null}
 
-                <div className="space-y-2">
-                  <Label className="micro-label">Subject</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[0.8125rem] font-bold">
+                    Subject{" "}
+                    <span className="text-[color:var(--neg)]" aria-hidden="true">
+                      *
+                    </span>
+                  </Label>
+                  <p className="text-[0.75rem] text-muted-foreground">
+                    Rendered per-recipient; {"{{ variables }}"} are replaced before sending.
+                  </p>
                   <Input
                     value={stepForm.subject}
                     onChange={(e) => setStepForm((f) => ({ ...f, subject: e.target.value }))}
@@ -919,8 +958,16 @@ function SequenceBuilderPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="micro-label">Body template</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[0.8125rem] font-bold">
+                    Body template{" "}
+                    <span className="text-[color:var(--neg)]" aria-hidden="true">
+                      *
+                    </span>
+                  </Label>
+                  <p className="text-[0.75rem] text-muted-foreground">
+                    Supports {"{{ first_name }}"}, {"{{ company_name }}"}, and custom fields.
+                  </p>
                   <Textarea
                     rows={6}
                     value={stepForm.bodyTemplate}
@@ -985,8 +1032,11 @@ function SequenceBuilderPage() {
             )}
 
             {stepForm.type === "wait" && (
-              <div className="space-y-2">
-                <Label className="micro-label">Wait duration · minutes</Label>
+              <div className="space-y-1.5">
+                <Label className="text-[0.8125rem] font-bold">Wait duration · minutes</Label>
+                <p className="text-[0.75rem] text-muted-foreground">
+                  Counts from when the previous step ran, business days only if set above.
+                </p>
                 <Input
                   type="number"
                   min={1}
@@ -1005,15 +1055,26 @@ function SequenceBuilderPage() {
 
             {stepForm.type === "task" && (
               <>
-                <div className="space-y-2">
-                  <Label className="micro-label">Task title</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[0.8125rem] font-bold">
+                    Task title{" "}
+                    <span className="text-[color:var(--neg)]" aria-hidden="true">
+                      *
+                    </span>
+                  </Label>
+                  <p className="text-[0.75rem] text-muted-foreground">
+                    Shown to the rep in the task queue.
+                  </p>
                   <Input
                     value={stepForm.taskTitle}
                     onChange={(e) => setStepForm((f) => ({ ...f, taskTitle: e.target.value }))}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="micro-label">Instructions</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[0.8125rem] font-bold">Instructions</Label>
+                  <p className="text-[0.75rem] text-muted-foreground">
+                    Step-by-step guidance for the rep completing this task.
+                  </p>
                   <Textarea
                     rows={4}
                     value={stepForm.taskInstructions}

@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -19,6 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Absent, EmptyState, Pill } from "@/components/ui/primitives.tsx";
+import { connectionStatusTone, formatRelative } from "@/lib/semantic.ts";
 import {
   createCrmConnectSession,
   createHubspotReconnectSession,
@@ -32,7 +33,7 @@ import {
 import { createList, listLists } from "@/lib/prospects.functions.ts";
 import Nango from "@nangohq/frontend";
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
-import { RotateCw } from "lucide-react";
+import { Building2, Loader2, RotateCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -107,8 +108,10 @@ function PullToListDialog({ connection }: { connection: CrmConnectionDto }) {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Target list</Label>
+          <div className="space-y-1">
+            <Label className="text-[0.8125rem] font-semibold">
+              Target list <span className="text-[color:var(--neg)]">*</span>
+            </Label>
             <Select value={targetListId} onValueChange={setTargetListId}>
               <SelectTrigger>
                 <SelectValue placeholder="Choose a list" />
@@ -130,8 +133,8 @@ function PullToListDialog({ connection }: { connection: CrmConnectionDto }) {
               />
             )}
           </div>
-          <div className="space-y-2">
-            <Label>Filter</Label>
+          <div className="space-y-1">
+            <Label className="text-[0.8125rem] font-semibold">Filter</Label>
             <Select value={filter} onValueChange={(v) => setFilter(v as PullFilter)}>
               <SelectTrigger>
                 <SelectValue />
@@ -165,7 +168,61 @@ function PullToListDialog({ connection }: { connection: CrmConnectionDto }) {
             Cancel
           </Button>
           <Button disabled={busy} onClick={() => void handlePull()}>
+            {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
             {busy ? "Enqueuing…" : "Pull contacts"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DisconnectDialog({
+  connection,
+  onDisconnected,
+}: {
+  connection: CrmConnectionDto;
+  onDisconnected: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function confirm() {
+    setBusy(true);
+    try {
+      await disconnectCrm({ data: { connectionId: connection.id } });
+      toast.success("CRM disconnected");
+      setOpen(false);
+      onDisconnected();
+    } catch {
+      toast.error("Failed to disconnect");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="secondary" className="text-[color:var(--neg)]">
+          Disconnect
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Disconnect {connection.provider}?</DialogTitle>
+          <DialogDescription>
+            Contacts already synced remain in Quiksend but incremental syncs will stop. You can
+            reconnect at any time.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" disabled={busy} onClick={() => void confirm()}>
+            {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+            Disconnect
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -266,18 +323,8 @@ function CrmSettingsPage() {
     }
   }
 
-  async function disconnect(connectionId: string): Promise<void> {
-    try {
-      await disconnectCrm({ data: { connectionId } });
-      toast.success("CRM disconnected");
-      await refresh();
-    } catch {
-      toast.error("Failed to disconnect");
-    }
-  }
-
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6 px-6 py-6 fade-in w-full min-w-0">
       <div>
         <h1 className="text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
           CRM connections
@@ -288,26 +335,33 @@ function CrmSettingsPage() {
       </div>
 
       {connections.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>No CRM connected</CardTitle>
-            <CardDescription>
-              Connect a CRM to import contacts and companies on an incremental schedule.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex gap-3">
-            <Button disabled={connecting} onClick={() => void connectProvider("salesforce")}>
-              Connect Salesforce
-            </Button>
-            <Button
-              variant="outline"
-              disabled={connecting}
-              onClick={() => void connectProvider("hubspot")}
-            >
-              Connect HubSpot
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="panel">
+          <EmptyState
+            icon={<Building2 className="h-5 w-5" />}
+            hue="brand"
+            title="No CRM connected"
+            body="Connect Salesforce or HubSpot to import contacts and sync on an incremental schedule."
+            action={
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  disabled={connecting}
+                  onClick={() => void connectProvider("salesforce")}
+                >
+                  Connect Salesforce
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={connecting}
+                  onClick={() => void connectProvider("hubspot")}
+                >
+                  Connect HubSpot
+                </Button>
+              </div>
+            }
+          />
+        </div>
       ) : (
         <div className="space-y-4">
           {connections.map((conn) => (
@@ -317,12 +371,18 @@ function CrmSettingsPage() {
                   <CardTitle className="capitalize">{conn.provider}</CardTitle>
                   <CardDescription>
                     Last sync:{" "}
-                    {conn.lastSyncAt ? new Date(conn.lastSyncAt).toLocaleString() : "Never"}
+                    {conn.lastSyncAt ? (
+                      <span title={conn.lastSyncAt}>
+                        {formatRelative(conn.lastSyncAt) ?? conn.lastSyncAt}
+                      </span>
+                    ) : (
+                      <Absent>Never synced</Absent>
+                    )}
                   </CardDescription>
                 </div>
-                <Badge variant={conn.status === "active" ? "default" : "secondary"}>
+                <Pill tone={connectionStatusTone(conn.status)} dot>
                   {conn.status}
-                </Badge>
+                </Pill>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 {conn.status === "error" && (
@@ -360,9 +420,7 @@ function CrmSettingsPage() {
                 >
                   Edit mapping
                 </Link>
-                <Button size="sm" variant="destructive" onClick={() => void disconnect(conn.id)}>
-                  Disconnect
-                </Button>
+                <DisconnectDialog connection={conn} onDisconnected={() => void refresh()} />
               </CardContent>
             </Card>
           ))}

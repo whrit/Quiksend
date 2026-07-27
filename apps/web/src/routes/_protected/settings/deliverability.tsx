@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,6 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Absent, EmptyState, Pill, SkeletonRows } from "@/components/ui/primitives.tsx";
+import { formatDate, formatRelative, healthTone, healthLabel } from "@/lib/semantic.ts";
 import {
   getWorkspaceCanaryConfig,
   setWorkspaceCanaryConfig,
@@ -203,8 +204,11 @@ function DeliverabilityRoutingSection() {
               Manage mailboxes
             </Link>
             {policy?.routingPolicyChangedAt ? (
-              <span className="text-xs text-muted-foreground">
-                Last changed {new Date(policy.routingPolicyChangedAt).toLocaleString()}
+              <span
+                className="text-xs text-muted-foreground"
+                title={formatDate(policy.routingPolicyChangedAt) ?? undefined}
+              >
+                Last changed {formatRelative(policy.routingPolicyChangedAt)}
               </span>
             ) : null}
           </div>
@@ -219,6 +223,11 @@ function SeedInboxesSection() {
   const [loading, setLoading] = useState(true);
   const [pro, setPro] = useState({ entitled: false });
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Extract<
+    SeedInboxListItem,
+    { id: string }
+  > | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     email: "",
     imapHost: "localhost",
@@ -262,6 +271,21 @@ function SeedInboxesSection() {
     }
   }
 
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteSeedInbox({ data: { seedInboxId: deleteTarget.id } });
+      toast.success("Seed inbox removed");
+      setDeleteTarget(null);
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove seed inbox");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <section className="rounded-lg border p-4">
       <div className="flex items-center justify-between">
@@ -278,89 +302,128 @@ function SeedInboxesSection() {
         </p>
       )}
       {loading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="mt-4">
+          <SkeletonRows rows={3} cols={6} />
         </div>
       ) : (
-        <Table className="mt-4">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Email</TableHead>
-              <TableHead>Gateway</TableHead>
-              <TableHead>Provider</TableHead>
-              <TableHead>Verified</TableHead>
-              <TableHead>Active</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {seeds.map((seed) =>
-              seed.kind === "provider_pool_summary" ? (
-                <TableRow key={`pool-${seed.gateway}`}>
-                  <TableCell>
-                    {seed.gateway.replace(/_/g, " ")} pool ({seed.count} seed
-                    {seed.count === 1 ? "" : "s"})
-                  </TableCell>
-                  <TableCell>{seed.gateway}</TableCell>
-                  <TableCell>(Quiksend-managed)</TableCell>
-                  <TableCell>—</TableCell>
-                  <TableCell>
-                    <Badge variant="default">Active</Badge>
-                  </TableCell>
-                  <TableCell />
+        <>
+          {seeds.length === 0 ? (
+            <div className="mt-4">
+              <EmptyState
+                title="No seed inboxes configured"
+                body="Add a seed inbox to measure inbox placement for your sends."
+                action={
+                  <Button size="sm" onClick={() => setModalOpen(true)}>
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    Add seed inbox
+                  </Button>
+                }
+              />
+            </div>
+          ) : (
+            <Table className="mt-4">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Gateway</TableHead>
+                  <TableHead>Provider</TableHead>
+                  <TableHead>Verified</TableHead>
+                  <TableHead>Active</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ) : (
-                <TableRow key={seed.id}>
-                  <TableCell>{seed.email}</TableCell>
-                  <TableCell>{seed.gateway}</TableCell>
-                  <TableCell>{seed.provider}</TableCell>
-                  <TableCell>
-                    {seed.verifiedAt ? `✅ ${seed.verifiedAt.slice(0, 10)}` : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={seed.active ? "default" : "secondary"}>
-                      {seed.active ? "Active" : "Inactive"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="space-x-2 text-right">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        void verifySeedInbox({ data: { seedInboxId: seed.id } }).then(() =>
-                          toast.success("Re-verification queued"),
-                        )
-                      }
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        void toggleSeedInboxActive({
-                          data: { seedInboxId: seed.id, active: !seed.active },
-                        }).then(reload)
-                      }
-                    >
-                      {seed.active ? "Pause" : "Activate"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        void deleteSeedInbox({ data: { seedInboxId: seed.id } }).then(reload)
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ),
-            )}
-          </TableBody>
-        </Table>
+              </TableHeader>
+              <TableBody>
+                {seeds.map((seed) =>
+                  seed.kind === "provider_pool_summary" ? (
+                    <TableRow key={`pool-${seed.gateway}`}>
+                      <TableCell>
+                        {seed.gateway.replace(/_/g, " ")} pool ({seed.count} seed
+                        {seed.count === 1 ? "" : "s"})
+                      </TableCell>
+                      <TableCell>{seed.gateway}</TableCell>
+                      <TableCell>(Quiksend-managed)</TableCell>
+                      <TableCell>
+                        <Absent>N/A</Absent>
+                      </TableCell>
+                      <TableCell>
+                        <Pill tone="pos" dot>
+                          Active
+                        </Pill>
+                      </TableCell>
+                      <TableCell />
+                    </TableRow>
+                  ) : (
+                    <TableRow key={seed.id}>
+                      <TableCell className="max-w-[22ch] truncate" title={seed.email}>
+                        {seed.email}
+                      </TableCell>
+                      <TableCell>{seed.gateway}</TableCell>
+                      <TableCell>{seed.provider}</TableCell>
+                      <TableCell>
+                        {seed.verifiedAt ? (
+                          <Pill tone={healthTone(true)} dot>
+                            {healthLabel(true)} {formatDate(seed.verifiedAt)}
+                          </Pill>
+                        ) : (
+                          <Absent>Never verified</Absent>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Pill tone={seed.active ? "pos" : "neutral"} dot>
+                          {seed.active ? "Active" : "Inactive"}
+                        </Pill>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Re-verify seed inbox ${seed.email}`}
+                            title="Re-verify"
+                            onClick={() =>
+                              void verifySeedInbox({ data: { seedInboxId: seed.id } }).then(() =>
+                                toast.success("Re-verification queued"),
+                              )
+                            }
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={
+                              seed.active ? `Pause ${seed.email}` : `Activate ${seed.email}`
+                            }
+                            onClick={() =>
+                              void toggleSeedInboxActive({
+                                data: { seedInboxId: seed.id, active: !seed.active },
+                              }).then(reload)
+                            }
+                          >
+                            {seed.active ? "Pause" : "Activate"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="text-[color:var(--neg)]"
+                            aria-label={`Remove seed inbox ${seed.email}`}
+                            onClick={() => setDeleteTarget(seed)}
+                          >
+                            <Trash2 className="mr-1 h-3.5 w-3.5" />
+                            Remove
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ),
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </>
       )}
+
+      {/* ── Add seed inbox dialog ────────────────────────────────────────── */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent>
           <DialogHeader>
@@ -370,23 +433,26 @@ function SeedInboxesSection() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <div>
-              <Label>Email</Label>
+            <div className="space-y-1">
+              <Label className="text-[0.8125rem] font-semibold">
+                Email <span className="text-[color:var(--neg)]">*</span>
+              </Label>
               <Input
+                type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label>IMAP host</Label>
+              <div className="space-y-1">
+                <Label className="text-[0.8125rem] font-semibold">IMAP host</Label>
                 <Input
                   value={form.imapHost}
                   onChange={(e) => setForm((f) => ({ ...f, imapHost: e.target.value }))}
                 />
               </div>
-              <div>
-                <Label>Port</Label>
+              <div className="space-y-1">
+                <Label className="text-[0.8125rem] font-semibold">Port</Label>
                 <Input
                   type="number"
                   value={form.imapPort}
@@ -394,15 +460,15 @@ function SeedInboxesSection() {
                 />
               </div>
             </div>
-            <div>
-              <Label>Username</Label>
+            <div className="space-y-1">
+              <Label className="text-[0.8125rem] font-semibold">Username</Label>
               <Input
                 value={form.imapUsername}
                 onChange={(e) => setForm((f) => ({ ...f, imapUsername: e.target.value }))}
               />
             </div>
-            <div>
-              <Label>Password</Label>
+            <div className="space-y-1">
+              <Label className="text-[0.8125rem] font-semibold">Password</Label>
               <Input
                 type="password"
                 value={form.imapPassword}
@@ -411,7 +477,31 @@ function SeedInboxesSection() {
             </div>
           </div>
           <DialogFooter>
+            <Button variant="outline" onClick={() => setModalOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={() => void handleCreate()}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete confirmation dialog ───────────────────────────────────── */}
+      <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove seed inbox?</DialogTitle>
+            <DialogDescription>
+              <strong>{deleteTarget?.email}</strong> will stop receiving canary seeds.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={deleting} onClick={() => void confirmDelete()}>
+              {deleting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+              Remove
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -456,16 +546,19 @@ function CanaryConfigSection() {
           />
           Enable canary injection on enrollment
         </label>
-        <div>
-          <Label>Seeds per campaign</Label>
+        <div className="space-y-1">
+          <Label className="text-[0.8125rem] font-semibold">Seeds per campaign</Label>
           <Input
             type="number"
             value={config.seedsPerCampaign}
             onChange={(e) => setConfig((c) => ({ ...c, seedsPerCampaign: Number(e.target.value) }))}
           />
+          <p className="text-[0.6875rem] text-muted-foreground">
+            How many seed addresses to inject per campaign send.
+          </p>
         </div>
-        <div>
-          <Label>Auto-pause threshold (%)</Label>
+        <div className="space-y-1">
+          <Label className="text-[0.8125rem] font-semibold">Auto-pause threshold (%)</Label>
           <Input
             type="number"
             value={config.pauseThresholdPct}
@@ -473,8 +566,12 @@ function CanaryConfigSection() {
               setConfig((c) => ({ ...c, pauseThresholdPct: Number(e.target.value) }))
             }
           />
+          <p className="text-[0.6875rem] text-muted-foreground">
+            Pause the sequence automatically when this share of canaries land in spam.
+          </p>
         </div>
         <Button size="sm" disabled={saving} onClick={() => void save()}>
+          {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
           Save canary policy
         </Button>
       </div>
@@ -484,7 +581,7 @@ function CanaryConfigSection() {
 
 function DeliverabilitySettingsPage() {
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+    <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-6 fade-in">
       <h1 className="text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
         Deliverability settings
       </h1>

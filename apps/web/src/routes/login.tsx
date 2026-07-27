@@ -158,7 +158,7 @@ function LoginPage() {
               setError(null);
               setInfo(null);
             }}
-            className="font-medium text-foreground underline-offset-4 hover:underline"
+            className="rounded-[3px] font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
           >
             Back to sign in
           </button>
@@ -261,7 +261,7 @@ function LoginPage() {
             {mode === "signin" && (
               <button
                 type="button"
-                className="text-[0.6875rem] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:text-foreground"
+                className="rounded-[3px] text-[0.6875rem] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                 onClick={() => {
                   setMode("forgot");
                   setError(null);
@@ -332,7 +332,7 @@ function LoginPage() {
             setError(null);
             setInfo(null);
           }}
-          className="font-medium text-foreground underline-offset-4 hover:underline"
+          className="rounded-[3px] font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         >
           {mode === "signin" ? "Sign up" : "Sign in"}
         </button>

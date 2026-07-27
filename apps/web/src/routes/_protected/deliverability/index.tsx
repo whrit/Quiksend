@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { Activity, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Absent, EmptyState, Pill } from "@/components/ui/primitives.tsx";
 import {
   Sheet,
   SheetContent,
@@ -24,17 +23,32 @@ import {
   getDeliverabilityGrid,
   type DeliverabilitySignal,
 } from "@/lib/deliverability.functions.ts";
+import type { Tone } from "@/lib/semantic.ts";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_protected/deliverability/")({
   component: DeliverabilityGridPage,
 });
 
-const SIGNAL_CLASS: Record<DeliverabilitySignal, string> = {
-  green: "bg-emerald-500/20 text-emerald-800",
-  yellow: "bg-amber-500/20 text-amber-900",
-  red: "bg-red-500/20 text-red-900",
-  insufficient_data: "bg-muted text-muted-foreground",
-};
+/**
+ * Thresholds from packages/core/src/deliverability/canary-config.ts:
+ *   pct >= 90 → green (pos)
+ *   50 ≤ pct < 90 → yellow (warn)
+ *   pct < 50 → red (neg)
+ */
+function signalTone(signal: DeliverabilitySignal): Tone {
+  if (signal === "green") return "pos";
+  if (signal === "yellow") return "warn";
+  if (signal === "red") return "neg";
+  return "neutral";
+}
+
+function arrivalTone(status: string): Tone {
+  if (status === "inbox") return "pos";
+  if (status === "spam" || status === "quarantine") return "warn";
+  if (status === "dropped") return "neg";
+  return "neutral";
+}
 
 function DeliverabilityGridPage() {
   const [windowDays, setWindowDays] = useState(7);
@@ -70,27 +84,35 @@ function DeliverabilityGridPage() {
   }, [drawer]);
 
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-6 fade-in">
-      <header className="mb-4 flex items-end justify-between gap-6 border-b border-border pb-4">
+    <div className="mx-auto max-w-[1200px] px-6 py-6 fade-in w-full min-w-0">
+      <header className="mb-4 flex items-start justify-between gap-6 border-b border-border pb-4">
         <div>
           <div className="micro-label">Signal grid</div>
           <h1 className="mt-0.5 text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
             Deliverability
           </h1>
-          <p className="mt-1 text-[0.75rem] text-muted-foreground">
-            Per-mailbox × gateway delivery rate over the last window.
+          <p className="mt-1 max-w-[56ch] text-[0.75rem] text-muted-foreground">
+            Canary sends probe seed inboxes at each enterprise gateway to measure inbox placement
+            (share of sends that landed in the inbox, not spam or quarantine). Percentages update
+            every 30 seconds. Click a cell to see the raw canary history.
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
-          {[7, 14, 30].map((days) => (
-            <Button
+        {/* Segmented control — rectangular segments, active in primary tint */}
+        <div className="mt-1 inline-flex shrink-0 overflow-hidden rounded-[var(--radius-md)] border border-border">
+          {([7, 14, 30] as const).map((days) => (
+            <button
               key={days}
-              size="default"
-              variant={windowDays === days ? "default" : "outline"}
+              type="button"
+              className={cn(
+                "h-8 border-r border-border px-3 text-[0.8125rem] font-medium last:border-r-0 focus-ring transition-colors",
+                windowDays === days
+                  ? "bg-[var(--brand-tint)] text-[var(--brand-700)]"
+                  : "bg-card text-[var(--paper-600)] hover:bg-[var(--paper-050)]",
+              )}
               onClick={() => setWindowDays(days)}
             >
               {days}d
-            </Button>
+            </button>
           ))}
         </div>
       </header>
@@ -107,7 +129,7 @@ function DeliverabilityGridPage() {
                 <TableHead>Mailbox</TableHead>
                 {SEG_GATEWAY_VALUES.map((g) => (
                   <TableHead key={g} className="text-center text-xs">
-                    {g.replace("_", " ")}
+                    {g.replace(/_/g, " ")}
                   </TableHead>
                 ))}
               </TableRow>
@@ -115,11 +137,13 @@ function DeliverabilityGridPage() {
             <TableBody>
               {(grid?.rows ?? []).length === 0 ? (
                 <TableRow>
-                  <TableCell
-                    colSpan={SEG_GATEWAY_VALUES.length + 1}
-                    className="py-8 text-center text-sm text-muted-foreground"
-                  >
-                    No mailboxes yet — add one to start seeing deliverability data.
+                  <TableCell colSpan={SEG_GATEWAY_VALUES.length + 1} className="p-0">
+                    <EmptyState
+                      icon={<Activity />}
+                      hue="brand"
+                      title="No mailboxes configured"
+                      body="Add a sending mailbox to start canary sends. Quiksend will probe seed inboxes at each gateway and populate this grid with inbox placement rates."
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -128,15 +152,25 @@ function DeliverabilityGridPage() {
                     <TableCell className="font-medium">{row.mailboxName}</TableCell>
                     {row.cells.map((cell) => (
                       <TableCell key={cell.gateway} className="text-center">
-                        <button
-                          type="button"
-                          className={`rounded px-2 py-1 text-xs font-medium ${SIGNAL_CLASS[cell.signal]}`}
-                          onClick={() =>
-                            setDrawer({ mailboxId: row.mailboxId, gateway: cell.gateway })
-                          }
-                        >
-                          {cell.signal === "insufficient_data" ? "—" : `${cell.deliverabilityPct}%`}
-                        </button>
+                        {cell.signal === "insufficient_data" ? (
+                          <Absent>
+                            {cell.canaryTotal === 0 ? "Not measured" : "Too few sends"}
+                          </Absent>
+                        ) : (
+                          <button
+                            type="button"
+                            className="focus-ring inline-flex items-center rounded-[var(--radius-sm)] px-2 py-0.5 text-xs font-semibold tabular-nums"
+                            style={{
+                              background: `var(--${signalTone(cell.signal)}-tint)`,
+                              color: `var(--${signalTone(cell.signal)})`,
+                            }}
+                            onClick={() =>
+                              setDrawer({ mailboxId: row.mailboxId, gateway: cell.gateway })
+                            }
+                          >
+                            {cell.deliverabilityPct}%
+                          </button>
+                        )}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -152,24 +186,40 @@ function DeliverabilityGridPage() {
           <SheetHeader>
             <SheetTitle>Canary history</SheetTitle>
             <SheetDescription>
-              {drawer?.gateway} — recent canary sends and arrival evidence
+              {drawer?.gateway.replace(/_/g, " ")} — recent canary sends and arrival evidence
             </SheetDescription>
           </SheetHeader>
           <div className="mt-4 space-y-3">
-            {history?.items.map((item) => (
-              <div key={item.id} className="rounded border p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{item.seedEmail}</span>
-                  <Badge variant="outline">{item.arrivalStatus}</Badge>
-                </div>
-                <p className="text-muted-foreground">{item.subject}</p>
-                {item.arrivalGatewayHeaders ? (
-                  <pre className="mt-2 max-h-32 overflow-auto rounded bg-muted p-2 text-xs">
-                    {JSON.stringify(item.arrivalGatewayHeaders, null, 2)}
-                  </pre>
-                ) : null}
+            {!history ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
-            ))}
+            ) : history.items.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No canary history for this pair yet.
+              </p>
+            ) : (
+              history.items.map((item) => (
+                <div key={item.id} className="rounded border p-3 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate font-medium" title={item.seedEmail}>
+                      {item.seedEmail}
+                    </span>
+                    <Pill tone={arrivalTone(item.arrivalStatus)} dot>
+                      {item.arrivalStatus}
+                    </Pill>
+                  </div>
+                  <p className="mt-1 truncate text-muted-foreground" title={item.subject}>
+                    {item.subject}
+                  </p>
+                  {item.arrivalGatewayHeaders ? (
+                    <pre className="mt-2 max-h-32 overflow-auto rounded bg-muted p-2 text-xs">
+                      {JSON.stringify(item.arrivalGatewayHeaders, null, 2)}
+                    </pre>
+                  ) : null}
+                </div>
+              ))
+            )}
           </div>
         </SheetContent>
       </Sheet>

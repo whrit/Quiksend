@@ -1,4 +1,5 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/semantic.ts";
 import { listProspects } from "@/lib/prospects.functions.ts";
 import { getEnrollmentSegWarning } from "@/lib/organization.functions.ts";
 import { enrollProspects, getSequence, previewSchedule } from "@/lib/sequences.functions.ts";
@@ -243,8 +245,11 @@ function EnrollPage() {
           <h2 className="font-medium">Schedule preview</h2>
 
           {mailboxIds.length > 1 && (
-            <div className="space-y-2">
-              <Label>Preview mailbox</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[0.8125rem] font-bold">Preview mailbox</Label>
+              <p className="text-[0.75rem] text-muted-foreground">
+                Affects send-window and throttle calculation in the preview.
+              </p>
               <select
                 className="w-full rounded-md border px-3 py-2 text-sm"
                 value={previewMailboxId ?? ""}
@@ -264,7 +269,14 @@ function EnrollPage() {
             onClick={() => void loadPreview()}
             disabled={previewLoading || selected.size === 0 || !previewMailboxId}
           >
-            {previewLoading ? "Loading…" : "Preview schedule"}
+            {previewLoading ? (
+              <>
+                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                Previewing…
+              </>
+            ) : (
+              "Preview schedule"
+            )}
           </Button>
 
           {preview && (
@@ -282,9 +294,7 @@ function EnrollPage() {
                   <TableRow key={row.index}>
                     <TableCell>{row.index + 1}</TableCell>
                     <TableCell>{row.kind}</TableCell>
-                    <TableCell className="text-sm">
-                      {new Date(row.scheduledAt).toLocaleString()}
-                    </TableCell>
+                    <TableCell className="text-sm">{formatDate(row.scheduledAt) ?? "—"}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {row.deferredBy.map((d, i) => (

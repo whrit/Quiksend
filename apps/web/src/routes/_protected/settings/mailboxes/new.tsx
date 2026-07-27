@@ -114,7 +114,7 @@ function NewMailboxPage() {
   };
 
   return (
-    <div className="mx-auto max-w-xl px-6 py-6 fade-in">
+    <div className="mx-auto max-w-xl px-6 py-6 fade-in w-full min-w-0">
       <header className="mb-4 border-b border-border pb-4">
         <div className="micro-label">New mailbox</div>
         <h1 className="text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
@@ -176,14 +176,14 @@ function NewMailboxPage() {
             />
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="host" className="text-[0.6875rem] font-medium">
-                  SMTP host
+                <Label htmlFor="host" className="text-[0.8125rem] font-semibold">
+                  SMTP host <span className="text-[color:var(--neg)]">*</span>
                 </Label>
                 <Input id="host" required value={host} onChange={(e) => setHost(e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="port" className="text-[0.6875rem] font-medium">
-                  Port
+                <Label htmlFor="port" className="text-[0.8125rem] font-semibold">
+                  Port <span className="text-[color:var(--neg)]">*</span>
                 </Label>
                 <Input
                   id="port"
@@ -221,7 +221,7 @@ function NewMailboxPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="dailyCap" className="text-[0.6875rem] font-medium">
+                <Label htmlFor="dailyCap" className="text-[0.8125rem] font-semibold">
                   Daily cap
                 </Label>
                 <Input
@@ -230,9 +230,12 @@ function NewMailboxPage() {
                   value={dailyCap}
                   onChange={(e) => setDailyCap(e.target.value)}
                 />
+                <p className="text-[0.6875rem] text-muted-foreground">
+                  Max emails sent per day from this mailbox.
+                </p>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="throttle" className="text-[0.6875rem] font-medium">
+                <Label htmlFor="throttle" className="text-[0.8125rem] font-semibold">
                   Throttle (seconds)
                 </Label>
                 <Input
@@ -241,6 +244,9 @@ function NewMailboxPage() {
                   value={throttleSeconds}
                   onChange={(e) => setThrottleSeconds(e.target.value)}
                 />
+                <p className="text-[0.6875rem] text-muted-foreground">
+                  Minimum gap between sends — lower = faster, higher = more human-looking.
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 pt-2">
@@ -359,8 +365,8 @@ function MailboxIdentityFields({
   return (
     <div className="grid grid-cols-2 gap-3">
       <div className="space-y-1">
-        <Label htmlFor="address" className="text-[0.6875rem] font-medium">
-          Address
+        <Label htmlFor="address" className="text-[0.8125rem] font-semibold">
+          Address <span className="text-[color:var(--neg)]">*</span>
         </Label>
         <Input
           id="address"
@@ -372,7 +378,7 @@ function MailboxIdentityFields({
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="fromName" className="text-[0.6875rem] font-medium">
+        <Label htmlFor="fromName" className="text-[0.8125rem] font-semibold">
           From name
         </Label>
         <Input
@@ -381,6 +387,9 @@ function MailboxIdentityFields({
           value={fromName}
           onChange={(e) => onFromNameChange(e.target.value)}
         />
+        <p className="text-[0.6875rem] text-muted-foreground">
+          Shown as the sender name in recipients&apos; inboxes.
+        </p>
       </div>
     </div>
   );

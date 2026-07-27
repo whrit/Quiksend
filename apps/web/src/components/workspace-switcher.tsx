@@ -96,8 +96,12 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
         >
           <span
             aria-hidden
-            className="grid h-6 w-6 shrink-0 place-items-center rounded-[3px] text-[0.625rem] font-medium text-white"
-            style={{ background: "var(--paper-900)", letterSpacing: "0.02em" }}
+            className="grid h-6 w-6 shrink-0 place-items-center rounded-[3px] text-[0.625rem] font-medium"
+            style={{
+              background: "var(--primary)",
+              color: "var(--primary-foreground)",
+              letterSpacing: "0.02em",
+            }}
           >
             {initials || "·"}
           </span>
@@ -130,8 +134,11 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
             >
               <span
                 aria-hidden
-                className="grid h-4 w-4 place-items-center rounded-[2px] text-[0.5625rem] font-medium text-white"
-                style={{ background: isActive ? "var(--paper-900)" : "var(--paper-400)" }}
+                className="grid h-4 w-4 place-items-center rounded-[2px] text-[0.5625rem] font-medium"
+                style={{
+                  background: isActive ? "var(--primary)" : "var(--paper-400)",
+                  color: "var(--primary-foreground)",
+                }}
               >
                 {org.name.slice(0, 1).toUpperCase()}
               </span>

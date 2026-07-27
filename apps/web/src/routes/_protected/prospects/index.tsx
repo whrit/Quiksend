@@ -370,7 +370,7 @@ function ProspectsPage() {
   });
 
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-6 fade-in">
+    <div className="mx-auto max-w-[1400px] px-6 py-6 fade-in w-full min-w-0">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
         <div>
           <div className="micro-label">Contacts</div>

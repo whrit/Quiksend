@@ -1,8 +1,8 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
+import { Users } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Table,
@@ -12,6 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Absent, EmptyState, Pill } from "@/components/ui/primitives.tsx";
+import { enrollmentTone, formatRelative } from "@/lib/semantic.ts";
 import {
   getSequence,
   listEnrollments,
@@ -33,23 +35,7 @@ export const Route = createFileRoute("/_protected/sequences/$id/enrollments")({
 
 type EnrollmentRow = Awaited<ReturnType<typeof listEnrollments>>[number];
 
-const stateVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
-  active: "default",
-  waiting: "secondary",
-  waiting_manual: "secondary",
-  paused: "outline",
-  stopped: "destructive",
-  completed: "outline",
-  replied: "outline",
-  bounced: "destructive",
-  failed: "destructive",
-};
-
 const TERMINAL_STATES = new Set(["stopped", "completed", "replied", "bounced", "failed"]);
-
-function EnrollmentStateBadge({ state }: { state: string }) {
-  return <Badge variant={stateVariant[state] ?? "secondary"}>{state}</Badge>;
-}
 
 function EnrollmentActionsCell({
   enrollment,
@@ -107,12 +93,18 @@ function enrollmentColumns(
       header: "Prospect",
       cell: ({ row }) => {
         const p = row.original.prospect;
-        if (!p) return "—";
+        if (!p) return <Absent>No prospect</Absent>;
         const name = [p.firstName, p.lastName].filter(Boolean).join(" ");
         return (
           <div>
-            <div className="font-medium">{p.email}</div>
-            {name && <div className="text-xs text-muted-foreground">{name}</div>}
+            <div className="max-w-[22ch] truncate font-medium" title={p.email}>
+              {p.email}
+            </div>
+            {name ? (
+              <div className="max-w-[22ch] truncate text-xs text-muted-foreground" title={name}>
+                {name}
+              </div>
+            ) : null}
           </div>
         );
       },
@@ -120,7 +112,11 @@ function enrollmentColumns(
     {
       accessorKey: "state",
       header: "State",
-      cell: ({ row }) => <EnrollmentStateBadge state={row.original.state} />,
+      cell: ({ row }) => (
+        <Pill tone={enrollmentTone(row.original.state)} dot>
+          {row.original.state.replace(/_/g, " ")}
+        </Pill>
+      ),
     },
     {
       accessorKey: "currentStepIndex",
@@ -131,7 +127,11 @@ function enrollmentColumns(
       accessorKey: "nextRunAt",
       header: "Next run",
       cell: ({ row }) =>
-        row.original.nextRunAt ? new Date(row.original.nextRunAt).toLocaleString() : "—",
+        row.original.nextRunAt ? (
+          (formatRelative(row.original.nextRunAt) ?? <Absent>Not scheduled</Absent>)
+        ) : (
+          <Absent>Not scheduled</Absent>
+        ),
     },
     {
       id: "actions",
@@ -217,7 +217,7 @@ function EnrollmentsPage() {
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="panel overflow-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
@@ -233,14 +233,22 @@ function EnrollmentsPage() {
           <TableBody>
             {table.getRowModel().rows.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  No enrollments yet.{" "}
-                  <Link to="/sequences/$id/enroll" params={{ id }} className="underline">
-                    Enroll prospects
-                  </Link>
+                <TableCell colSpan={columns.length} className="p-0">
+                  <EmptyState
+                    icon={<Users />}
+                    hue="neutral"
+                    title="No enrollments yet"
+                    body="Enroll prospects to start running this sequence. Their progress will appear here."
+                    action={
+                      <Link
+                        to="/sequences/$id/enroll"
+                        params={{ id }}
+                        className={buttonVariants({ size: "sm" })}
+                      >
+                        Enroll prospects
+                      </Link>
+                    }
+                  />
                 </TableCell>
               </TableRow>
             ) : (

@@ -126,7 +126,7 @@ const SETTINGS_COMMANDS: CommandAction[] = [
   {
     type: "navigate",
     to: "/settings/deliverability",
-    label: "Deliverability",
+    label: "Deliverability rules",
     group: "Settings",
     Icon: Shield,
   },

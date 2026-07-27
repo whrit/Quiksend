@@ -1,12 +1,13 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Ban, Check, Loader2, Reply, Search, Send, X } from "lucide-react";
+import { Ban, Check, Inbox, Loader2, Reply, Search, Send, X } from "lucide-react";
 import { sanitizeInboundHtml } from "@quiksend/mail/sanitize-html";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { EmptyState, Pill, Tile } from "@/components/ui/primitives.tsx";
 import { cn } from "@/lib/utils";
+import { formatRelative, sentimentMeta } from "@/lib/semantic.ts";
 import type { InboxThreadSummary } from "@/lib/inbox-types.ts";
 import {
   getInboxThread,
@@ -66,16 +67,8 @@ const STATUS_CHIPS: Array<{ id: StatusFilter; label: string }> = [
   { id: "bounced", label: "Bounced" },
 ];
 
-const SENTIMENT_LABELS: Record<MessageSentiment, string> = {
-  interested: "Interested",
-  not_now: "Not now",
-  objection: "Objection",
-  out_of_office: "OOO",
-  unsubscribe_request: "Unsubscribe",
-};
-
 const MESSAGE_BODY_CLASS =
-  "mt-2.5 text-[0.8125rem] leading-[1.55] text-foreground [&_a]:text-[color:var(--link)] [&_a]:underline [&_a]:underline-offset-2 [&_p]:mb-2 [&_p:last-child]:mb-0";
+  "mt-2.5 text-[0.8125rem] leading-[1.55] text-[color:var(--paper-700)] [&_a]:text-[color:var(--link)] [&_a]:underline [&_a]:underline-offset-2 [&_p]:mb-2 [&_p:last-child]:mb-0";
 
 /** Sanitize inbound HTML when thread data enters this route's state. */
 function sanitizeInboundThreadDetail(detail: InboxThreadDetail): InboxThreadDetail {
@@ -252,10 +245,11 @@ function InboxPage() {
   }, [selectedKey, loadThreads, closeReader]);
 
   return (
-    <div className="flex min-h-0 flex-1 bg-background">
+    /* h-full fills the flex-col shell; min-h-0 lets the children scroll internally */
+    <div className="flex h-full min-h-0 flex-1 bg-background">
       {/* ─── Left pane — thread index ─────────────────────────────────── */}
       <aside
-        className="flex w-[340px] shrink-0 flex-col border-r border-border"
+        className="flex w-[340px] shrink-0 flex-col overflow-hidden border-r border-border"
         aria-label="Threads"
       >
         <div className="shrink-0 border-b border-border px-3 py-3">
@@ -352,12 +346,36 @@ function InboxPage() {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
             </div>
+          ) : threads.length === 0 ? (
+            <EmptyState
+              icon={<Inbox />}
+              hue="neutral"
+              title="No threads yet"
+              body="Replies to sequence sends land here. Connect a mailbox so Quiksend can receive replies."
+              action={
+                <Link
+                  to="/settings/mailboxes"
+                  className="text-[0.8125rem] text-[color:var(--link)] underline underline-offset-2"
+                >
+                  Go to Mailboxes →
+                </Link>
+              }
+            />
           ) : filteredThreads.length === 0 ? (
-            <div className="p-6 text-center">
-              <p className="text-[0.75rem] leading-relaxed text-muted-foreground">
-                {query ? "No threads match that search." : "No threads yet."}
-              </p>
-            </div>
+            <EmptyState
+              icon={<Search />}
+              hue="neutral"
+              title={
+                query
+                  ? `No threads match "${query}"`
+                  : `No ${status === "all" ? "" : status + " "}threads`
+              }
+              body={
+                query
+                  ? "Clear the search to see all threads."
+                  : "Switch the filter to All to see every thread."
+              }
+            />
           ) : (
             <ul>
               {filteredThreads.map((thread) => (
@@ -374,7 +392,7 @@ function InboxPage() {
       </aside>
 
       {/* ─── Right pane — the reader ──────────────────────────────────── */}
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col">
         {!selectedKey ? (
           <ReaderEmpty />
         ) : detailLoading && !threadDetail ? (
@@ -414,10 +432,13 @@ function ThreadRow({
   onSelect: () => void;
 }) {
   const unread = thread.unreadCount > 0;
-  const sentiment = thread.sentiment as MessageSentiment | null;
+  const sm = sentimentMeta(thread.sentiment);
+  const tileHue = sm ? sm.tone : "neutral";
   const senderLabel = thread.prospectName ?? thread.prospectEmail ?? "Unknown";
   const subject = thread.subject ?? "(no subject)";
-  const preview = thread.preview ?? "";
+  const preview = thread.preview;
+  const ts = formatRelative(thread.lastMessageAt) ?? "";
+  const initial = senderLabel[0]?.toUpperCase() ?? "?";
 
   return (
     <li>
@@ -426,67 +447,80 @@ function ThreadRow({
         data-selected={selected}
         onClick={onSelect}
         className={cn(
-          "group relative flex w-full flex-col items-stretch px-3 py-2.5 pl-3.5 text-left",
-          "border-b border-border/60",
-          "transition-colors duration-120",
+          "relative flex w-full items-start gap-2.5 px-3 py-2.5 text-left",
+          "border-b border-border/60 transition-colors duration-120",
+          "focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-2 focus-visible:ring-ring",
+          // Unselected hover
           "hover:bg-[color:var(--paper-050)]",
-          "focus-visible:outline-none focus-visible:bg-[color:var(--paper-050)]",
-          selected && "bg-[color:var(--paper-100)] hover:bg-[color:var(--paper-100)]",
+          // Selected: primary tint. Selected + hovered: slightly darkened tint so
+          // the combination reads as "active AND focused" rather than two conflicting states.
+          "data-[selected=true]:bg-[color:var(--brand-tint)]",
+          "data-[selected=true]:hover:bg-[color-mix(in_oklch,var(--brand-tint)_82%,var(--paper-200))]",
         )}
       >
+        {/* Unread sentinel — ink-red dot, absolute so it doesn't shift layout */}
         {unread && (
           <span
             aria-hidden
-            className="absolute left-1 top-3 h-1.5 w-1.5 rounded-full bg-[color:var(--ink-red-600)]"
+            className="absolute left-1 top-[14px] h-1.5 w-1.5 rounded-full bg-[color:var(--ink-red-600)]"
           />
         )}
 
-        <div className="flex items-baseline justify-between gap-2">
-          <span
-            className={cn(
-              "truncate text-[0.75rem]",
-              unread ? "font-semibold text-foreground" : "font-medium text-foreground",
-            )}
+        {/* Tinted tile — hue encodes sentiment where known, neutral otherwise */}
+        <Tile size="sm" hue={tileHue} tint className="mt-0.5 shrink-0">
+          <span className="text-[0.5625rem] font-semibold leading-none">{initial}</span>
+        </Tile>
+
+        {/* Thread content */}
+        <div className="min-w-0 flex-1">
+          {/* Row 1: correspondent + timestamp */}
+          <div className="flex items-baseline justify-between gap-2">
+            <span
+              className={cn(
+                "truncate text-[0.75rem]",
+                unread ? "font-semibold text-foreground" : "font-medium text-foreground",
+              )}
+              title={senderLabel}
+            >
+              {senderLabel}
+            </span>
+            <span className="shrink-0 text-[0.6875rem] text-[color:var(--paper-500)]">{ts}</span>
+          </div>
+
+          {/* Row 2: subject, truncated */}
+          <div
+            className="mt-0.5 truncate text-[0.75rem] text-[color:var(--paper-700)]"
+            title={subject}
           >
-            {senderLabel}
-          </span>
-          <span className="shrink-0 font-mono text-[0.6875rem] tabular text-muted-foreground">
-            {formatShortTime(thread.lastMessageAt)}
-          </span>
-        </div>
+            {subject}
+          </div>
 
-        <div
-          className={cn(
-            "mt-0.5 truncate text-[0.75rem]",
-            unread ? "font-medium text-foreground" : "text-foreground",
+          {/* Row 3: one-line preview, --paper-500 */}
+          {preview && (
+            <div
+              className="mt-0.5 truncate text-[0.6875rem] text-[color:var(--paper-500)]"
+              title={preview}
+            >
+              {preview}
+            </div>
           )}
-        >
-          {subject}
+
+          {/* Row 4: pills — bounce has highest salience, then sentiment */}
+          {(thread.hasBounce || sm) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+              {thread.hasBounce && (
+                <Pill tone="neg" dot>
+                  Bounce
+                </Pill>
+              )}
+              {sm && !thread.hasBounce && (
+                <Pill tone={sm.tone} dot>
+                  {sm.label}
+                </Pill>
+              )}
+            </div>
+          )}
         </div>
-
-        {preview && (
-          <div className="mt-0.5 line-clamp-2 text-[0.6875rem] leading-[1.35] text-muted-foreground">
-            {preview}
-          </div>
-        )}
-
-        {(thread.hasBounce || sentiment) && (
-          <div className="mt-1 flex flex-wrap items-center gap-1">
-            {thread.hasBounce && (
-              <Badge variant="destructive" className="text-[0.625rem]">
-                bounce
-              </Badge>
-            )}
-            {sentiment && !thread.hasBounce && (
-              <Badge
-                variant={sentiment === "interested" ? "success" : "subtle"}
-                className="text-[0.625rem]"
-              >
-                {SENTIMENT_LABELS[sentiment]}
-              </Badge>
-            )}
-          </div>
-        )}
       </button>
     </li>
   );
@@ -497,8 +531,8 @@ function ThreadRow({
 function ReaderEmpty() {
   return (
     <div className="flex flex-1 items-center justify-center px-6">
-      <div className="max-w-sm text-center">
-        <div className="micro-label">No thread selected</div>
+      <div className="max-w-[36ch] text-center">
+        <p className="text-[0.875rem] font-medium text-foreground">Select a thread</p>
         <p className="mt-1.5 text-[0.75rem] leading-relaxed text-muted-foreground">
           Choose a thread from the list. Replies from prospects land here as your sequences run.
         </p>
@@ -700,9 +734,9 @@ function MessageArticle({ message }: { message: InboxMessage }) {
         </div>
         <div className="flex items-center gap-2">
           {message.bounceType && (
-            <Badge variant="destructive" className="text-[0.625rem]">
+            <Pill tone="neg" dot>
               {message.bounceType} bounce
-            </Badge>
+            </Pill>
           )}
           {ts && (
             <span className="font-mono text-[0.6875rem] tabular text-muted-foreground">
@@ -712,6 +746,9 @@ function MessageArticle({ message }: { message: InboxMessage }) {
         </div>
       </header>
 
+      {/* Comfortable measure and --paper-700 body text for readability.
+          Links are primary-coloured. Sanitization happens upstream in
+          sanitizeInboundThreadDetail / SafeInboundHtml — never bypass it. */}
       {hasHtml ? (
         isOutbound ? (
           <div
@@ -791,13 +828,6 @@ function MiniSelect({
 
 /* ─── Formatting helpers ────────────────────────────────────────────────── */
 
-const timeFmt = new Intl.DateTimeFormat("en-US", {
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-const weekdayFmt = new Intl.DateTimeFormat("en-US", { weekday: "short" });
-const monthDayFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 const fullFmt = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -806,20 +836,6 @@ const fullFmt = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
   hour12: false,
 });
-
-function formatShortTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  if (sameDay) return timeFmt.format(d);
-  const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays >= 0 && diffDays < 7) return weekdayFmt.format(d);
-  return monthDayFmt.format(d);
-}
 
 function formatFullTime(iso: string): string {
   const d = new Date(iso);
@@ -832,11 +848,8 @@ function statusLabelForThread(
   messages: InboxMessage[],
 ): string {
   if (summary?.hasBounce || messages.some((m) => m.bounceType)) return "Bounced";
-  const sentiment = (summary?.sentiment ?? messages.find((m) => m.sentiment)?.sentiment) as
-    | MessageSentiment
-    | null
-    | undefined;
-  if (sentiment) return SENTIMENT_LABELS[sentiment];
+  const sentiment = summary?.sentiment ?? messages.find((m) => m.sentiment)?.sentiment;
+  if (sentiment) return sentimentMeta(sentiment)?.label ?? sentiment.replace(/_/g, " ");
   const lastDir = summary?.lastDirection ?? messages.at(-1)?.direction;
   if (lastDir === "inbound") return "Replied";
   return "Thread";

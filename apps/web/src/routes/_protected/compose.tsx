@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { Check, ChevronsUpDown, Loader2, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -121,8 +121,10 @@ function ComposePage() {
     }
   };
 
+  const canSend = Boolean(mailboxId && prospectId && subject.trim() && bodyHtml.trim());
+
   return (
-    <div className="mx-auto max-w-2xl px-6 py-6 fade-in">
+    <div className="mx-auto max-w-2xl px-6 py-6 fade-in w-full min-w-0">
       <header className="mb-4 border-b border-border pb-4">
         <div className="micro-label">One-off</div>
         <h1 className="mt-0.5 text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
@@ -133,29 +135,52 @@ function ComposePage() {
         </p>
       </header>
 
-      <div className="panel space-y-4 p-4">
-        <div className="space-y-2">
-          <Label>Mailbox</Label>
-          <Select value={mailboxId} onValueChange={setMailboxId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select mailbox" />
-            </SelectTrigger>
-            <SelectContent>
-              {mailboxes.map((mb) => (
-                <SelectItem key={mb.id} value={mb.id}>
-                  {mb.fromName ? `${mb.fromName} <${mb.address}>` : mb.address}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="panel space-y-5 p-4">
+        {/* ── Mailbox ─────────────────────────────────────────────────── */}
+        <div className="space-y-1.5">
+          <Label className="font-semibold">Mailbox</Label>
+          <p className="text-[0.75rem] text-muted-foreground">
+            The sending address. Replies arrive in your Inbox for this mailbox.
+          </p>
+          {mailboxes.length === 0 ? (
+            <p className="text-[0.75rem] text-[color:var(--warn)]">
+              No mailboxes connected —{" "}
+              <Link to="/settings/mailboxes" className="underline underline-offset-2">
+                connect one first
+              </Link>
+              .
+            </p>
+          ) : (
+            <Select value={mailboxId} onValueChange={setMailboxId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select mailbox" />
+              </SelectTrigger>
+              <SelectContent>
+                {mailboxes.map((mb) => (
+                  <SelectItem key={mb.id} value={mb.id}>
+                    {mb.fromName ? `${mb.fromName} <${mb.address}>` : mb.address}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
-        <div className="space-y-2">
-          <Label>Prospect</Label>
+        {/* ── Recipient ───────────────────────────────────────────────── */}
+        <div className="space-y-1.5">
+          <Label className="font-semibold">Recipient</Label>
+          <p className="text-[0.75rem] text-muted-foreground">
+            Must be an existing prospect. The thread anchor links to this person for follow-up
+            sequences.
+          </p>
           <Popover open={prospectOpen} onOpenChange={setProspectOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-full justify-between font-normal">
-                {prospectLabel || "Search prospects…"}
+                {prospectLabel ? (
+                  prospectLabel
+                ) : (
+                  <span className="text-[color:var(--paper-400)]">Search prospects…</span>
+                )}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
@@ -173,7 +198,13 @@ function ComposePage() {
                     </div>
                   ) : (
                     <>
-                      <CommandEmpty>No prospects found.</CommandEmpty>
+                      <CommandEmpty>
+                        <span className="text-[color:var(--paper-400)]">
+                          {prospectQuery.trim().length < 2
+                            ? "Type at least 2 characters to search"
+                            : "No prospects found — add them via Prospects first"}
+                        </span>
+                      </CommandEmpty>
                       <CommandGroup>
                         {prospectResults.map((p) => (
                           <CommandItem
@@ -203,8 +234,14 @@ function ComposePage() {
           </Popover>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="subject">Subject</Label>
+        {/* ── Subject ─────────────────────────────────────────────────── */}
+        <div className="space-y-1.5">
+          <Label htmlFor="subject" className="font-semibold">
+            Subject
+          </Label>
+          <p className="text-[0.75rem] text-muted-foreground">
+            Visible in the recipient's inbox — sets the open rate.
+          </p>
           <div className="flex gap-2">
             <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
             <Button
@@ -218,8 +255,15 @@ function ComposePage() {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="body">Body</Label>
+        {/* ── Body ────────────────────────────────────────────────────── */}
+        <div className="space-y-1.5">
+          <Label htmlFor="body" className="font-semibold">
+            Body
+          </Label>
+          <p className="text-[0.75rem] text-muted-foreground">
+            Plain text or simple HTML. AI Assist drafts from prospect research when a recipient is
+            selected.
+          </p>
           <Textarea
             id="body"
             rows={10}
@@ -229,13 +273,29 @@ function ComposePage() {
           />
         </div>
 
-        <Button onClick={() => void handleSend()} disabled={sending}>
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}
+        {/* ── Send ────────────────────────────────────────────────────── */}
+        <Button
+          className="w-full"
+          onClick={() => void handleSend()}
+          disabled={sending || !canSend}
+          aria-busy={sending}
+        >
+          {sending ? (
+            <>
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              Sending…
+            </>
+          ) : (
+            <>
+              <Send className="mr-2 h-3.5 w-3.5" />
+              Send email
+            </>
+          )}
         </Button>
       </div>
 
       {lastMessageId ? (
-        <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+        <div className="mt-4 rounded-lg border bg-muted/40 p-4 text-sm">
           <p>
             Sent with Message-Id: <code className="text-xs">{lastMessageId}</code>
           </p>

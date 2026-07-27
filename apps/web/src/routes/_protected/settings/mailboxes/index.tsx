@@ -3,7 +3,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Activity, Loader2, Mail, Plus, RefreshCw, RotateCw, Send, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +22,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Absent, EmptyState, Pill, SkeletonRows, Tile } from "@/components/ui/primitives.tsx";
+import {
+  formatCount,
+  healthLabel,
+  healthTone,
+  mailboxStatusTone,
+  providerMeta,
+} from "@/lib/semantic.ts";
 import {
   checkMailboxHealth,
   createGmailReconnectSession,
@@ -42,7 +49,8 @@ export const Route = createFileRoute("/_protected/settings/mailboxes/")({
 
 type MailboxRow = PublicMailbox;
 
-function HealthDots({
+/** Three individually-labelled SPF / DKIM / DMARC pills — greyscale-safe. */
+function HealthPills({
   spf,
   dkim,
   dmarc,
@@ -51,17 +59,19 @@ function HealthDots({
   dkim: boolean | null;
   dmarc: boolean | null;
 }) {
-  const dot = (ok: boolean | null, label: string) => (
-    <span
-      className={`inline-block h-2.5 w-2.5 rounded-full ${ok === null ? "bg-muted" : ok ? "bg-emerald-500" : "bg-red-500"}`}
-      title={`${label}: ${ok === null ? "unchecked" : ok ? "pass" : "fail"}`}
-    />
-  );
   return (
-    <div className="flex items-center gap-1.5" title="SPF / DKIM / DMARC">
-      {dot(spf, "SPF")}
-      {dot(dkim, "DKIM")}
-      {dot(dmarc, "DMARC")}
+    <div className="flex flex-wrap items-center gap-1">
+      {(
+        [
+          ["SPF", spf],
+          ["DKIM", dkim],
+          ["DMARC", dmarc],
+        ] as const
+      ).map(([name, ok]) => (
+        <Pill key={name} tone={healthTone(ok)} dot>
+          {name} {healthLabel(ok)}
+        </Pill>
+      ))}
     </div>
   );
 }
@@ -80,6 +90,8 @@ function MailboxesPage() {
   } | null>(null);
   const [safeReason, setSafeReason] = useState("");
   const [safeSaving, setSafeSaving] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState<{ id: string; address: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const reload = useCallback(async () => {
     setIsLoading(true);
@@ -140,8 +152,23 @@ function MailboxesPage() {
     [reload],
   );
 
+  const confirmDelete = async () => {
+    if (!deleteDialog) return;
+    setDeleting(true);
+    try {
+      await deleteMailbox({ data: { id: deleteDialog.id } });
+      toast.success("Mailbox deleted");
+      setDeleteDialog(null);
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete mailbox");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 px-6 py-6 fade-in w-full min-w-0">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[1.125rem] font-semibold leading-tight tracking-[-0.015em]">
@@ -158,15 +185,23 @@ function MailboxesPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="panel overflow-hidden">
+          <SkeletonRows rows={4} cols={9} />
         </div>
       ) : mailboxes.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <Mail className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-          <p className="text-muted-foreground">
-            No mailboxes yet. Add an SMTP mailbox to start sending.
-          </p>
+        <div className="panel">
+          <EmptyState
+            icon={<Mail className="h-5 w-5" />}
+            hue="brand"
+            title="No mailboxes connected"
+            body="Quiksend sends from your own mailbox — connect Gmail, Microsoft or SMTP to start."
+            action={
+              <Link to="/settings/mailboxes/new" className={buttonVariants({ size: "sm" })}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Add mailbox
+              </Link>
+            }
+          />
         </div>
       ) : (
         <Table>
@@ -175,8 +210,8 @@ function MailboxesPage() {
               <TableHead>Address</TableHead>
               <TableHead>Provider</TableHead>
               <TableHead>From name</TableHead>
-              <TableHead>Daily cap</TableHead>
-              <TableHead>Throttle (s)</TableHead>
+              <TableHead className="text-right">Daily cap</TableHead>
+              <TableHead className="text-right">Throttle (s)</TableHead>
               <TableHead>Health</TableHead>
               <TableHead>Enterprise-safe</TableHead>
               <TableHead>Status</TableHead>
@@ -184,117 +219,135 @@ function MailboxesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mailboxes.map((mb) => (
-              <TableRow key={mb.id}>
-                <TableCell className="font-medium">{mb.address}</TableCell>
-                <TableCell className="capitalize">{mb.provider}</TableCell>
-                <TableCell>{mb.fromName ?? "—"}</TableCell>
-                <TableCell>{mb.dailyCap}</TableCell>
-                <TableCell>{mb.throttleSeconds}</TableCell>
-                <TableCell>
-                  <HealthDots spf={mb.spfOk} dkim={mb.dkimOk} dmarc={mb.dmarcOk} />
-                </TableCell>
-                <TableCell>
-                  <Button
-                    size="sm"
-                    variant={mb.enterpriseSafe ? "default" : "outline"}
-                    disabled={busyId === mb.id}
-                    onClick={() =>
-                      setSafeDialog({
-                        id: mb.id,
-                        address: mb.address,
-                        enabling: !mb.enterpriseSafe,
-                      })
-                    }
-                  >
-                    {mb.enterpriseSafe ? "Safe" : "Not safe"}
-                  </Button>
-                  {mb.enterpriseSafeAutoDowngraded && (
-                    <Badge variant="destructive" className="ml-2">
-                      Downgraded
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={mb.status === "active" ? "default" : "secondary"}>
-                    {mb.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    {mb.status === "error" &&
-                      (mb.provider === "gmail" || mb.provider === "microsoft") && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          title="Reconnect via Nango"
-                          disabled={busyId === mb.id}
-                          onClick={() => void reconnectMailbox(mb)}
-                        >
-                          <RotateCw className="mr-1 h-3.5 w-3.5" />
-                          Reconnect
-                        </Button>
-                      )}
-                    <Link
-                      to="/settings/mailboxes/$id/health"
-                      params={{ id: mb.id }}
-                      className={buttonVariants({ size: "icon", variant: "ghost" })}
-                      title="View health"
-                    >
-                      <Activity className="h-4 w-4" />
-                    </Link>
+            {mailboxes.map((mb) => {
+              const pm = providerMeta(mb.provider);
+              return (
+                <TableRow key={mb.id}>
+                  <TableCell className="max-w-[22ch] truncate font-medium" title={mb.address}>
+                    {mb.address}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      <Tile size="sm" hue={pm.cat} tint>
+                        {pm.label[0]}
+                      </Tile>
+                      <span>{pm.label}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="max-w-[16ch] truncate" title={mb.fromName ?? undefined}>
+                    {mb.fromName ? mb.fromName : <Absent>Not set</Absent>}
+                  </TableCell>
+                  <TableCell className="num text-right">
+                    {mb.dailyCap != null ? formatCount(mb.dailyCap) : <Absent />}
+                  </TableCell>
+                  <TableCell className="num text-right">
+                    {mb.throttleSeconds != null ? formatCount(mb.throttleSeconds) : <Absent />}
+                  </TableCell>
+                  <TableCell>
+                    <HealthPills spf={mb.spfOk} dkim={mb.dkimOk} dmarc={mb.dmarcOk} />
+                  </TableCell>
+                  <TableCell>
                     <Button
-                      size="icon"
-                      variant="ghost"
-                      title="Test send"
-                      onClick={() => setTestDialog({ id: mb.id, address: mb.address })}
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title="Refresh health"
+                      size="sm"
+                      variant={mb.enterpriseSafe ? "default" : "outline"}
                       disabled={busyId === mb.id}
-                      onClick={() => {
-                        setBusyId(mb.id);
-                        void checkMailboxHealth({ data: { id: mb.id } })
-                          .then(() => {
-                            toast.success("Health check complete");
-                            return reload();
-                          })
-                          .catch((err: Error) => toast.error(err.message))
-                          .finally(() => setBusyId(null));
-                      }}
+                      onClick={() =>
+                        setSafeDialog({
+                          id: mb.id,
+                          address: mb.address,
+                          enabling: !mb.enterpriseSafe,
+                        })
+                      }
                     >
-                      <RefreshCw className="h-4 w-4" />
+                      {mb.enterpriseSafe ? "Safe" : "Not safe"}
                     </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title="Delete"
-                      onClick={() => {
-                        if (!confirm(`Delete mailbox ${mb.address}?`)) return;
-                        setBusyId(mb.id);
-                        void deleteMailbox({ data: { id: mb.id } })
-                          .then(() => {
-                            toast.success("Mailbox deleted");
-                            return reload();
-                          })
-                          .catch((err: Error) => toast.error(err.message))
-                          .finally(() => setBusyId(null));
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                    {mb.enterpriseSafeAutoDowngraded && (
+                      <Pill tone="neg" dot className="ml-2">
+                        Downgraded
+                      </Pill>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Pill tone={mailboxStatusTone(mb.status)} dot>
+                      {mb.status}
+                    </Pill>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      {mb.status === "error" &&
+                        (mb.provider === "gmail" || mb.provider === "microsoft") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            aria-label={`Reconnect ${mb.address} via OAuth`}
+                            disabled={busyId === mb.id}
+                            onClick={() => void reconnectMailbox(mb)}
+                          >
+                            <RotateCw className="mr-1 h-3.5 w-3.5" />
+                            Reconnect
+                          </Button>
+                        )}
+                      <Link
+                        to="/settings/mailboxes/$id/health"
+                        params={{ id: mb.id }}
+                        className={buttonVariants({ size: "icon", variant: "ghost" })}
+                        aria-label={`View health for ${mb.address}`}
+                        title="View health"
+                      >
+                        <Activity className="h-4 w-4" />
+                      </Link>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`Send test email from ${mb.address}`}
+                        title="Test send"
+                        onClick={() => setTestDialog({ id: mb.id, address: mb.address })}
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`Refresh health for ${mb.address}`}
+                        title="Refresh health"
+                        disabled={busyId === mb.id}
+                        onClick={() => {
+                          setBusyId(mb.id);
+                          void checkMailboxHealth({ data: { id: mb.id } })
+                            .then(() => {
+                              toast.success("Health check complete");
+                              return reload();
+                            })
+                            .catch((err: Error) => toast.error(err.message))
+                            .finally(() => setBusyId(null));
+                        }}
+                      >
+                        {busyId === mb.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="text-[color:var(--neg)]"
+                        aria-label={`Delete mailbox ${mb.address}`}
+                        onClick={() => setDeleteDialog({ id: mb.id, address: mb.address })}
+                      >
+                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+                        Delete
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}
 
+      {/* ── Test send dialog ─────────────────────────────────────────────── */}
       <Dialog open={testDialog !== null} onOpenChange={(open) => !open && setTestDialog(null)}>
         <DialogContent>
           <DialogHeader>
@@ -304,7 +357,9 @@ function MailboxesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="test-email">Recipient email</Label>
+            <Label htmlFor="test-email">
+              Recipient email <span className="text-[color:var(--neg)]">*</span>
+            </Label>
             <Input
               id="test-email"
               type="email"
@@ -312,8 +367,14 @@ function MailboxesPage() {
               value={testEmail}
               onChange={(e) => setTestEmail(e.target.value)}
             />
+            <p className="text-[0.6875rem] text-muted-foreground">
+              A real message will be sent — use Mailpit or a test address.
+            </p>
           </div>
           <DialogFooter>
+            <Button variant="outline" onClick={() => setTestDialog(null)}>
+              Cancel
+            </Button>
             <Button
               disabled={!testEmail || testSending}
               onClick={() => {
@@ -335,6 +396,7 @@ function MailboxesPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Enterprise-safe dialog ───────────────────────────────────────── */}
       <Dialog open={safeDialog !== null} onOpenChange={(open) => !open && setSafeDialog(null)}>
         <DialogContent>
           <DialogHeader>
@@ -371,6 +433,9 @@ function MailboxesPage() {
                 value={safeReason}
                 onChange={(e) => setSafeReason(e.target.value)}
               />
+              <p className="text-[0.6875rem] text-muted-foreground">
+                Recorded in audit log. Helps justify the flag when reviewing deliverability.
+              </p>
             </div>
           )}
           <DialogFooter>
@@ -410,6 +475,28 @@ function MailboxesPage() {
               ) : (
                 "Remove"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete confirmation dialog ───────────────────────────────────── */}
+      <Dialog open={deleteDialog !== null} onOpenChange={(open) => !open && setDeleteDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete mailbox?</DialogTitle>
+            <DialogDescription>
+              <strong>{deleteDialog?.address}</strong> will be permanently removed. Active sequences
+              using this mailbox will fall back to workspace defaults.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialog(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={deleting} onClick={() => void confirmDelete()}>
+              {deleting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+              Delete mailbox
             </Button>
           </DialogFooter>
         </DialogContent>

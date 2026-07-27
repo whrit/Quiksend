@@ -69,9 +69,12 @@ function NewSequencePage() {
       ) : null}
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="sequence-name" className="text-[0.6875rem] font-medium">
-            Name
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="sequence-name" className="text-[0.8125rem] font-bold">
+            Name{" "}
+            <span className="text-[color:var(--neg)]" aria-hidden="true">
+              *
+            </span>
           </Label>
           <Input
             id="sequence-name"
@@ -82,6 +85,9 @@ function NewSequencePage() {
             onChange={(e) => setName(e.target.value)}
             required
           />
+          <p className="text-[0.75rem] text-muted-foreground">
+            Appears in your sequences list and email thread subjects.
+          </p>
         </div>
         <div className="flex items-center gap-1.5 pt-1">
           <Button type="submit" size="lg" disabled={creating || !name.trim()}>

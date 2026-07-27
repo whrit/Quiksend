@@ -39,22 +39,28 @@
 
 :root {
   /* ── Neutral ramp ────────────────────────────────────────────────────────
-     Warm near-white (60° hue at ~0.003 chroma). Carries ~90% of the pixels.
-     Body copy sits at --paper-600, never full-strength ink: full black on
-     every line is what makes a dense screen feel harsh. */
-  --paper-000: oklch(0.988 0.002 60); /* page background */
-  --paper-050: oklch(0.973 0.003 60); /* inset / header fill */
-  --paper-100: oklch(0.952 0.004 60); /* muted panel, hover */
-  --paper-150: oklch(0.922 0.004 60); /* light divider */
-  --paper-200: oklch(0.892 0.005 60); /* hairline border */
-  --paper-300: oklch(0.8 0.006 60); /* strong border, disabled fg */
-  --paper-400: oklch(0.66 0.007 60); /* placeholder / ink-3 */
-  --paper-500: oklch(0.53 0.007 60); /* meta / muted fg */
-  --paper-600: oklch(0.41 0.007 60); /* body copy — ink-2 */
-  --paper-700: oklch(0.31 0.006 60);
-  --paper-800: oklch(0.22 0.005 60);
-  --paper-900: oklch(0.16 0.005 60); /* headings — ink */
-  --paper-950: oklch(0.09 0.004 60);
+     Cool slate, on the same 285° axis as the indigo primary and the dark
+     theme, at chroma low enough (≤0.012) to still read as grey. The warm 60°
+     ramp this replaces tinted every surface faintly tan, which fought the
+     indigo and made large light areas look aged rather than clean.
+
+     Panels sit at pure white against a very slightly grey page, so the
+     hairline structure separates without needing shadows. Body copy sits at
+     --paper-600, never full-strength ink: full black on every line is what
+     makes a dense screen feel harsh. */
+  --paper-000: oklch(0.979 0.0025 285); /* page background */
+  --paper-050: oklch(0.966 0.0035 285); /* inset / header fill */
+  --paper-100: oklch(0.944 0.005 285); /* muted panel, hover */
+  --paper-150: oklch(0.916 0.006 285); /* light divider */
+  --paper-200: oklch(0.889 0.007 285); /* hairline border */
+  --paper-300: oklch(0.795 0.009 285); /* strong border, disabled fg */
+  --paper-400: oklch(0.655 0.011 285); /* placeholder / ink-3 */
+  --paper-500: oklch(0.525 0.012 285); /* meta / muted fg */
+  --paper-600: oklch(0.405 0.012 285); /* body copy — ink-2 */
+  --paper-700: oklch(0.305 0.01 285);
+  --paper-800: oklch(0.215 0.008 285);
+  --paper-900: oklch(0.155 0.007 285); /* headings — ink */
+  --paper-950: oklch(0.09 0.005 285);
 
   /* ── Primary: indigo ─────────────────────────────────────────────────────
      Reads as software without carrying an emotional charge. Meaning is

@@ -1,6 +1,5 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -11,6 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Pill, Tile } from "@/components/ui/primitives.tsx";
+import { formatDate, stepMeta } from "@/lib/semantic.ts";
 import {
   getSequenceABCompare,
   getSequenceEventTimeline,
@@ -94,7 +95,12 @@ function SequenceAnalyticsPage() {
               {stepRates.map((step) => (
                 <TableRow key={step.stepIndex}>
                   <TableCell>{step.stepIndex + 1}</TableCell>
-                  <TableCell>{step.stepType}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Tile size="xs" hue={stepMeta(step.stepType).cat} tint />
+                      <span>{stepMeta(step.stepType).label}</span>
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right">{step.sent}</TableCell>
                   <TableCell className="text-right">{(step.replyRate * 100).toFixed(1)}%</TableCell>
                   <TableCell className="text-right">
@@ -152,10 +158,8 @@ function SequenceAnalyticsPage() {
             <ul className="space-y-2">
               {timeline.map((ev) => (
                 <li key={ev.id} className="flex items-center gap-2 text-sm">
-                  <Badge variant="outline">{ev.type}</Badge>
-                  <span className="text-muted-foreground">
-                    {new Date(ev.created_at).toLocaleString()}
-                  </span>
+                  <Pill tone="neutral">{ev.type}</Pill>
+                  <span className="text-muted-foreground">{formatDate(ev.created_at) ?? "—"}</span>
                 </li>
               ))}
             </ul>

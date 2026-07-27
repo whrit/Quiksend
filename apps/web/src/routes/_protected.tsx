@@ -1,4 +1,5 @@
 import {
+  AlertCircle,
   BarChart3,
   Building2,
   Command as CommandIcon,
@@ -37,6 +38,8 @@ import { CommandPalette, useCommandPaletteHotkey } from "@/components/command-pa
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { authClient } from "@/lib/auth-client";
 import { getProtectedContext } from "@/lib/auth.functions";
+import { Tile } from "@/components/ui/primitives.tsx";
+import { ThemeToggle } from "@/components/theme-toggle.tsx";
 
 export const Route = createFileRoute("/_protected")({
   beforeLoad: async () => {
@@ -57,12 +60,37 @@ export const Route = createFileRoute("/_protected")({
 });
 
 function ProtectedErrorBoundary({ error }: { error: unknown }) {
-  const message = error instanceof Error ? error.message : "Something went wrong.";
+  const rawMessage = error instanceof Error ? error.message : String(error ?? "Unknown error");
+
+  // Zod validation errors stringify to a JSON array — never dump them raw at the user.
+  let friendlyMessage =
+    "An unexpected error prevented this page from loading. Try reloading or returning to the dashboard.";
+  try {
+    const parsed = JSON.parse(rawMessage) as unknown;
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const first = parsed[0] as { message?: string };
+      friendlyMessage = first.message
+        ? `Validation failed: ${(parsed as { message?: string }[])
+            .map((i) => i.message)
+            .filter(Boolean)
+            .join(", ")}.`
+        : friendlyMessage;
+    }
+  } catch {
+    // Not JSON — use the raw message if it's a plain-English string, not "[object Object]".
+    if (rawMessage && !rawMessage.startsWith("[object")) friendlyMessage = rawMessage;
+  }
+
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-8 text-center">
-      <h1 className="text-[1.375rem] font-semibold tracking-[-0.015em]">Something went wrong</h1>
-      <p className="max-w-lg text-[0.8125rem] text-muted-foreground">{message}</p>
-      <div className="mt-2 flex items-center gap-2">
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-8 text-center">
+      <Tile size="lg" hue="neg" tint>
+        <AlertCircle />
+      </Tile>
+      <div className="max-w-[38ch]">
+        <h1 className="text-[1.125rem] font-semibold tracking-[-0.015em]">Page failed to load</h1>
+        <p className="mt-1.5 text-[0.8125rem] text-muted-foreground">{friendlyMessage}</p>
+      </div>
+      <div className="flex items-center gap-2">
         <Link to="/dashboard">
           <Button variant="outline" size="sm">
             Return to dashboard
@@ -72,29 +100,54 @@ function ProtectedErrorBoundary({ error }: { error: unknown }) {
           Reload
         </Button>
       </div>
+      <details className="mt-1 max-w-lg text-left">
+        <summary className="cursor-pointer select-none text-[0.6875rem] text-muted-foreground hover:text-foreground">
+          Technical detail
+        </summary>
+        <pre className="mt-2 overflow-x-auto rounded-[4px] border border-border bg-[color:var(--paper-050)] p-3 text-[0.625rem] leading-relaxed text-muted-foreground">
+          {rawMessage}
+        </pre>
+      </details>
     </div>
   );
 }
 
 type NavIcon = (props: { className?: string }) => React.ReactNode;
 
-const PRIMARY_NAV: Array<{ to: string; label: string; Icon: NavIcon }> = [
-  { to: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
-  { to: "/prospects", label: "Prospects", Icon: Users },
-  { to: "/sequences", label: "Sequences", Icon: ListChecks },
-  { to: "/inbox", label: "Inbox", Icon: Inbox },
-  { to: "/compose", label: "Compose", Icon: PencilLine },
-  { to: "/analytics", label: "Analytics", Icon: BarChart3 },
-  { to: "/deliverability", label: "Deliverability", Icon: Shield },
+type NavItem = { to: string; label: string; Icon: NavIcon };
+
+const PRIMARY_NAV_GROUPS: Array<{ group: string; items: NavItem[] }> = [
+  {
+    group: "Pipeline",
+    items: [
+      { to: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+      { to: "/prospects", label: "Prospects", Icon: Users },
+      { to: "/sequences", label: "Sequences", Icon: ListChecks },
+    ],
+  },
+  {
+    group: "Conversations",
+    items: [
+      { to: "/inbox", label: "Inbox", Icon: Inbox },
+      { to: "/compose", label: "Compose", Icon: PencilLine },
+    ],
+  },
+  {
+    group: "Insights",
+    items: [
+      { to: "/analytics", label: "Analytics", Icon: BarChart3 },
+      { to: "/deliverability", label: "Deliverability", Icon: Shield },
+    ],
+  },
 ];
 
-const SETTINGS_NAV: Array<{ to: string; label: string; Icon: NavIcon }> = [
+const SETTINGS_NAV: NavItem[] = [
   { to: "/settings/mailboxes", label: "Mailboxes", Icon: Mail },
   { to: "/settings/crm", label: "CRM", Icon: Building2 },
   { to: "/settings/webhooks", label: "Webhooks", Icon: Webhook },
   { to: "/settings/api-keys", label: "API keys", Icon: KeyRound },
   { to: "/settings/value-props", label: "Value props", Icon: Sparkles },
-  { to: "/settings/deliverability", label: "Deliverability", Icon: Shield },
+  { to: "/settings/deliverability", label: "Deliverability rules", Icon: Shield },
   { to: "/settings/suppression", label: "Suppression", Icon: Settings },
 ];
 
@@ -155,25 +208,33 @@ function ProtectedLayout() {
           </div>
 
           <nav className="flex-1 space-y-px overflow-y-auto px-2 py-2">
-            <div className="micro-label px-2 pb-1 pt-1">Workspace</div>
-            {PRIMARY_NAV.map((item) => (
-              <SidebarLink key={item.to} {...item} currentPath={currentPath} />
+            {PRIMARY_NAV_GROUPS.map(({ group, items }, gi) => (
+              <div key={group} className={gi > 0 ? "pt-1" : undefined}>
+                <div className="micro-label px-2 pb-1 pt-1">{group}</div>
+                {items.map((item) => (
+                  <SidebarLink key={item.to} {...item} currentPath={currentPath} />
+                ))}
+              </div>
             ))}
-
-            <div className="micro-label px-2 pb-1 pt-3">Settings</div>
-            {SETTINGS_NAV.map((item) => (
-              <SidebarLink key={item.to} {...item} currentPath={currentPath} />
-            ))}
+            <div className="pt-1">
+              <div className="micro-label px-2 pb-1 pt-1">Settings</div>
+              {SETTINGS_NAV.map((item) => (
+                <SidebarLink key={item.to} {...item} currentPath={currentPath} />
+              ))}
+            </div>
           </nav>
 
-          <div className="border-t border-border p-2">
+          <div className="flex items-center gap-1 border-t border-border p-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="group flex w-full items-center gap-2 rounded-[4px] px-1.5 py-1.5 text-left transition-colors hover:bg-[color:var(--paper-100)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <button
+                  aria-label="Account menu"
+                  className="group flex min-w-0 flex-1 items-center gap-2 rounded-[4px] px-1.5 py-1.5 text-left transition-colors hover:bg-[color:var(--paper-100)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                >
                   <span
                     aria-hidden
-                    className="grid h-6 w-6 shrink-0 place-items-center rounded-[3px] text-[0.625rem] font-medium text-white"
-                    style={{ background: "var(--paper-900)" }}
+                    className="grid h-6 w-6 shrink-0 place-items-center rounded-[3px] text-[0.625rem] font-medium"
+                    style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
                   >
                     {(user.name || user.email).slice(0, 1).toUpperCase()}
                   </span>
@@ -211,6 +272,7 @@ function ProtectedLayout() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <ThemeToggle />
           </div>
         </aside>
 

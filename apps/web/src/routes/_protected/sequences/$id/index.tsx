@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { Pill } from "@/components/ui/primitives.tsx";
+import type { Tone } from "@/lib/semantic.ts";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SEG_GATEWAY_VALUES } from "@/components/gateway-badge.tsx";
@@ -26,14 +27,16 @@ export const Route = createFileRoute("/_protected/sequences/$id/")({
   component: SequenceDetailPage,
 });
 
-const LIVE_SIGNAL_CLASS = {
-  green: "bg-emerald-500/20 text-emerald-800 border-emerald-200",
-  yellow: "bg-amber-500/20 text-amber-900 border-amber-200",
-  red: "bg-red-500/20 text-red-900 border-red-200",
-  insufficient_data: "bg-muted text-muted-foreground border-border",
-} as const;
+type LiveSignalKey = "green" | "yellow" | "red" | "insufficient_data";
 
-function liveSignal(pct: number | null, sampleSize: number): keyof typeof LIVE_SIGNAL_CLASS {
+function liveSignalTone(sig: LiveSignalKey): Tone {
+  if (sig === "green") return "pos";
+  if (sig === "yellow") return "warn";
+  if (sig === "red") return "neg";
+  return "neutral";
+}
+
+function liveSignal(pct: number | null, sampleSize: number): LiveSignalKey {
   if (sampleSize < 1 || pct === null) return "insufficient_data";
   if (pct >= 90) return "green";
   if (pct >= 50) return "yellow";
@@ -196,11 +199,11 @@ function SequenceDetailPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-center gap-3">
-            <Badge variant="outline" className={LIVE_SIGNAL_CLASS[signal]}>
+            <Pill tone={liveSignalTone(signal)} dot>
               {signal === "insufficient_data"
                 ? "Insufficient data"
                 : `${liveDeliverability.deliverabilityPct}% inbox`}
-            </Badge>
+            </Pill>
             <span className="text-sm text-muted-foreground">
               last 2h · {liveDeliverability.sampleSize} canar
               {liveDeliverability.sampleSize === 1 ? "y" : "ies"}

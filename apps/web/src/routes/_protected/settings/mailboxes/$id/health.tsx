@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCount } from "@/lib/semantic.ts";
 import { getMailboxHealthSummary, getMailboxVolume } from "@/lib/analytics.functions.ts";
 
 export const Route = createFileRoute("/_protected/settings/mailboxes/$id/health")({
@@ -37,7 +38,7 @@ function MailboxHealthPage() {
   const { mailbox } = summary;
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+    <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-6 fade-in">
       <div className="flex items-center gap-3">
         <Link to="/settings/mailboxes" className={buttonVariants({ variant: "ghost", size: "sm" })}>
           ← Mailboxes
@@ -52,7 +53,7 @@ function MailboxHealthPage() {
           <CardHeader className="pb-2">
             <CardDescription>Sent today</CardDescription>
             <CardTitle className="font-mono tabular text-[1.5rem] font-semibold leading-none">
-              {mailbox.sentToday} / {mailbox.dailyCap}
+              {formatCount(mailbox.sentToday)} / {formatCount(mailbox.dailyCap)}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -91,7 +92,12 @@ function MailboxHealthPage() {
                 <Tooltip />
                 <Legend />
                 <Line type="monotone" dataKey="sent" stroke="hsl(var(--primary))" name="Sent" />
-                <Line type="monotone" dataKey="bounced" stroke="#dc2626" name="Bounced" />
+                <Line
+                  type="monotone"
+                  dataKey="bounced"
+                  stroke="var(--status-red-600)"
+                  name="Bounced"
+                />
               </LineChart>
             </ResponsiveContainer>
           )}
