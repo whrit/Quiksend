@@ -1,18 +1,10 @@
+import { emailDomain } from "@quiksend/core";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { and, eq, or, sql } from "drizzle-orm";
 import type { EnrollmentContext } from "./context.ts";
 
 const SUPPRESSED_STATUSES = new Set(["unsubscribed", "do_not_contact", "bounced"]);
-
-function domainOf(email: string): string {
-  const at = email.lastIndexOf("@");
-  return at >= 0 ? email.slice(at + 1).toLowerCase() : email.toLowerCase();
-}
-
-export function emailDomain(email: string): string {
-  return domainOf(email);
-}
 
 export function isProspectStatusSuppressed(status: string): boolean {
   return SUPPRESSED_STATUSES.has(status);
@@ -21,7 +13,7 @@ export function isProspectStatusSuppressed(status: string): boolean {
 /** Query suppression table for email or domain match. */
 export async function isSuppressionListed(organizationId: string, email: string): Promise<boolean> {
   const normalized = email.toLowerCase();
-  const domain = domainOf(normalized);
+  const domain = emailDomain(normalized);
 
   const rows = await db
     .select({ id: tables.suppression.id })

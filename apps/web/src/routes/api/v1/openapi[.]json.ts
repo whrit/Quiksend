@@ -136,8 +136,15 @@ const openApiSpec = {
               properties: {
                 stepIndex: { type: "integer" },
                 stepType: { type: "string" },
-                reached: { type: "integer" },
-                messagesSent: { type: "integer" },
+                reached: {
+                  type: "integer",
+                  description: "Cumulative: enrollments that reached this step or any later one.",
+                },
+                messagesSent: {
+                  type: "integer",
+                  description:
+                    "Messages sent for THIS step specifically (not cumulative). Excludes manual compose/replies and messages sent before per-step attribution was recorded.",
+                },
               },
               required: ["stepIndex", "stepType", "reached", "messagesSent"],
             },

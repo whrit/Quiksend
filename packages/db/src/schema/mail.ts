@@ -1,5 +1,15 @@
 import { sql, type SQL } from "drizzle-orm";
-import { boolean, index, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { organization } from "./auth.ts";
 import { mailbox } from "./mailbox.ts";
 import { prospect } from "./prospects.ts";
@@ -28,6 +38,17 @@ export const message = pgTable(
       .references(() => mailbox.id, { onDelete: "cascade" }),
     prospectId: uuid("prospect_id").references(() => prospect.id, { onDelete: "set null" }),
     enrollmentId: uuid("enrollment_id").references(() => enrollment.id, { onDelete: "set null" }),
+    /**
+     * Sequence step this message was sent for, captured at send time.
+     *
+     * Per-step analytics cannot use `enrollment.currentStepIndex` — that is the
+     * enrollment's position *now*, so every message an enrollment ever sent gets
+     * attributed to whatever step it later advanced to. Null for inbound mail,
+     * manual compose/replies, and rows written before this column existed
+     * (historical step attribution is not recoverable: manual sends also carry
+     * an enrollmentId, so ordering by sentAt cannot distinguish them).
+     */
+    sequenceStepIndex: integer("sequence_step_index"),
     direction: messageDirectionEnum("direction").default("outbound").notNull(),
     subject: text("subject"),
     bodyHtml: text("body_html"),
@@ -81,6 +102,12 @@ export const message = pgTable(
       table.organizationId,
       table.providerThreadId,
       table.isAutoReply,
+    ),
+    // Per-step analytics rollup: group outbound sends by sequence step.
+    index("message_enrollment_step_idx").on(
+      table.organizationId,
+      table.enrollmentId,
+      table.sequenceStepIndex,
     ),
   ],
 );

@@ -1,3 +1,4 @@
+import { emailDomain } from "@quiksend/core";
 import { computeSchedule } from "@quiksend/core/schedule";
 import type { MailboxSchedule, SendingWindow, StepKind, Weekday } from "@quiksend/core/schedule";
 import { logger } from "@quiksend/config";
@@ -276,18 +277,13 @@ function isUniqueViolation(err: unknown): boolean {
   );
 }
 
-function emailDomainLower(email: string): string {
-  const at = email.lastIndexOf("@");
-  return at >= 0 ? email.slice(at + 1).toLowerCase() : email.toLowerCase();
-}
-
 async function loadSuppressedEmailsForRest(
   organizationId: string,
   emails: string[],
 ): Promise<Set<string>> {
   if (emails.length === 0) return new Set();
   const normalized = emails.map((e) => e.toLowerCase());
-  const domains = [...new Set(normalized.map(emailDomainLower))];
+  const domains = [...new Set(normalized.map(emailDomain))];
   const rows = await db.query.suppression.findMany({
     where: and(
       eq(tables.suppression.organizationId, organizationId),
@@ -300,7 +296,7 @@ async function loadSuppressedEmailsForRest(
       suppressed.add(row.value);
     } else if (row.valueType === "domain") {
       for (const email of normalized) {
-        if (emailDomainLower(email) === row.value) suppressed.add(email);
+        if (emailDomain(email) === row.value) suppressed.add(email);
       }
     }
   }

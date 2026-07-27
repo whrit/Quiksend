@@ -155,6 +155,13 @@
       "when": 1785116230676,
       "tag": "0022_wave1_schema_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1785123944829,
+      "tag": "0023_message_step_index",
+      "breakpoints": true
     }
   ]
 }

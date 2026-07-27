@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { emailDomain, isProspectStatusSuppressed } from "./guards.ts";
+import { emailDomain } from "@quiksend/core";
+import { isProspectStatusSuppressed } from "./guards.ts";
 
 describe("isProspectStatusSuppressed", () => {
   it("returns false for active prospect with no suppression row", () => {

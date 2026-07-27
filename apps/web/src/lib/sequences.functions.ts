@@ -1,4 +1,4 @@
-import { isAdminOrOwner } from "@quiksend/core";
+import { emailDomain, isAdminOrOwner } from "@quiksend/core";
 import { computeSchedule } from "@quiksend/core/schedule";
 import type { MailboxSchedule, SendingWindow, StepKind, Weekday } from "@quiksend/core/schedule";
 import {
@@ -120,11 +120,6 @@ const stepInputSchema = z.discriminatedUnion("type", [
 
 function parseSettings(raw: unknown): SequenceSettings {
   return sequenceSettingsSchema.parse(raw ?? {});
-}
-
-function emailDomain(email: string): string {
-  const at = email.lastIndexOf("@");
-  return at >= 0 ? email.slice(at + 1).toLowerCase() : email.toLowerCase();
 }
 
 async function loadSuppressedEmails(

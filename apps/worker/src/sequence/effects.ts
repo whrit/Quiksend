@@ -6,6 +6,7 @@ import {
 } from "@quiksend/core/state-machine";
 import { logger } from "@quiksend/config";
 import { isSegGateway } from "@quiksend/core/deliverability";
+import { emailDomain } from "@quiksend/core";
 import { env } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
@@ -469,6 +470,9 @@ async function handleSendAuto(
         mailboxId: working.mailbox.id,
         prospectId: working.prospect.id,
         enrollmentId: working.enrollmentId,
+        // Captured now: the enrollment advances past this step immediately after,
+        // so it cannot be recovered from enrollment.currentStepIndex later.
+        sequenceStepIndex: stepIndex,
         direction: "outbound",
         subject,
         bodyHtml,
@@ -572,11 +576,6 @@ async function handleSendAuto(
     });
     throw err;
   }
-}
-
-function emailDomain(email: string): string {
-  const at = email.lastIndexOf("@");
-  return at >= 0 ? email.slice(at + 1).toLowerCase() : email.toLowerCase();
 }
 
 async function isSuppressionListedInTx(

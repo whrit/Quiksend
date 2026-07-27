@@ -1,0 +1,2 @@
+ALTER TABLE "message" ADD COLUMN "sequence_step_index" integer;--> statement-breakpoint
+CREATE INDEX "message_enrollment_step_idx" ON "message" USING btree ("organization_id","enrollment_id","sequence_step_index");

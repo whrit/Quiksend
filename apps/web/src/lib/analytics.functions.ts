@@ -66,6 +66,11 @@ export const getSequenceStepRates = createServerFn({ method: "GET" })
         ON m.enrollment_id = e.id
         AND m.organization_id = e.organization_id
         AND m.direction = 'outbound'
+        -- Count only messages actually sent FOR this step. Without this the join
+        -- attributes every one of an enrollment's messages to every step it
+        -- reached. Null for pre-column history and manual sends, so those are
+        -- excluded rather than smeared across all steps.
+        AND m.sequence_step_index = ss.step_index
       WHERE ss.sequence_id = ${data.sequenceId}
         AND ss.organization_id = ${organizationId}
       GROUP BY ss.step_index

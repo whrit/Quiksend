@@ -3,7 +3,7 @@ import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { enqueueWithRetries, registerHandler } from "@quiksend/queue";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import { emailDomain } from "../sequence/guards.ts";
+import { emailDomain } from "@quiksend/core";
 
 const CHUNK_SIZE = 500;
 
