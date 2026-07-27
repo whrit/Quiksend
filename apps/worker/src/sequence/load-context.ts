@@ -15,9 +15,17 @@ function parseSettings(raw: unknown): SequenceSettings {
   };
 }
 
-export async function loadContext(enrollmentId: string): Promise<EnrollmentContext> {
+export async function loadContext(
+  enrollmentId: string,
+  organizationId?: string,
+): Promise<EnrollmentContext> {
   const enrollment = await db.query.enrollment.findFirst({
-    where: eq(tables.enrollment.id, enrollmentId),
+    where: organizationId
+      ? and(
+          eq(tables.enrollment.id, enrollmentId),
+          eq(tables.enrollment.organizationId, organizationId),
+        )
+      : eq(tables.enrollment.id, enrollmentId),
   });
   if (!enrollment) throw new Error(`Enrollment not found: ${enrollmentId}`);
 

@@ -3,11 +3,17 @@ import { classifyInboundSentiment } from "@quiksend/ai";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { getNango } from "@quiksend/integrations";
-import { detectAutoReply, matchInbound, parseBounce, type OutboundAnchor } from "@quiksend/mail";
+import {
+  detectAutoReply,
+  extractCandidateIds,
+  matchInbound,
+  parseBounce,
+  type OutboundAnchor,
+} from "@quiksend/mail";
 import { decryptSmtpConfig } from "@quiksend/mail";
 import { normalizeMessageId } from "@quiksend/mail/threading";
 import { enqueue, getBoss, registerHandler } from "@quiksend/queue";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import {
@@ -29,6 +35,7 @@ const MS_PROVIDER_KEY = "microsoft";
 interface PollCursor {
   gmailHistoryId?: string;
   microsoftDeltaLink?: string;
+  microsoftDeltaNextLink?: string;
   imapLastUid?: number;
   lastPolledAt?: string;
 }
@@ -175,16 +182,11 @@ async function processInboundMessage(
 
   const bounce = parseBounce(inbound.rawMime);
   const isBounce = bounce !== null;
+  const autoReply = isBounce
+    ? { isAutoReply: false, reason: null }
+    : detectAutoReply(inbound.headers, inbound.bodyText);
 
-  const outboundRows = await db.query.message.findMany({
-    where: and(
-      eq(tables.message.organizationId, mailbox.organizationId),
-      eq(tables.message.direction, "outbound"),
-      isNotNull(tables.message.messageIdHeader),
-    ),
-    orderBy: desc(tables.message.sentAt),
-    limit: 500,
-  });
+  const outboundRows = await findMatchingOutboundMessages(mailbox.organizationId, inbound);
 
   const anchors: OutboundAnchor[] = outboundRows
     .filter((row) => row.messageIdHeader)
@@ -252,6 +254,7 @@ async function processInboundMessage(
       status: "received",
       bounceType: isBounce ? (bounce?.type ?? "hard") : null,
       dsn: isBounce ? bounce : null,
+      isAutoReply: autoReply.isAutoReply,
       receivedAt: inbound.receivedAt,
     })
     .returning();
@@ -259,7 +262,7 @@ async function processInboundMessage(
   if (!inserted) return;
 
   if (!isBounce) {
-    await storeInboundSentiment(inserted.id, {
+    await storeInboundSentiment(mailbox.organizationId, inserted.id, {
       subject: inbound.subject,
       bodyText: inbound.bodyText,
       bodyHtml: inbound.bodyHtml,
@@ -285,9 +288,12 @@ async function processInboundMessage(
   };
 
   if (isBounce && matchedOutbound?.enrollmentId) {
-    const recipient = bounce?.recipient ?? inbound.fromEmail;
     await handleInboundBounce(
-      { ...inboundEmail, fromEmail: recipient, bounceType: bounce?.type ?? "hard" },
+      {
+        ...inboundEmail,
+        fromEmail: bounce?.recipient ?? null,
+        bounceType: bounce?.type ?? "hard",
+      },
       matchedOutbound.enrollmentId,
     );
     return;
@@ -295,7 +301,6 @@ async function processInboundMessage(
 
   if (isBounce) return;
 
-  const autoReply = detectAutoReply(inbound.headers, inbound.bodyText);
   if (autoReply.isAutoReply && !orgSettings.stop_on_ooo) {
     logger.info(
       { messageId: inserted.id, reason: autoReply.reason },
@@ -309,13 +314,71 @@ async function processInboundMessage(
   }
 }
 
+async function findMatchingOutboundMessages(
+  organizationId: string,
+  inbound: ParsedInbound,
+): Promise<(typeof tables.message.$inferSelect)[]> {
+  const candidates = extractCandidateIds({
+    inReplyTo: inbound.inReplyTo,
+    references: inbound.references,
+    providerThreadId: inbound.providerThreadId,
+    subject: inbound.subject,
+  });
+
+  const headerIds = new Set<string>();
+  if (candidates.normalizedInReplyTo) headerIds.add(candidates.normalizedInReplyTo);
+  for (const ref of candidates.normalizedReferences) headerIds.add(ref);
+
+  const rows: (typeof tables.message.$inferSelect)[] = [];
+  const seen = new Set<string>();
+
+  const addRows = (newRows: (typeof tables.message.$inferSelect)[]) => {
+    for (const row of newRows) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      rows.push(row);
+    }
+  };
+
+  if (headerIds.size > 0) {
+    const headerRows = await db.query.message.findMany({
+      where: and(
+        eq(tables.message.organizationId, organizationId),
+        eq(tables.message.direction, "outbound"),
+        isNotNull(tables.message.messageIdHeader),
+        inArray(tables.message.messageIdHeader, [...headerIds]),
+      ),
+    });
+    addRows(headerRows);
+  }
+
+  if (candidates.providerThreadId) {
+    const threadRows = await db.query.message.findMany({
+      where: and(
+        eq(tables.message.organizationId, organizationId),
+        eq(tables.message.direction, "outbound"),
+        eq(tables.message.providerThreadId, candidates.providerThreadId),
+      ),
+    });
+    addRows(threadRows);
+  }
+
+  return rows;
+}
+
 async function storeInboundSentiment(
+  organizationId: string,
   messageId: string,
   inbound: { subject: string | null; bodyText: string | null; bodyHtml: string | null },
 ): Promise<void> {
   const sentiment = await classifyInboundSentiment(inbound);
   if (!sentiment) return;
-  await db.update(tables.message).set({ sentiment }).where(eq(tables.message.id, messageId));
+  await db
+    .update(tables.message)
+    .set({ sentiment })
+    .where(
+      and(eq(tables.message.id, messageId), eq(tables.message.organizationId, organizationId)),
+    );
 }
 
 async function pollGmail(
@@ -392,18 +455,31 @@ async function pollGmailFullResync(
   if (!mailbox.nangoConnectionId) return { messages: [], cursor: {} };
   const nango = getNango();
   const afterSec = Math.floor(since.getTime() / 1000);
-  const listResponse = await nango.get({
-    endpoint: "/gmail/v1/users/me/messages",
-    providerConfigKey: GMAIL_PROVIDER_KEY,
-    connectionId: mailbox.nangoConnectionId,
-    params: { q: `after:${afterSec}`, maxResults: "50" },
-  });
-  const listData = listResponse.data as { messages?: { id: string }[] };
   const messages: ParsedInbound[] = [];
-  for (const item of listData.messages ?? []) {
-    const parsed = await fetchGmailRawMessage(mailbox.nangoConnectionId, item.id);
-    if (parsed) messages.push(parsed);
-  }
+  let pageToken: string | undefined;
+
+  do {
+    const listResponse = await nango.get({
+      endpoint: "/gmail/v1/users/me/messages",
+      providerConfigKey: GMAIL_PROVIDER_KEY,
+      connectionId: mailbox.nangoConnectionId,
+      params: {
+        q: `after:${afterSec}`,
+        maxResults: "50",
+        ...(pageToken ? { pageToken } : {}),
+      },
+    });
+    const listData = listResponse.data as {
+      messages?: { id: string }[];
+      nextPageToken?: string;
+    };
+    for (const item of listData.messages ?? []) {
+      const parsed = await fetchGmailRawMessage(mailbox.nangoConnectionId, item.id);
+      if (parsed) messages.push(parsed);
+    }
+    pageToken = listData.nextPageToken;
+  } while (pageToken);
+
   const profile = await nango.get({
     endpoint: "/gmail/v1/users/me/profile",
     providerConfigKey: GMAIL_PROVIDER_KEY,
@@ -445,11 +521,13 @@ async function pollMicrosoft(
     return { messages: [], cursor };
   }
   const nango = getNango();
-  let endpoint = graphEndpointFromDeltaLink(cursor.microsoftDeltaLink);
+  const resumeNextLink = cursor.microsoftDeltaNextLink;
+  let endpoint = graphEndpointFromDeltaLink(resumeNextLink ?? cursor.microsoftDeltaLink);
   const rawItems: NonNullable<GraphDeltaPage["value"]>[number][] = [];
   let deltaLink = cursor.microsoftDeltaLink;
   let pageCount = 0;
   let lastDeltaLink: string | undefined;
+  let lastNextLink: string | undefined;
 
   while (pageCount < MS_DELTA_PAGE_CAP) {
     let response: { data: unknown; status: number };
@@ -477,6 +555,7 @@ async function pollMicrosoft(
 
     const nextLink = data["@odata.nextLink"];
     if (!nextLink) break;
+    lastNextLink = nextLink;
     endpoint = graphEndpointFromDeltaLink(nextLink);
   }
 
@@ -503,10 +582,23 @@ async function pollMicrosoft(
 
   return {
     messages,
-    cursor: {
-      ...cursor,
-      microsoftDeltaLink: lastDeltaLink ?? deltaLink,
-    },
+    cursor: lastDeltaLink
+      ? {
+          ...cursor,
+          microsoftDeltaLink: lastDeltaLink,
+          microsoftDeltaNextLink: undefined,
+        }
+      : lastNextLink
+        ? {
+            ...cursor,
+            microsoftDeltaLink: deltaLink,
+            microsoftDeltaNextLink: lastNextLink,
+          }
+        : {
+            ...cursor,
+            microsoftDeltaLink: deltaLink,
+            microsoftDeltaNextLink: undefined,
+          },
   };
 }
 
