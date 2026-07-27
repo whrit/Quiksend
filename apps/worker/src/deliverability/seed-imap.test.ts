@@ -98,6 +98,10 @@ describe("folderToStatus", () => {
     expect(folderToStatus("quarantine")).toBe("arrived_quarantine");
   });
 
+  it("returns null for unrecognized folder names", () => {
+    expect(folderToStatus("not_found")).toBeNull();
+  });
+
   it("maps bounce heuristics to bounced", () => {
     expect(folderToStatus("inbox", { isBounce: true })).toBe("bounced");
   });

@@ -1,39 +1,36 @@
-import { evaluateAutoPause, mergeCanaryConfig } from "@quiksend/core/deliverability";
+import { evaluateAutoPause } from "@quiksend/core/deliverability";
 import { Semaphore } from "@quiksend/core/utils/semaphore";
 import { env, logger } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import type { EmailGateway } from "@quiksend/mail";
 import { buildMime, createSmtpTransport, sendMime } from "@quiksend/mail";
-import { getBoss } from "@quiksend/queue";
-import { and, eq, gt, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { decryptSeedImapConfig } from "@quiksend/mail";
+import { getBoss, registerHandler } from "@quiksend/queue";
+import { and, eq, gt, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { loadPauseContext, type PauseGroupKey } from "../deliverability/auto-pause-batch-loader.ts";
+import { seedImapPool } from "../deliverability/imap-pool.ts";
 import {
   classifyArrivalFolder,
   folderToStatus,
+  openPooledSeedImap,
+  resolveCanaryImapMockMode,
   searchCanaryMessages,
   type ImapMessageMatch,
+  type PooledSeedImap,
 } from "../deliverability/seed-imap.ts";
 import { refreshDeliverabilitySnapshots } from "./deliverability-snapshot.ts";
+import type { AutoPauseDetails } from "./canary-recover.ts";
 import { fanoutWebhookEvent } from "./webhook-fanout.ts";
 
 const IMAP_CONCURRENCY = 20;
 
-type ArrivalStatus =
-  | "pending"
-  | "arrived_inbox"
-  | "arrived_spam"
-  | "arrived_quarantine"
-  | "silent_drop"
-  | "bounced";
-
 export async function registerCanaryCheckHandler(): Promise<void> {
-  const boss = await getBoss();
-  await boss.createQueue("canary.check");
-  await boss.schedule("canary.check", "*/5 * * * *", {}, { tz: "UTC" });
-  await boss.work("canary.check", async () => {
+  await registerHandler("canary.check", async () => {
     await runCanaryCheck();
   });
+  const boss = await getBoss();
+  await boss.schedule("canary.check", "*/5 * * * *", {}, { tz: "UTC" });
   logger.info({ job: "canary.check" }, "canary check scheduled");
 }
 
@@ -107,7 +104,7 @@ async function pollSeed(
   const tokens = canaries.map((c) => c.canaryToken);
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  if (process.env.QUIKSEND_CANARY_IMAP_MOCK) {
+  if (resolveCanaryImapMockMode()) {
     const matches = await searchCanaryMessages(
       { host: "localhost", port: 1143, auth: { user: "x", pass: "x" }, secure: false },
       tokens,
@@ -125,7 +122,11 @@ async function pollSeed(
     return;
   }
 
-  const matches = await searchCanaryMessages(config, tokens, since);
+  const pooled = (await seedImapPool.getOrCreate(seedInboxId, () =>
+    openPooledSeedImap(seedInboxId, config),
+  )) as PooledSeedImap;
+  const matches = await pooled.searchCanary(tokens, since);
+  pooled.touch();
   await applyCanaryMatches(canaries, matches);
 }
 
@@ -138,7 +139,9 @@ async function applyCanaryMatches(
     if (!match) continue;
 
     const folder = classifyArrivalFolder(match.folder);
-    const arrivalStatus: ArrivalStatus = folderToStatus(folder, { isBounce: match.isBounce });
+    const arrivalStatus = folderToStatus(folder, { isBounce: match.isBounce });
+    if (!arrivalStatus) continue;
+
     await db
       .update(tables.canarySend)
       .set({
@@ -147,7 +150,12 @@ async function applyCanaryMatches(
         arrivedAt: new Date(),
         arrivalGatewayHeaders: match.headers,
       })
-      .where(eq(tables.canarySend.id, canary.id));
+      .where(
+        and(
+          eq(tables.canarySend.id, canary.id),
+          eq(tables.canarySend.organizationId, canary.organizationId),
+        ),
+      );
 
     await fanoutWebhookEvent({
       organizationId: canary.organizationId,
@@ -189,20 +197,24 @@ export async function maybePauseCampaigns(): Promise<void> {
     HAVING count(*) >= 3
   `);
 
+  if (stats.length === 0) return;
+
+  const groups: PauseGroupKey[] = stats.map((row) => ({
+    sequenceId: row.sequence_id,
+    mailboxId: row.mailbox_id,
+    gateway: row.gateway,
+    organizationId: row.organization_id,
+  }));
+  const pauseContext = await loadPauseContext(groups);
+
   for (const row of stats) {
     const delivered = Number(row.delivered);
     const total = Number(row.total);
-    const sequence = await db.query.sequence.findFirst({
-      where: eq(tables.sequence.id, row.sequence_id),
-    });
-    if (!sequence) continue;
+    const contextKey = `${row.organization_id}:${row.sequence_id}:${row.mailbox_id}:${row.gateway}`;
+    const context = pauseContext.get(contextKey);
+    if (!context) continue;
 
-    const orgMeta = await loadOrgMetadata(row.organization_id);
-    const threshold = mergeCanaryConfig(
-      orgMeta?.canary_defaults as never,
-      sequence.canaryConfig as never,
-    ).pauseThresholdPct;
-
+    const threshold = context.threshold;
     const decision = evaluateAutoPause(
       {
         sequenceId: row.sequence_id,
@@ -230,14 +242,7 @@ export async function maybePauseCampaigns(): Promise<void> {
 async function pauseSequenceCampaign(
   organizationId: string,
   sequenceId: string,
-  details: {
-    gateway: EmailGateway;
-    mailboxId: string;
-    deliverabilityPct: number;
-    threshold: number;
-    delivered: number;
-    total: number;
-  },
+  details: AutoPauseDetails,
 ): Promise<void> {
   await db
     .update(tables.enrollment)
@@ -246,6 +251,7 @@ async function pauseSequenceCampaign(
       and(
         eq(tables.enrollment.organizationId, organizationId),
         eq(tables.enrollment.sequenceId, sequenceId),
+        eq(tables.enrollment.mailboxId, details.mailboxId),
         inArray(tables.enrollment.state, ["active", "waiting", "waiting_manual"]),
       ),
     );
@@ -340,24 +346,6 @@ async function notifyAdminsOfAutoPause(
       logger.error({ err, email }, "failed to send auto-pause notification");
     });
   }
-}
-
-async function loadOrgMetadata(
-  organizationId: string,
-): Promise<{ canary_defaults?: unknown } | null> {
-  const org = await db.query.organization.findFirst({
-    where: eq(tables.organization.id, organizationId),
-    columns: { metadata: true },
-  });
-  if (!org?.metadata) return null;
-  if (typeof org.metadata === "string") {
-    try {
-      return JSON.parse(org.metadata) as { canary_defaults?: unknown };
-    } catch {
-      return null;
-    }
-  }
-  return org.metadata as { canary_defaults?: unknown };
 }
 
 function groupBy<T>(items: T[], keyFn: (item: T) => string): Record<string, T[]> {

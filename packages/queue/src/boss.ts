@@ -18,6 +18,12 @@ let cached: PgBoss | null = null;
 let starting: Promise<PgBoss> | null = null;
 
 const QUEUE_DEFAULTS: Partial<Record<JobName, UpdateQueueOptions>> = {
+  "crm.sync": {
+    retryLimit: 5,
+    retryDelay: 60,
+    retryBackoff: true,
+    retryDelayMax: 3600,
+  },
   "crm.writeback": {
     retryLimit: 5,
     retryDelay: 60,

@@ -7,24 +7,30 @@ import { env } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import {
-  buildComplianceParts,
   buildMime,
-  buildUnsubscribeUrl,
-  extractRecipientDomain,
-  mintUnsubscribeToken,
   sanitizeForSeg,
   sendMime,
   createSmtpTransport,
+  mintUnsubscribeToken,
+  buildUnsubscribeUrl,
+  buildComplianceParts,
 } from "@quiksend/mail";
 import { enqueue } from "@quiksend/queue";
-import { and, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { createMailboxAdapter } from "../sequence/mailbox-adapter.ts";
 import { renderTemplate, stripHtml } from "../sequence/render-template.ts";
+import type { EmailStepConfig, SequenceSettings } from "../sequence/context.ts";
+import {
+  markReservationSent,
+  releaseReservation,
+  reserveSendSlot,
+} from "../sequence/reserve-slot.ts";
 import { getWorkspacePostalAddress } from "../sequence/workspace-postal.ts";
-import type { EmailStepConfig } from "../sequence/context.ts";
+
+/** Sentinel prospect id for seed canary sends — recognized by the unsubscribe handler. */
+export const CANARY_UNSUBSCRIBE_PROSPECT_ID = "00000000-0000-4000-a000-000000000001";
 
 const ARRIVAL_WINDOW_MINUTES = 15;
-const DOMAIN_GAP_MS = 5 * 60 * 1000;
 
 export async function materializeCanarySend(canarySendId: string): Promise<void> {
   const row = await db.query.canarySend.findFirst({
@@ -58,10 +64,23 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
     return;
   }
 
-  const throttle = await checkCanaryDomainGap(mailbox.id, seedInbox.email, new Date());
-  if (!throttle.ok) {
-    const delaySec = Math.max(60, Math.ceil((throttle.deferUntil.getTime() - Date.now()) / 1000));
-    await enqueue("canary.send", { canarySendId }, { startAfter: delaySec });
+  const enrollmentId = await resolveReservationEnrollmentId(row);
+  if (!enrollmentId) return;
+
+  const settings = parseSequenceSettings(sequence.settings);
+  const at = new Date();
+  const slot = await reserveSendSlot(mailbox.id, enrollmentId, row.organizationId, at, settings, {
+    recipientEmail: seedInbox.email,
+    recipientGateway: seedInbox.gateway,
+  });
+
+  if (!slot.ok) {
+    const delaySec = Math.max(60, Math.ceil((slot.deferUntil.getTime() - Date.now()) / 1000));
+    await enqueue(
+      "canary.send",
+      { canarySendId },
+      { startAfter: delaySec, singletonKey: `canary.send:${canarySendId}` },
+    );
     return;
   }
 
@@ -75,7 +94,10 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
 
   const autoSteps = steps.filter((s) => s.stepType === "auto_email");
   const step = resolveCanaryStep(autoSteps, row.stepIndex, row.canaryToken);
-  if (!step) return;
+  if (!step) {
+    await releaseReservation(slot.reservationId);
+    return;
+  }
 
   const config = step.config as EmailStepConfig;
   const shortId = row.canaryToken.replace(/-/g, "").slice(0, 8);
@@ -118,7 +140,7 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
   }
 
   const token = mintUnsubscribeToken({
-    prospectId: row.id,
+    prospectId: CANARY_UNSUBSCRIBE_PROSPECT_ID,
     orgId: row.organizationId,
   });
   const baseUrl = env.BETTER_AUTH_URL ?? "http://localhost:3000";
@@ -143,33 +165,40 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
   const adapter = createMailboxAdapter(mailbox, row.organizationId);
   const sentAt = new Date();
 
-  if (mailbox.provider === "smtp" && env.SMTP_HOST) {
-    const transport = createSmtpTransport({
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT ?? 1025,
-      secure: false,
-      fromAddress: mailbox.address,
-      fromName: mailbox.fromName ?? undefined,
-      compliance: complianceInput,
-    });
-    await sendMime(transport, mime, {
-      from: mailbox.address,
-      to: [seedInbox.email],
-    });
-  } else {
-    await adapter.send({
-      from: { email: mailbox.address, name: mailbox.fromName ?? undefined },
-      to: [{ email: seedInbox.email, name: "Canary Test" }],
-      subject,
-      html: `${bodyHtml}${signature}${compliance.footerHtml}`,
-      text: `${bodyText}${compliance.footerText}`,
-      extraHeaders: { "X-Quiksend-Canary-Id": row.canaryToken },
-      idempotencyKey: `canary:${row.canaryToken}`,
-    });
+  try {
+    if (mailbox.provider === "smtp" && env.SMTP_HOST) {
+      const transport = createSmtpTransport({
+        host: env.SMTP_HOST,
+        port: env.SMTP_PORT ?? 1025,
+        secure: false,
+        fromAddress: mailbox.address,
+        fromName: mailbox.fromName ?? undefined,
+        compliance: complianceInput,
+      });
+      await sendMime(transport, mime, {
+        from: mailbox.address,
+        to: [seedInbox.email],
+      });
+    } else {
+      await adapter.send({
+        from: { email: mailbox.address, name: mailbox.fromName ?? undefined },
+        to: [{ email: seedInbox.email, name: "Canary Test" }],
+        subject,
+        html: `${bodyHtml}${signature}${compliance.footerHtml}`,
+        text: `${bodyText}${compliance.footerText}`,
+        extraHeaders: { "X-Quiksend-Canary-Id": row.canaryToken },
+        idempotencyKey: `canary:${row.canaryToken}`,
+      });
+    }
+  } catch (err) {
+    await releaseReservation(slot.reservationId);
+    throw err;
   }
 
+  await markReservationSent(slot.reservationId);
+
   const configMerged = mergeCanaryConfig(
-    parseOrgCanaryDefaults(await loadOrgMetadata(row.organizationId)),
+    parseOrgCanaryDefaults(parseOrgMetadata(org?.metadata)),
     sequence.canaryConfig as never,
   );
   const expectedArrivalAt = new Date(
@@ -192,6 +221,34 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
     );
 }
 
+async function resolveReservationEnrollmentId(
+  row: typeof tables.canarySend.$inferSelect,
+): Promise<string | null> {
+  if (row.enrollmentId) return row.enrollmentId;
+
+  const enrollment = await db.query.enrollment.findFirst({
+    where: and(
+      eq(tables.enrollment.organizationId, row.organizationId),
+      eq(tables.enrollment.sequenceId, row.sequenceId),
+      eq(tables.enrollment.mailboxId, row.mailboxId),
+      inArray(tables.enrollment.state, ["active", "waiting", "waiting_manual", "paused"]),
+    ),
+    columns: { id: true },
+  });
+  return enrollment?.id ?? null;
+}
+
+function parseSequenceSettings(raw: unknown): SequenceSettings {
+  const settings = (raw ?? {}) as Partial<SequenceSettings>;
+  return {
+    timezone: settings.timezone ?? "UTC",
+    throttle_seconds: settings.throttle_seconds ?? 90,
+    mailbox_ids: settings.mailbox_ids ?? [],
+    stop_on_reply: settings.stop_on_reply ?? true,
+    business_days_only: settings.business_days_only ?? true,
+  };
+}
+
 function resolveCanaryStep(
   autoSteps: (typeof tables.sequenceStep.$inferSelect)[],
   persistedStepIndex: number | null | undefined,
@@ -205,47 +262,16 @@ function resolveCanaryStep(
   return autoSteps[hashToIndex(canaryToken, autoSteps.length)] ?? autoSteps[0];
 }
 
-async function checkCanaryDomainGap(
-  mailboxId: string,
-  recipientEmail: string,
-  at: Date,
-): Promise<{ ok: true } | { ok: false; deferUntil: Date }> {
-  const recipientDomain = extractRecipientDomain(recipientEmail);
-  if (!recipientDomain) return { ok: true };
-
-  const since = new Date(at.getTime() - DOMAIN_GAP_MS);
-  const rows = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(tables.sendReservation)
-    .where(
-      and(
-        eq(tables.sendReservation.mailboxId, mailboxId),
-        eq(tables.sendReservation.recipientDomain, recipientDomain),
-        gte(tables.sendReservation.reservedAt, since),
-        inArray(tables.sendReservation.status, ["held", "sent"]),
-      ),
-    );
-
-  if ((rows[0]?.count ?? 0) >= 1) {
-    return { ok: false, deferUntil: new Date(at.getTime() + DOMAIN_GAP_MS) };
-  }
-  return { ok: true };
-}
-
-async function loadOrgMetadata(organizationId: string): Promise<Record<string, unknown> | null> {
-  const org = await db.query.organization.findFirst({
-    where: eq(tables.organization.id, organizationId),
-    columns: { metadata: true },
-  });
-  if (!org?.metadata) return null;
-  if (typeof org.metadata === "string") {
+function parseOrgMetadata(metadata: unknown): Record<string, unknown> | null {
+  if (!metadata) return null;
+  if (typeof metadata === "string") {
     try {
-      return JSON.parse(org.metadata) as Record<string, unknown>;
+      return JSON.parse(metadata) as Record<string, unknown>;
     } catch {
       return null;
     }
   }
-  return org.metadata as Record<string, unknown>;
+  return metadata as Record<string, unknown>;
 }
 
 function parseOrgCanaryDefaults(metadata: Record<string, unknown> | null) {

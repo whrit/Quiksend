@@ -1,6 +1,6 @@
 import { logger } from "@quiksend/config";
 import { db } from "@quiksend/db";
-import { getBoss } from "@quiksend/queue";
+import { getBoss, registerHandler } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
 
 export type SnapshotWindowDays = 7 | 14 | 30;
@@ -8,12 +8,11 @@ export type SnapshotWindowDays = 7 | 14 | 30;
 const SNAPSHOT_WINDOWS: SnapshotWindowDays[] = [7, 14, 30];
 
 export async function registerDeliverabilitySnapshotHandler(): Promise<void> {
-  const boss = await getBoss();
-  await boss.createQueue("deliverability.snapshot");
-  await boss.schedule("deliverability.snapshot", "*/15 * * * *", {}, { tz: "UTC" });
-  await boss.work("deliverability.snapshot", async () => {
+  await registerHandler("deliverability.snapshot", async () => {
     await refreshDeliverabilitySnapshots();
   });
+  const boss = await getBoss();
+  await boss.schedule("deliverability.snapshot", "*/15 * * * *", {}, { tz: "UTC" });
   logger.info({ job: "deliverability.snapshot" }, "deliverability snapshot scheduled");
 }
 
@@ -50,7 +49,7 @@ export async function refreshDeliverabilitySnapshot(windowDays: SnapshotWindowDa
       count(*) FILTER (WHERE cs.arrival_status = 'arrived_inbox')::int AS canary_delivered,
       count(*) FILTER (WHERE cs.arrival_status = 'arrived_spam')::int AS canary_spam,
       count(*) FILTER (WHERE cs.arrival_status = 'arrived_quarantine')::int AS canary_quarantine,
-      count(*) FILTER (WHERE cs.arrival_status IN ('silent_drop', 'bounced'))::int AS canary_silent_dropped,
+      count(*) FILTER (WHERE cs.arrival_status = 'silent_drop')::int AS canary_silent_dropped,
       round(
         100.0 * count(*) FILTER (WHERE cs.arrival_status = 'arrived_inbox') / nullif(count(*), 0),
         2
