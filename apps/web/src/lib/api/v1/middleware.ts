@@ -1,9 +1,10 @@
 import "@tanstack/react-start/server-only";
 
 import { auth } from "@quiksend/auth";
-import { env } from "@quiksend/config";
+import { env, logger } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
+import { getRequestIP } from "@tanstack/react-start/server";
 import { and, eq, sql } from "drizzle-orm";
 import { recordApiKeyUsage } from "./helpers.ts";
 
@@ -34,12 +35,47 @@ function extractBearerToken(request: Request): string | null {
   return header.slice("Bearer ".length).trim() || null;
 }
 
-function clientIp(request: Request): string | null {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    request.headers.get("x-real-ip") ??
-    null
+function isTruthyEnvFlag(value: string | undefined): boolean {
+  return value === "1" || value === "true";
+}
+
+function normalizeIp(ip: string | undefined | null): string | null {
+  if (!ip) return null;
+  return ip.replace(/^::ffff:/, "");
+}
+
+function trustedProxyPeers(): Set<string> {
+  const raw = process.env.TRUSTED_PROXY_IPS ?? "127.0.0.1,::1,::ffff:127.0.0.1";
+  return new Set(
+    raw
+      .split(",")
+      .map((entry) => normalizeIp(entry.trim()))
+      .filter((entry): entry is string => Boolean(entry)),
   );
+}
+
+function trustProxyEnabled(): boolean {
+  return isTruthyEnvFlag(process.env.TRUST_PROXY);
+}
+
+function clientIp(_request: Request): string | null {
+  let peerIp: string | null;
+  try {
+    peerIp = normalizeIp(getRequestIP({ xForwardedFor: false }));
+  } catch {
+    // Outside the TanStack Start request context (e.g. unit tests).
+    return null;
+  }
+
+  if (trustProxyEnabled() && peerIp && trustedProxyPeers().has(peerIp)) {
+    return normalizeIp(getRequestIP({ xForwardedFor: true }));
+  }
+
+  return peerIp;
+}
+
+function rateLimitIpKey(request: Request): string {
+  return `ip:${clientIp(request) ?? "unknown"}`;
 }
 
 export function parseKeyMetadata(metadata: unknown): { organizationId?: string } {
@@ -162,8 +198,8 @@ export async function withApiAuth(
   try {
     response = await handler(ctx);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Internal server error";
-    response = jsonError("INTERNAL", message, 500);
+    logger.error({ err }, "API handler failed");
+    response = jsonError("INTERNAL", "Internal server error", 500);
   }
 
   await recordApiKeyUsage({
@@ -210,27 +246,45 @@ export function encodeCursor(cursor: { id: string; createdAt: string } | null): 
 
 /** Per-IP rate limit for unauthenticated routes (auth endpoints). */
 export const AUTH_IP_RATE_LIMIT = 100;
+/** Stricter per-IP limit for credential-bearing auth routes (sign-in, sign-up, reset). */
+export const AUTH_CREDENTIAL_IP_RATE_LIMIT = 10;
 export const AUTH_IP_RATE_WINDOW_MS = 60_000;
+
+function isAuthCredentialRoute(pathname: string): boolean {
+  return (
+    /\/sign-in(?:\/|$)/.test(pathname) ||
+    /\/sign-up(?:\/|$)/.test(pathname) ||
+    /\/forget-password(?:\/|$)/.test(pathname) ||
+    /\/forgot-password(?:\/|$)/.test(pathname) ||
+    /\/reset-password(?:\/|$)/.test(pathname)
+  );
+}
+
+function authIpRateLimitFor(request: Request): number {
+  const pathname = new URL(request.url).pathname;
+  return isAuthCredentialRoute(pathname) ? AUTH_CREDENTIAL_IP_RATE_LIMIT : AUTH_IP_RATE_LIMIT;
+}
 
 export type AuthRateLimitOutcome = { ok: true } | { ok: false; retryAfter: number };
 
 export async function checkAuthIpRateLimit(
   request: Request,
-  limit = AUTH_IP_RATE_LIMIT,
+  limit?: number,
   windowMs = AUTH_IP_RATE_WINDOW_MS,
 ): Promise<AuthRateLimitOutcome> {
-  const ip = clientIp(request) ?? "unknown";
+  const effectiveLimit = limit ?? authIpRateLimitFor(request);
+  const ip = rateLimitIpKey(request);
   const windowSec = windowMs / 1000;
 
   await db.execute(sql`
     INSERT INTO auth_rate_bucket (key, tokens, updated_at)
-    VALUES (${ip}, ${limit}, now())
+    VALUES (${ip}, ${effectiveLimit}, now())
     ON CONFLICT (key) DO UPDATE SET
       tokens = LEAST(
         auth_rate_bucket.tokens + GREATEST(0, FLOOR(
-          EXTRACT(EPOCH FROM (now() - auth_rate_bucket.updated_at)) / ${windowSec} * ${limit}
+          EXTRACT(EPOCH FROM (now() - auth_rate_bucket.updated_at)) / ${windowSec} * ${effectiveLimit}
         )::int),
-        ${limit}
+        ${effectiveLimit}
       ),
       updated_at = now()
   `);
