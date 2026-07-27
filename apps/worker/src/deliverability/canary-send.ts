@@ -3,7 +3,7 @@ import {
   mergeCanaryConfig,
   parseDeliverabilityPolicy,
 } from "@quiksend/core/deliverability";
-import { env } from "@quiksend/config";
+import { env, logger } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import {
@@ -31,6 +31,8 @@ import { getWorkspacePostalAddress } from "../sequence/workspace-postal.ts";
 export const CANARY_UNSUBSCRIBE_PROSPECT_ID = "00000000-0000-4000-a000-000000000001";
 
 const ARRIVAL_WINDOW_MINUTES = 15;
+const ENROLLMENT_WAIT_MAX_MS = 24 * 60 * 60 * 1000;
+const ENROLLMENT_RETRY_DELAY_SEC = 300;
 
 export async function materializeCanarySend(canarySendId: string): Promise<void> {
   const row = await db.query.canarySend.findFirst({
@@ -61,11 +63,36 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
   ]);
 
   if (!sequence || !mailbox || !seedInbox || !seedInbox.active) {
+    await cancelCanarySend(row, "missing_prerequisites", {
+      hasSequence: Boolean(sequence),
+      hasMailbox: Boolean(mailbox),
+      hasSeedInbox: Boolean(seedInbox),
+      seedInboxActive: seedInbox?.active ?? false,
+    });
     return;
   }
 
   const enrollmentId = await resolveReservationEnrollmentId(row);
-  if (!enrollmentId) return;
+  if (!enrollmentId) {
+    const waitedMs = Date.now() - row.createdAt.getTime();
+    if (waitedMs < ENROLLMENT_WAIT_MAX_MS) {
+      await enqueue(
+        "canary.send",
+        { canarySendId },
+        {
+          startAfter: ENROLLMENT_RETRY_DELAY_SEC,
+          singletonKey: `canary.send:${canarySendId}`,
+        },
+      );
+      logger.info(
+        { canarySendId, retryInSec: ENROLLMENT_RETRY_DELAY_SEC },
+        "canary.send deferred: waiting for enrollment",
+      );
+      return;
+    }
+    await cancelCanarySend(row, "no_enrollment", { waitedMs });
+    return;
+  }
 
   const settings = parseSequenceSettings(sequence.settings);
   const at = new Date();
@@ -96,6 +123,10 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
   const step = resolveCanaryStep(autoSteps, row.stepIndex, row.canaryToken);
   if (!step) {
     await releaseReservation(slot.reservationId);
+    await cancelCanarySend(row, "no_auto_email_step", {
+      stepIndex: row.stepIndex,
+      autoStepCount: autoSteps.length,
+    });
     return;
   }
 
@@ -116,6 +147,7 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
   let bodyHtml = renderTemplate(config.body_template, templateCtx);
   let bodyText = stripHtml(bodyHtml);
   const signature = mailbox.signatureHtml ? `\n\n${mailbox.signatureHtml}` : "";
+  const signatureText = signature ? `\n\n${stripHtml(signature)}` : "";
 
   const metadataRaw =
     typeof org?.metadata === "string"
@@ -157,7 +189,7 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
     to: [{ email: seedInbox.email, name: "Canary Test" }],
     subject,
     html: `${bodyHtml}${signature}${compliance.footerHtml}`,
-    text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}${compliance.footerText}`,
+    text: `${bodyText}${signatureText}${compliance.footerText}`,
     compliance: complianceInput,
     canaryToken: row.canaryToken,
   });
@@ -185,7 +217,7 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
         to: [{ email: seedInbox.email, name: "Canary Test" }],
         subject,
         html: `${bodyHtml}${signature}${compliance.footerHtml}`,
-        text: `${bodyText}${compliance.footerText}`,
+        text: `${bodyText}${signatureText}${compliance.footerText}`,
         extraHeaders: { "X-Quiksend-Canary-Id": row.canaryToken },
         idempotencyKey: `canary:${row.canaryToken}`,
       });
@@ -219,6 +251,43 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
         isNull(tables.canarySend.sentAt),
       ),
     );
+}
+
+async function cancelCanarySend(
+  row: typeof tables.canarySend.$inferSelect,
+  reason: string,
+  details?: Record<string, unknown>,
+): Promise<void> {
+  const deleted = await db
+    .delete(tables.canarySend)
+    .where(
+      and(
+        eq(tables.canarySend.id, row.id),
+        eq(tables.canarySend.organizationId, row.organizationId),
+        isNull(tables.canarySend.sentAt),
+      ),
+    )
+    .returning({ id: tables.canarySend.id });
+
+  if (deleted.length === 0) return;
+
+  await db.insert(tables.event).values({
+    organizationId: row.organizationId,
+    type: "canary.send_failed",
+    entityType: "canary_send",
+    entityId: row.id,
+    payload: {
+      canarySendId: row.id,
+      sequenceId: row.sequenceId,
+      mailboxId: row.mailboxId,
+      seedInboxId: row.seedInboxId,
+      canaryToken: row.canaryToken,
+      reason,
+      ...details,
+    },
+  });
+
+  logger.warn({ canarySendId: row.id, reason, ...details }, "canary.send cancelled");
 }
 
 async function resolveReservationEnrollmentId(
