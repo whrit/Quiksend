@@ -3,8 +3,6 @@ import { createSearchProvider } from "../search/provider.ts";
 import type { SearchProvider, SearchResult } from "../search/types.ts";
 
 function resolveSearchProviderId(): SearchProvider["id"] {
-  if (env.EXA_API_KEY) return "exa";
-  if (env.TAVILY_API_KEY) return "tavily";
   if (env.BRAVE_API_KEY) return "brave";
   return "fake";
 }
