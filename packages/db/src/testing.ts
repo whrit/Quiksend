@@ -57,7 +57,30 @@ export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
   "deliverability_snapshot",
 ];
 
+/**
+ * Refuse to truncate anything that is not a test database.
+ *
+ * This is the last line of defence. `vitest.config.ts` already redirects the
+ * suite onto `<db>_test`, but a stray `DATABASE_URL`, a test run outside
+ * vitest, or a future config change would otherwise let this wipe the
+ * development database out from under a running dev server — which is exactly
+ * what used to happen on every `pnpm check`.
+ *
+ * The suffix is the contract; see `scripts/test-database-url.ts`.
+ */
+function assertTestDatabase(): void {
+  const name = client.options.database;
+  if (typeof name === "string" && name.endsWith("_test")) return;
+  throw new Error(
+    `Refusing to truncate: "${name ?? "unknown"}" is not a test database.\n` +
+      `Test helpers only run against a database whose name ends in "_test".\n` +
+      `Run the suite with \`pnpm test\` (which points DATABASE_URL at the test\n` +
+      `database), or set TEST_DATABASE_URL explicitly.`,
+  );
+}
+
 export async function truncateAppTables(): Promise<void> {
+  assertTestDatabase();
   if (APP_SCOPED_TABLES_TO_TRUNCATE.length === 0) return;
   const list = APP_SCOPED_TABLES_TO_TRUNCATE.join(", ");
   await client.unsafe(`truncate table ${list} restart identity cascade`);

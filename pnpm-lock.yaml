@@ -216,6 +216,9 @@ importers:
       oxlint:
         specifier: 1.72.0
         version: 1.72.0
+      postgres:
+        specifier: 3.4.9
+        version: 3.4.9
       tsx:
         specifier: 4.22.4
         version: 4.22.4

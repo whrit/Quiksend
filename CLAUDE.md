@@ -22,20 +22,28 @@ pnpm check              # THE CI gate: lint + format + typecheck + test + build.
 pnpm lint               # oxlint --deny-warnings
 pnpm format:fix         # oxlint --fix then oxfmt --write (formatter writes last)
 pnpm typecheck          # tsc --noEmit per package via Turbo
-pnpm test               # vitest run (whole workspace)
+pnpm test               # vitest, against the SEPARATE `<db>_test` database (see below)
 pnpm build              # turbo build across packages + apps
 
 pnpm web:dev            # run the web app → http://localhost:3000
 pnpm worker:dev         # run the worker (tsx watch)
 
-pnpm db:migrate         # apply Drizzle migrations (tsx src/migrate.ts)
+pnpm db:migrate         # apply Drizzle migrations to the dev database
+pnpm db:migrate:test    # create + migrate the `_test` database (pnpm test does this for you)
 pnpm db:generate        # generate a new migration from schema changes
 pnpm db:studio          # Drizzle Studio
 pnpm auth:generate      # regenerate packages/db/src/schema/auth.ts from the auth config
 ```
 
 Run a single test file: `pnpm vitest run packages/config/src/env.test.ts` (or `pnpm vitest <pattern>`
-to watch/filter).
+to watch/filter). Note `pnpm vitest` skips the test-DB setup that `pnpm test` performs — run
+`pnpm db:migrate:test` once first if the test database does not exist yet.
+
+**Tests never touch the dev database.** The suite truncates app-scoped tables between cases, so it
+runs against a dedicated `<db>_test` database instead: `vitest.config.ts` rewrites `DATABASE_URL`
+before any worker forks, and `truncateAppTables()` in `packages/db/src/testing.ts` hard-refuses to
+run unless the database name ends in `_test`. Override with `TEST_DATABASE_URL` if you need to.
+Before this split, `pnpm check` wiped whatever you had open in the running dev app, every time.
 
 Local infra (Postgres + Mailpit) comes from `docker compose up -d` — Postgres is `pgvector/pgvector:pg17`,
 Mailpit UI at http://localhost:8025. All db/auth/app scripts load the root `.env` via `dotenv -e ../../.env`.
