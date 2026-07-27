@@ -142,7 +142,7 @@ async function applyCanaryMatches(
     const arrivalStatus = folderToStatus(folder, { isBounce: match.isBounce });
     if (!arrivalStatus) continue;
 
-    await db
+    const [updated] = await db
       .update(tables.canarySend)
       .set({
         arrivalStatus,
@@ -154,8 +154,12 @@ async function applyCanaryMatches(
         and(
           eq(tables.canarySend.id, canary.id),
           eq(tables.canarySend.organizationId, canary.organizationId),
+          eq(tables.canarySend.arrivalStatus, "pending"),
         ),
-      );
+      )
+      .returning({ id: tables.canarySend.id });
+
+    if (!updated) continue;
 
     await fanoutWebhookEvent({
       organizationId: canary.organizationId,
