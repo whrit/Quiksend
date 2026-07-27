@@ -24,23 +24,39 @@ async function enqueueCrmWriteback(organizationId: string, prospectId: string): 
   });
 }
 
-function confirmationHtml(message: string): string {
+function pageHtml(title: string, body: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Unsubscribed</title>
+  <title>${title}</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 480px; margin: 48px auto; padding: 0 16px; color: #111; }
     p { line-height: 1.5; }
+    button { font: inherit; padding: 10px 16px; cursor: pointer; }
   </style>
 </head>
 <body>
-  <h1>Unsubscribed</h1>
-  <p>${message}</p>
+  ${body}
 </body>
 </html>`;
+}
+
+function confirmationHtml(message: string): string {
+  return pageHtml("Unsubscribed", `<h1>Unsubscribed</h1><p>${message}</p>`);
+}
+
+function confirmationFormHtml(token: string): string {
+  const action = `/api/v1/unsubscribe?token=${encodeURIComponent(token)}`;
+  return pageHtml(
+    "Confirm unsubscribe",
+    `<h1>Unsubscribe</h1>
+<p>Click below to confirm you no longer want to receive emails from this sender.</p>
+<form method="POST" action="${action}">
+  <button type="submit">Unsubscribe</button>
+</form>`,
+  );
 }
 
 type UnsubscribeOutcome =
@@ -141,15 +157,14 @@ export const Route = createFileRoute("/api/v1/unsubscribe")({
             return htmlResponse("This unsubscribe link is invalid.", 400);
           }
 
-          const result = await processUnsubscribe(token);
-          if (result.kind === "invalid_token") {
+          if (!verifyUnsubscribeToken(token)) {
             return htmlResponse("This unsubscribe link is invalid or has expired.", 400);
           }
 
-          return htmlResponse(
-            "You have been unsubscribed. You will not receive further emails from this sender.",
-            200,
-          );
+          return new Response(confirmationFormHtml(token), {
+            status: 200,
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          });
         }),
 
       POST: ({ request }: { request: Request }) =>
@@ -160,23 +175,35 @@ export const Route = createFileRoute("/api/v1/unsubscribe")({
           }
 
           const contentType = request.headers.get("Content-Type") ?? "";
-          if (!contentType.includes("application/x-www-form-urlencoded")) {
+          const isFormEncoded = contentType.includes("application/x-www-form-urlencoded");
+          const isMultipart = contentType.includes("multipart/form-data");
+          if (!isFormEncoded && !isMultipart) {
             return new Response(null, { status: 400 });
           }
 
-          const body = await request.text();
-          const params = new URLSearchParams(body);
-          if (params.get("List-Unsubscribe") !== "One-Click") {
-            return new Response(null, { status: 400 });
+          let isRfc8058OneClick = false;
+          if (isFormEncoded) {
+            const body = await request.text();
+            const params = new URLSearchParams(body);
+            isRfc8058OneClick = params.get("List-Unsubscribe") === "One-Click";
           }
 
           const result = await processUnsubscribe(token);
           if (result.kind === "invalid_token") {
-            return new Response(null, { status: 400 });
+            return isRfc8058OneClick
+              ? new Response(null, { status: 400 })
+              : htmlResponse("This unsubscribe link is invalid or has expired.", 400);
           }
 
-          // RFC 8058: mail clients expect a 2xx with an empty body.
-          return new Response(null, { status: 200 });
+          if (isRfc8058OneClick) {
+            // RFC 8058: mail clients expect a 2xx with an empty body.
+            return new Response(null, { status: 200 });
+          }
+
+          return htmlResponse(
+            "You have been unsubscribed. You will not receive further emails from this sender.",
+            200,
+          );
         }),
     },
   },
