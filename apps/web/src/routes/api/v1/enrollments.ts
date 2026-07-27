@@ -1,5 +1,6 @@
 import { computeSchedule } from "@quiksend/core/schedule";
 import type { MailboxSchedule, SendingWindow, StepKind, Weekday } from "@quiksend/core/schedule";
+import { logger } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { createFileRoute } from "@tanstack/react-router";
@@ -162,12 +163,21 @@ export const Route = createFileRoute("/api/v1/enrollments")({
 
           const enrolled: string[] = [];
           const skipped: string[] = [];
+          const skipReasons: Record<string, EnrollmentSkipReason> = {};
+          const skipProspect = (prospectId: string, reason: EnrollmentSkipReason) => {
+            skipped.push(prospectId);
+            skipReasons[prospectId] = reason;
+          };
           const anchor = new Date();
           let mailboxIndex = 0;
 
           for (const prospectId of parsed.data.prospectIds) {
-            if (!prospectSet.has(prospectId) || alreadyEnrolled.has(prospectId)) {
-              skipped.push(prospectId);
+            if (!prospectSet.has(prospectId)) {
+              skipProspect(prospectId, "not_found");
+              continue;
+            }
+            if (alreadyEnrolled.has(prospectId)) {
+              skipProspect(prospectId, "already_enrolled");
               continue;
             }
 
@@ -180,13 +190,16 @@ export const Route = createFileRoute("/api/v1/enrollments")({
                 prospect.status === "do_not_contact" ||
                 prospect.status === "bounced"
               ) {
-                skipped.push(prospectId);
+                skipProspect(prospectId, "suppressed");
                 continue;
               }
             }
 
             const mailbox = mailboxes[mailboxIndex % mailboxes.length];
-            if (!mailbox) continue;
+            if (!mailbox) {
+              skipProspect(prospectId, "no_mailbox");
+              continue;
+            }
             mailboxIndex++;
 
             const nextRunAt = computeNextRunAt(steps, settings, mailbox, 0, anchor);
@@ -205,8 +218,13 @@ export const Route = createFileRoute("/api/v1/enrollments")({
               });
               enrolled.push(prospectId);
               alreadyEnrolled.add(prospectId);
-            } catch {
-              skipped.push(prospectId);
+            } catch (err) {
+              const reason = isUniqueViolation(err) ? "conflict" : "insert_error";
+              logger.warn(
+                { err, prospectId, sequenceId: seq.id, organizationId: ctx.orgId },
+                "REST enrollment insert failed",
+              );
+              skipProspect(prospectId, reason);
             }
           }
 
@@ -226,16 +244,37 @@ export const Route = createFileRoute("/api/v1/enrollments")({
             isProEntitled: isDeliverabilityProEntitled(org?.metadata),
           });
 
-          return jsonData({
-            enrolled: enrolled.length,
-            skipped: skipped.length,
-            skippedIds: skipped,
-            canariesCreated,
-          });
+          return jsonData(
+            {
+              enrolled: enrolled.length,
+              skipped: skipped.length,
+              skippedIds: skipped,
+              skipReasons,
+              canariesCreated,
+            },
+            201,
+          );
         }),
     },
   },
 });
+
+type EnrollmentSkipReason =
+  | "not_found"
+  | "already_enrolled"
+  | "suppressed"
+  | "no_mailbox"
+  | "conflict"
+  | "insert_error";
+
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code: string }).code === "23505"
+  );
+}
 
 function emailDomainLower(email: string): string {
   const at = email.lastIndexOf("@");
