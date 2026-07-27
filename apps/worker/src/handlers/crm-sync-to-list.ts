@@ -1,5 +1,5 @@
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { CrmSyncPayload } from "@quiksend/queue";
 import type { NormalizedContact } from "@quiksend/integrations";
 import { tables } from "@quiksend/db/tables";
@@ -31,24 +31,27 @@ export async function addContactsToTargetList(
     .limit(1);
   if (!listRows[0]) return;
 
-  for (const record of records) {
-    if (!record.externalId) continue;
-    const rows = await db
-      .select({ id: tables.prospect.id })
-      .from(tables.prospect)
-      .where(
-        and(
-          eq(tables.prospect.organizationId, organizationId),
-          eq(tables.prospect.crmExternalId, record.externalId),
-        ),
-      )
-      .limit(1);
-    const prospectId = rows[0]?.id;
-    if (!prospectId) continue;
+  const externalIds = [
+    ...new Set(
+      records.map((record) => record.externalId).filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  if (externalIds.length === 0) return;
 
-    await db
-      .insert(tables.listMember)
-      .values({ listId: targetListId, prospectId })
-      .onConflictDoNothing();
-  }
+  const prospectRows = await db
+    .select({ id: tables.prospect.id })
+    .from(tables.prospect)
+    .where(
+      and(
+        eq(tables.prospect.organizationId, organizationId),
+        inArray(tables.prospect.crmExternalId, externalIds),
+      ),
+    );
+
+  if (prospectRows.length === 0) return;
+
+  await db
+    .insert(tables.listMember)
+    .values(prospectRows.map((row) => ({ listId: targetListId, prospectId: row.id })))
+    .onConflictDoNothing();
 }

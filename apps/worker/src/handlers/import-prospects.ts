@@ -2,7 +2,8 @@ import { logger } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { enqueueWithRetries, registerHandler } from "@quiksend/queue";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { emailDomain } from "../sequence/guards.ts";
 
 const CHUNK_SIZE = 500;
 
@@ -13,6 +14,68 @@ function normalizeEmail(str: string): string | null {
 }
 
 type DedupePolicy = "skip_existing" | "update_existing";
+
+type SuppressionReason = "bounce" | "unsubscribe" | "manual" | "complaint";
+
+type ProspectStatus = "new" | "active" | "replied" | "bounced" | "unsubscribed" | "do_not_contact";
+
+function prospectStatusForSuppression(reason: SuppressionReason): ProspectStatus {
+  if (reason === "bounce") return "bounced";
+  if (reason === "unsubscribe") return "unsubscribed";
+  return "do_not_contact";
+}
+
+async function loadSuppressionForEmails(
+  organizationId: string,
+  emails: string[],
+): Promise<Map<string, SuppressionReason>> {
+  if (emails.length === 0) return new Map();
+
+  const domains = [...new Set(emails.map((email) => emailDomain(email)))];
+  const rows = await db
+    .select({
+      value: tables.suppression.value,
+      valueType: tables.suppression.valueType,
+      reason: tables.suppression.reason,
+    })
+    .from(tables.suppression)
+    .where(
+      and(
+        eq(tables.suppression.organizationId, organizationId),
+        or(
+          and(eq(tables.suppression.valueType, "email"), inArray(tables.suppression.value, emails)),
+          and(
+            eq(tables.suppression.valueType, "domain"),
+            inArray(tables.suppression.value, domains),
+          ),
+        ),
+      ),
+    );
+
+  const emailReasons = new Map<string, SuppressionReason>();
+  const domainReasons = new Map<string, SuppressionReason>();
+  for (const row of rows) {
+    if (row.valueType === "email") {
+      emailReasons.set(row.value, row.reason);
+    } else {
+      domainReasons.set(row.value, row.reason);
+    }
+  }
+
+  const suppressed = new Map<string, SuppressionReason>();
+  for (const email of emails) {
+    const direct = emailReasons.get(email);
+    if (direct) {
+      suppressed.set(email, direct);
+      continue;
+    }
+    const domainReason = domainReasons.get(emailDomain(email));
+    if (domainReason) {
+      suppressed.set(email, domainReason);
+    }
+  }
+  return suppressed;
+}
 
 interface ParsedProspectRow {
   email: string;
@@ -126,9 +189,15 @@ async function importProspectRow(
   organizationId: string,
   row: ValidCsvRow,
   dedupePolicy: DedupePolicy,
+  suppressions: Map<string, SuppressionReason>,
 ): Promise<"created" | "updated" | "skipped"> {
   const email = normalizeEmail(row.prospect.email);
   if (!email) throw new Error("Invalid email");
+
+  const suppressionReason = suppressions.get(email);
+  const suppressedStatus = suppressionReason
+    ? prospectStatusForSuppression(suppressionReason)
+    : null;
 
   const companyId = await resolveCompanyId(organizationId, row.company);
 
@@ -149,10 +218,11 @@ async function importProspectRow(
     companyId,
     source: "csv" as const,
     deletedAt: null,
+    ...(suppressedStatus ? { status: suppressedStatus } : {}),
   };
 
   if (existing) {
-    if (existing.deletedAt || dedupePolicy === "update_existing") {
+    if (existing.deletedAt || dedupePolicy === "update_existing" || suppressedStatus) {
       await db
         .update(tables.prospect)
         .set(prospectValues)
@@ -162,8 +232,18 @@ async function importProspectRow(
             eq(tables.prospect.organizationId, organizationId),
           ),
         );
+      if (suppressedStatus) return "skipped";
       return existing.deletedAt ? "created" : "updated";
     }
+    return "skipped";
+  }
+
+  if (suppressedStatus) {
+    await db.insert(tables.prospect).values({
+      organizationId,
+      email,
+      ...prospectValues,
+    });
     return "skipped";
   }
 
@@ -183,6 +263,7 @@ export async function registerImportProspectsHandler(): Promise<void> {
       let updatedCount = 0;
       let skippedCount = 0;
       let erroredCount = 0;
+      const importedEmails: string[] = [];
 
       try {
         await db
@@ -197,12 +278,33 @@ export async function registerImportProspectsHandler(): Promise<void> {
 
         for (let offset = 0; offset < rows.length; offset += CHUNK_SIZE) {
           const chunk = rows.slice(offset, offset + CHUNK_SIZE);
+          const chunkEmails = [
+            ...new Set(
+              chunk
+                .map((row) => normalizeEmail(row.prospect.email))
+                .filter((email): email is string => Boolean(email)),
+            ),
+          ];
+          const suppressions = await loadSuppressionForEmails(organizationId, chunkEmails);
+
           for (const row of chunk) {
             try {
-              const outcome = await importProspectRow(organizationId, row, dedupePolicy);
-              if (outcome === "created") createdCount += 1;
-              else if (outcome === "updated") updatedCount += 1;
-              else skippedCount += 1;
+              const outcome = await importProspectRow(
+                organizationId,
+                row,
+                dedupePolicy,
+                suppressions,
+              );
+              const email = normalizeEmail(row.prospect.email);
+              if (outcome === "created") {
+                createdCount += 1;
+                if (email) importedEmails.push(email);
+              } else if (outcome === "updated") {
+                updatedCount += 1;
+                if (email) importedEmails.push(email);
+              } else {
+                skippedCount += 1;
+              }
             } catch (err) {
               erroredCount += 1;
               await db.insert(tables.importError).values({
@@ -246,13 +348,7 @@ export async function registerImportProspectsHandler(): Promise<void> {
           "import.process completed",
         );
 
-        const emails = [
-          ...new Set(
-            rows
-              .map((row) => normalizeEmail(row.prospect.email))
-              .filter((email): email is string => Boolean(email)),
-          ),
-        ];
+        const emails = [...new Set(importedEmails)];
         if (emails.length > 0) {
           await enqueueWithRetries("gateway.detect_bulk", { emails });
         }
