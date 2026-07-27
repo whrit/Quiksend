@@ -1,8 +1,15 @@
+import { env } from "@quiksend/config";
 import { isAdminOrOwner } from "@quiksend/core";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { getNango } from "@quiksend/integrations";
-import { checkDomainAuth, encryptSmtpConfig, type SmtpConfigPlain } from "@quiksend/mail";
+import {
+  buildUnsubscribeUrl,
+  checkDomainAuth,
+  encryptSmtpConfig,
+  mintUnsubscribeToken,
+  type SmtpConfigPlain,
+} from "@quiksend/mail";
 import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -36,6 +43,19 @@ function domainFromAddress(address: string): string {
 
 function decryptMailboxSmtp(smtpConfig: unknown): SmtpConfigPlain {
   return decryptSmtpConfigForMailbox(smtpConfig);
+}
+
+/** Sentinel prospect id for mailbox test sends — unsubscribe handler no-ops when missing. */
+const TEST_SEND_UNSUBSCRIBE_PROSPECT_ID = "00000000-0000-4000-a000-000000000001";
+
+function parseOrgPostalAddress(metadata: string | null): string {
+  if (!metadata) return "1 Main St, City";
+  try {
+    const parsed = JSON.parse(metadata) as { postal_address?: string };
+    return parsed.postal_address?.trim() || "1 Main St, City";
+  } catch {
+    return "1 Main St, City";
+  }
 }
 
 /**
@@ -395,10 +415,21 @@ export const testMailboxSend = createServerFn({ method: "POST" })
     });
     if (!mailbox) throw new MailboxError("NOT_FOUND", "Mailbox not found");
 
+    const organizationId = context.orgContext.organizationId;
+    const org = await db.query.organization.findFirst({
+      where: eq(tables.organization.id, organizationId),
+    });
+    const baseUrl = env.BETTER_AUTH_URL ?? "http://localhost:3000";
     const compliance = {
-      unsubscribeUrl: "https://app.example.com/u/pending",
-      senderPostalAddress: "1 Main St, City",
-      senderOrgName: "Quiksend",
+      unsubscribeUrl: buildUnsubscribeUrl(
+        baseUrl,
+        mintUnsubscribeToken({
+          prospectId: TEST_SEND_UNSUBSCRIBE_PROSPECT_ID,
+          orgId: organizationId,
+        }),
+      ),
+      senderPostalAddress: parseOrgPostalAddress(org?.metadata ?? null),
+      senderOrgName: org?.name ?? "Quiksend",
     };
     const adapter = resolveMailboxAdapter(mailbox, compliance);
     const html = "<p>This is a Quiksend test message.</p>";
