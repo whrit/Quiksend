@@ -101,7 +101,7 @@ const statusOptions = [
 ] as const;
 
 const createProspectSchema = z.object({
-  email: z.string().min(1),
+  email: z.string().email("Enter a valid email"),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   title: z.string().optional(),

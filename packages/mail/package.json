@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@quiksend/config": "workspace:*",
+    "isomorphic-dompurify": "^3.19.0",
     "nodemailer": "9.0.3",
     "zod": "4.4.3"
   },

@@ -1,7 +1,7 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
@@ -165,6 +165,25 @@ function SequencesPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [searchInput, setSearchInput] = useState(search.search ?? "");
+
+  useEffect(() => {
+    setSearchInput(search.search ?? "");
+  }, [search.search]);
+
+  useEffect(() => {
+    const next = searchInput.trim();
+    const current = search.search ?? "";
+    if (next === current) return;
+
+    const handle = window.setTimeout(() => {
+      void navigate({
+        search: (prev) => ({ ...prev, search: next || undefined }),
+      });
+    }, 300);
+
+    return () => window.clearTimeout(handle);
+  }, [searchInput, navigate, search.search]);
 
   const columns = useMemo(
     () => sequenceColumns(() => void navigate({ to: "/sequences" })),
@@ -233,15 +252,9 @@ function SequencesPage() {
       <div className="mb-3 flex items-center gap-3">
         <Input
           placeholder="Search sequences…"
-          defaultValue={search.search ?? ""}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
           className="max-w-xs"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              void navigate({
-                search: { ...search, search: e.currentTarget.value || undefined },
-              });
-            }
-          }}
         />
       </div>
 
