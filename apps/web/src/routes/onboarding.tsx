@@ -47,7 +47,16 @@ function OnboardingPage() {
       return;
     }
     if (result.data?.id) {
-      await authClient.organization.setActive({ organizationId: result.data.id });
+      const activeResult = await authClient.organization.setActive({
+        organizationId: result.data.id,
+      });
+      if (activeResult.error) {
+        setError(
+          activeResult.error.message ?? "Workspace created but couldn't switch to it",
+        );
+        setCreating(false);
+        return;
+      }
     }
     await navigate({ to: "/dashboard" });
   };
