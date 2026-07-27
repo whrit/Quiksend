@@ -32,6 +32,16 @@ export const EnvSchema = z
     WEBHOOK_SWEEP_BATCH_SIZE: z.coerce.number().int().positive().default(50),
     WEBHOOK_DELIVER_CONCURRENCY: z.coerce.number().int().positive().default(5),
 
+    // Reverse-proxy trust. These gate whether `X-Forwarded-For` is believed when
+    // deriving the client IP for rate limiting, so a typo must not silently flip
+    // the boundary — validate them like everything else rather than reading raw
+    // `process.env` at the call site.
+    TRUST_PROXY: z
+      .enum(["0", "1", "true", "false"])
+      .default("0")
+      .transform((v) => v === "1" || v === "true"),
+    TRUSTED_PROXY_IPS: z.string().default("127.0.0.1,::1,::ffff:127.0.0.1"),
+
     // Auth (Phase 1)
     BETTER_AUTH_SECRET: z.string().min(1).optional(),
     BETTER_AUTH_URL: z.string().url().optional(),

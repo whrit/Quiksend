@@ -35,30 +35,19 @@ function extractBearerToken(request: Request): string | null {
   return header.slice("Bearer ".length).trim() || null;
 }
 
-function isTruthyEnvFlag(value: string | undefined): boolean {
-  return value === "1" || value === "true";
-}
-
 function normalizeIp(ip: string | undefined | null): string | null {
   if (!ip) return null;
   return ip.replace(/^::ffff:/, "");
 }
 
-function trustedProxyPeers(): Set<string> {
-  const raw = process.env.TRUSTED_PROXY_IPS ?? "127.0.0.1,::1,::ffff:127.0.0.1";
-  return new Set(
-    raw
-      .split(",")
-      .map((entry) => normalizeIp(entry.trim()))
-      .filter((entry): entry is string => Boolean(entry)),
-  );
-}
+const TRUSTED_PROXY_PEERS: ReadonlySet<string> = new Set(
+  env.TRUSTED_PROXY_IPS.split(",")
+    .map((entry) => normalizeIp(entry.trim()))
+    .filter((entry): entry is string => Boolean(entry)),
+);
 
-function trustProxyEnabled(): boolean {
-  return isTruthyEnvFlag(process.env.TRUST_PROXY);
-}
-
-function clientIp(_request: Request): string | null {
+/** Real peer IP; `X-Forwarded-For` is honoured only behind an allowlisted proxy. */
+function clientIp(): string | null {
   let peerIp: string | null;
   try {
     peerIp = normalizeIp(getRequestIP({ xForwardedFor: false }));
@@ -67,15 +56,15 @@ function clientIp(_request: Request): string | null {
     return null;
   }
 
-  if (trustProxyEnabled() && peerIp && trustedProxyPeers().has(peerIp)) {
+  if (env.TRUST_PROXY && peerIp && TRUSTED_PROXY_PEERS.has(peerIp)) {
     return normalizeIp(getRequestIP({ xForwardedFor: true }));
   }
 
   return peerIp;
 }
 
-function rateLimitIpKey(request: Request): string {
-  return `ip:${clientIp(request) ?? "unknown"}`;
+function rateLimitIpKey(): string {
+  return `ip:${clientIp() ?? "unknown"}`;
 }
 
 export function parseKeyMetadata(metadata: unknown): { organizationId?: string } {
@@ -208,7 +197,7 @@ export async function withApiAuth(
     endpoint: url.pathname,
     method: request.method,
     statusCode: response.status,
-    ipAddress: clientIp(request),
+    ipAddress: clientIp(),
   });
 
   return response;
@@ -273,7 +262,7 @@ export async function checkAuthIpRateLimit(
   windowMs = AUTH_IP_RATE_WINDOW_MS,
 ): Promise<AuthRateLimitOutcome> {
   const effectiveLimit = limit ?? authIpRateLimitFor(request);
-  const ip = rateLimitIpKey(request);
+  const ip = rateLimitIpKey();
   const windowSec = windowMs / 1000;
 
   await db.execute(sql`

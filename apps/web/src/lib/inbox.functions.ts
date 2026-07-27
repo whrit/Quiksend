@@ -1,6 +1,7 @@
 import { env } from "@quiksend/config";
 import { db, isSendSuppressed } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
+import { transitionEnrollment } from "./sequences.functions.ts";
 import { buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
@@ -258,30 +259,14 @@ export const manuallyStopEnrollment = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
-    const { organizationId } = context.orgContext;
-
-    const enrollment = await db.query.enrollment.findFirst({
-      where: and(
-        eq(tables.enrollment.id, data.enrollmentId),
-        eq(tables.enrollment.organizationId, organizationId),
-      ),
+    // Delegate to the shared transition path. Previously this wrote
+    // `state: "stopped"` straight to the row, which skipped the state
+    // machine's terminate/emit_event effects — so a manual stop from the
+    // inbox never reached webhook subscribers or the CRM.
+    await transitionEnrollment(data.enrollmentId, context.orgContext.organizationId, {
+      kind: "stop",
+      reason: data.reason,
     });
-    if (!enrollment) throw new Error("Enrollment not found");
-
-    await db
-      .update(tables.enrollment)
-      .set({
-        state: "stopped",
-        nextRunAt: null,
-        lastError: data.reason ?? null,
-      })
-      .where(
-        and(
-          eq(tables.enrollment.id, data.enrollmentId),
-          eq(tables.enrollment.organizationId, organizationId),
-        ),
-      );
-
     return { ok: true };
   });
 

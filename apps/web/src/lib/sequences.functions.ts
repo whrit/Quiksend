@@ -966,7 +966,13 @@ export const previewSchedule = createServerFn({ method: "POST" })
     }));
   });
 
-async function transitionEnrollment(
+/**
+ * The one path a manual enrollment transition may take. Goes through the pure
+ * state machine so the resulting effects — terminate, emit_event, and with it
+ * webhook fanout and CRM writeback — actually fire. Writing `state` directly
+ * skips all of that and makes the change invisible to integrations.
+ */
+export async function transitionEnrollment(
   enrollmentId: string,
   organizationId: string,
   event: { kind: "pause" } | { kind: "resume" } | { kind: "stop"; reason?: string },
