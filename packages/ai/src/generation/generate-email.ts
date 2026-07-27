@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { getDefaultModel } from "../model/provider.ts";
-import { EmailSchema, type EmailOutput } from "./email-schema.ts";
+import { assertGroundedCitations, EmailSchema, type EmailOutput } from "./email-schema.ts";
 import type { BuiltPrompt } from "./prompt-builder.ts";
 
 const MAX_RETRIES = 2;
@@ -21,6 +21,7 @@ export async function generateEmail(prompt: BuiltPrompt): Promise<GeneratedEmail
         system: prompt.system,
         prompt: prompt.user,
       });
+      assertGroundedCitations(result.object.cited_facts, prompt.researchFacts);
       return {
         ...result.object,
         model: modelId,

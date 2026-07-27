@@ -123,6 +123,7 @@ export function transition(snapshot: EnrollmentSnapshot, event: Event): Transiti
 
 function handleTick(snapshot: EnrollmentSnapshot): TransitionResult {
   if (snapshot.state === "paused") return same(snapshot);
+  if (snapshot.state === "waiting") return same(snapshot);
   if (snapshot.state === "waiting_manual") return same(snapshot);
 
   if (snapshot.nextStepKind === null) {
@@ -159,10 +160,7 @@ function handleTick(snapshot: EnrollmentSnapshot): TransitionResult {
   }
 }
 
-function handleTerminal(snapshot: EnrollmentSnapshot, event: Event): TransitionResult {
-  if (event.kind === "resume" && snapshot.state === "paused") {
-    return { nextState: "active", effects: [{ kind: "emit_event", type: "enrollment.resumed" }] };
-  }
+function handleTerminal(snapshot: EnrollmentSnapshot, _event: Event): TransitionResult {
   return same(snapshot);
 }
 

@@ -72,12 +72,12 @@ function deferForSendConstraints(
     const gap = differenceInSeconds(at, last);
     if (gap < mailbox.minGapSeconds) {
       at = addSeconds(last, mailbox.minGapSeconds);
+      deferrals.push({ kind: "throttle", gapSeconds: mailbox.minGapSeconds });
       // Recheck window after bumping.
       const bumped = nextOpenSlot(at, mailbox, step.businessDaysOnly);
       if (bumped.getTime() !== at.getTime())
         deferrals.push({ kind: "outside_window", nextOpen: bumped });
       at = bumped;
-      deferrals.push({ kind: "throttle", gapSeconds: mailbox.minGapSeconds });
     }
   }
 

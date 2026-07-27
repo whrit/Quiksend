@@ -5,6 +5,7 @@ import { embedText } from "../model/embed.ts";
 import { fetchCrmContext } from "./fetch-crm-context.ts";
 import { fetchAndSummarize } from "./fetch-and-summarize.ts";
 import { searchWeb } from "./search-web.ts";
+import { wrapUntrustedSource } from "./untrusted-source.ts";
 
 const FRESHNESS_DAYS = 14;
 
@@ -46,8 +47,12 @@ function factsFromCrm(
   }
   for (const activity of crm.recentActivity) {
     if (!activity.subject) continue;
+    const wrappedSubject = wrapUntrustedSource(
+      `crm://${crm.provider}/activity/${activity.type}`,
+      `Recent CRM activity (${activity.type}): ${activity.subject}`,
+    );
     facts.push({
-      claim: `Recent CRM activity (${activity.type}): ${activity.subject}`,
+      claim: wrappedSubject,
       source_url: `crm://${crm.provider}/activity`,
       confidence: 0.9,
     });

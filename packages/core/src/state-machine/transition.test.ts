@@ -213,4 +213,13 @@ describe("transition", () => {
     expect(result.nextState).toBe("paused");
     expect(result.effects).toEqual([]);
   });
+
+  it("tick on waiting enrollment is a no-op (avoids duplicate create_task)", () => {
+    const result = transition(activeSnapshot({ state: "waiting", nextStepKind: "task" }), {
+      kind: "tick",
+      at: new Date(),
+    });
+    expect(result.nextState).toBe("waiting");
+    expect(result.effects).toEqual([]);
+  });
 });

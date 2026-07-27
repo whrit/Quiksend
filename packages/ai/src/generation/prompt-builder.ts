@@ -2,7 +2,10 @@ import { db, tables } from "@quiksend/db";
 import type { ResearchFact } from "@quiksend/db/schema";
 import { and, cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
 import { embedText } from "../model/embed.ts";
-import { UNTRUSTED_SOURCE_SYSTEM_GUARD } from "../research/untrusted-source.ts";
+import {
+  UNTRUSTED_SOURCE_SYSTEM_GUARD,
+  wrapUntrustedSource,
+} from "../research/untrusted-source.ts";
 
 export type MatchedValueProp = {
   id: string;
@@ -105,6 +108,7 @@ export type BuiltPrompt = {
   system: string;
   user: string;
   valuePropIds: string[];
+  researchFacts: ResearchFact[];
 };
 
 const INJECTION_GUARD =
@@ -137,7 +141,13 @@ export function buildPrompt(input: PromptInput): BuiltPrompt {
   const threadBlock =
     input.threadContext.length > 0
       ? input.threadContext
-          .map((m) => `[${m.direction}] ${m.subject}\n${m.body.slice(0, 500)}`)
+          .map((m) => {
+            const wrapped = wrapUntrustedSource(
+              `thread://${m.direction}`,
+              `Subject: ${m.subject}\n${m.body.slice(0, 500)}`,
+            );
+            return `[${m.direction}]\n${wrapped}`;
+          })
           .join("\n\n")
       : "No prior thread messages.";
 
@@ -166,7 +176,9 @@ export function buildPrompt(input: PromptInput): BuiltPrompt {
     factsBlock,
     "",
     "## Research summary",
-    input.researchSummary ?? "None",
+    input.researchSummary
+      ? wrapUntrustedSource("research://profile/summary", input.researchSummary)
+      : "None",
     "",
     "## Value props (map the best angle)",
     valuePropsBlock,
@@ -182,5 +194,6 @@ export function buildPrompt(input: PromptInput): BuiltPrompt {
     system,
     user,
     valuePropIds: input.valueProps.map((vp) => vp.id),
+    researchFacts: input.researchFacts,
   };
 }

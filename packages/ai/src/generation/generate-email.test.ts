@@ -16,6 +16,7 @@ const prompt: BuiltPrompt = {
   system: "system",
   user: "user",
   valuePropIds: [],
+  researchFacts: [{ claim: "test fact", source_url: "https://example.com", confidence: 1 }],
 };
 
 describe("generateEmail", () => {
@@ -30,7 +31,7 @@ describe("generateEmail", () => {
         subject: "Hello",
         body_markdown: "Body",
         angle: "Direct",
-        cited_facts: [],
+        cited_facts: [{ claim: "test fact", source_url: "https://example.com" }],
       },
     } as Awaited<ReturnType<typeof generateObject>>);
 

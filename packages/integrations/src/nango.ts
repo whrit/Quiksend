@@ -19,6 +19,33 @@ export function getNango(): Nango {
   return cached;
 }
 
+export type NangoConnectSessionInput = Parameters<Nango["createConnectSession"]>[0];
+export type NangoConnectSessionResult = Awaited<ReturnType<Nango["createConnectSession"]>>;
+export type NangoReconnectSessionInput = Parameters<Nango["createReconnectSession"]>[0];
+export type NangoReconnectSessionResult = Awaited<ReturnType<Nango["createReconnectSession"]>>;
+
+/** Mint a Nango Connect session for a new CRM/mailbox authorization flow. */
+export async function createNangoConnectSession(
+  sessionProps: NangoConnectSessionInput,
+): Promise<NangoConnectSessionResult> {
+  return getNango().createConnectSession(sessionProps);
+}
+
+/** Mint a Nango Connect session to re-authorize an existing connection. */
+export async function createNangoReconnectSession(
+  sessionProps: NangoReconnectSessionInput,
+): Promise<NangoReconnectSessionResult> {
+  return getNango().createReconnectSession(sessionProps);
+}
+
+/** Delete a connection in Nango (provider integration id + Nango connection id). */
+export async function deleteNangoConnection(
+  providerConfigKey: string,
+  connectionId: string,
+): Promise<void> {
+  await getNango().deleteConnection(providerConfigKey, connectionId);
+}
+
 /** Test hook to reset the cached client between runs. */
 export function resetNangoForTests(): void {
   cached = null;

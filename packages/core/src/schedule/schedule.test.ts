@@ -100,14 +100,15 @@ describe("computeSchedule", () => {
     );
   });
 
-  it("enforces minGapSeconds between sends", () => {
+  it("records throttle deferral before a secondary outside_window caused by the bump", () => {
     const tightMailbox: MailboxSchedule = { ...nyMailbox, minGapSeconds: 600 };
-    const anchor = new Date("2026-01-05T14:00:00Z");
+    // Mon 16:50 EST = 21:50 UTC. Throttle bumps step 1 to 17:00 EST (window end),
+    // which triggers a secondary outside_window deferral.
+    const anchor = new Date("2026-01-05T21:50:00Z");
     const steps = [step(0, "auto_email", 0), step(1, "auto_email", 1)];
     const out = computeSchedule(steps, tightMailbox, anchor);
-    const gap = (out[1]!.scheduledAt.getTime() - out[0]!.scheduledAt.getTime()) / 1000;
-    expect(gap).toBeGreaterThanOrEqual(600);
-    expect(out[1]?.deferredBy.some((d) => d.kind === "throttle")).toBe(true);
+    const deferrals = out[1]?.deferredBy ?? [];
+    expect(deferrals.map((d) => d.kind)).toEqual(["throttle", "outside_window"]);
   });
 
   it("passes wait/manual/task steps through without send-constraint checks", () => {

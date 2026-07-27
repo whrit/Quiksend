@@ -16,9 +16,7 @@ export interface DefaultModelResult {
 }
 
 function resolveDefaultProvider(): ModelProviderId {
-  return (
-    (process.env.AI_DEFAULT_PROVIDER as ModelProviderId | undefined) ?? env.AI_DEFAULT_PROVIDER
-  );
+  return env.AI_DEFAULT_PROVIDER;
 }
 
 function requireApiKey(provider: ModelProviderId): string {
