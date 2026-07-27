@@ -281,21 +281,31 @@ export const getSequenceDeliverability = createServerFn({ method: "POST" })
       seq?.canaryConfig as CanaryConfig | null,
     ).pauseThresholdPct;
 
-    const paused = await db.query.enrollment.findFirst({
-      where: and(
-        eq(tables.enrollment.sequenceId, data.sequenceId),
-        eq(tables.enrollment.organizationId, organizationId),
-        eq(tables.enrollment.state, "paused"),
-      ),
-      columns: { id: true },
-    });
+    const autoPauseRows = await db.execute<{ auto_paused: boolean }>(sql`
+      SELECT EXISTS (
+        SELECT 1
+        FROM event e
+        JOIN mailbox mb ON mb.id = (e.payload->>'mailboxId')::uuid
+          AND mb.organization_id = e.organization_id
+          AND mb.enterprise_safe_auto_downgraded = true
+          AND mb.enterprise_safe_reason = 'auto_downgraded'
+        JOIN enrollment en ON en.mailbox_id = mb.id
+          AND en.sequence_id = e.entity_id
+          AND en.organization_id = e.organization_id
+          AND en.state = 'paused'
+        WHERE e.organization_id = ${organizationId}
+          AND e.type = 'canary.silent_drop_detected'
+          AND e.entity_type = 'sequence'
+          AND e.entity_id = ${data.sequenceId}
+      ) AS auto_paused
+    `);
 
     return {
       deliverabilityPct: pct,
       sampleSize: total,
       threshold,
       belowThreshold: pct !== null && pct < threshold,
-      autoPaused: Boolean(paused),
+      autoPaused: Boolean(autoPauseRows[0]?.auto_paused),
     };
   });
 
