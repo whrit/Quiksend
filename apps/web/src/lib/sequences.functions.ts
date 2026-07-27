@@ -8,7 +8,7 @@ import {
 } from "@quiksend/core/state-machine";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
-import { and, asc, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
@@ -681,7 +681,12 @@ export const deleteStep = createServerFn({ method: "POST" })
         await tx
           .update(tables.sequenceStep)
           .set({ stepIndex: i })
-          .where(eq(tables.sequenceStep.id, s.id));
+          .where(
+            and(
+              eq(tables.sequenceStep.id, s.id),
+              eq(tables.sequenceStep.organizationId, organizationId),
+            ),
+          );
       }
     });
 
@@ -801,10 +806,14 @@ export const enrollProspects = createServerFn({ method: "POST" })
       where: and(
         eq(tables.mailbox.organizationId, organizationId),
         inArray(tables.mailbox.id, settings.mailbox_ids),
+        eq(tables.mailbox.status, "active"),
       ),
     });
     if (mailboxes.length === 0) {
-      throw new SequenceError("VALIDATION", "No valid mailboxes found");
+      throw new SequenceError(
+        "VALIDATION",
+        "No active mailboxes configured for this sequence — resume or reconnect a mailbox before enrolling",
+      );
     }
 
     const prospects = await db.query.prospect.findMany({
@@ -1017,22 +1026,51 @@ export const stopEnrollment = createServerFn({ method: "POST" })
     transitionEnrollment(data.id, context.orgContext.organizationId, { kind: "stop" }),
   );
 
+const enrollmentCursorSchema = z.object({
+  createdAt: z.string().datetime(),
+  id: z.string().uuid(),
+});
+
+const listEnrollmentsInputSchema = z.object({
+  sequenceId: z.string().uuid(),
+  cursor: enrollmentCursorSchema.optional(),
+  limit: z.number().int().min(1).max(500).default(50),
+});
+
+function enrollmentCursorCondition(cursor: z.infer<typeof enrollmentCursorSchema>) {
+  const cursorDate = new Date(cursor.createdAt);
+  return or(
+    lt(tables.enrollment.createdAt, cursorDate),
+    and(eq(tables.enrollment.createdAt, cursorDate), lt(tables.enrollment.id, cursor.id)),
+  )!;
+}
+
 export const listEnrollments = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .validator((data: unknown) => z.object({ sequenceId: z.string().uuid() }).parse(data ?? {}))
+  .validator((data: unknown) => listEnrollmentsInputSchema.parse(data ?? {}))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
     await loadSequenceOrThrow(data.sequenceId, organizationId);
 
+    const conditions = [
+      eq(tables.enrollment.sequenceId, data.sequenceId),
+      eq(tables.enrollment.organizationId, organizationId),
+    ];
+    if (data.cursor) {
+      conditions.push(enrollmentCursorCondition(data.cursor));
+    }
+
     const rows = await db.query.enrollment.findMany({
-      where: and(
-        eq(tables.enrollment.sequenceId, data.sequenceId),
-        eq(tables.enrollment.organizationId, organizationId),
-      ),
-      orderBy: desc(tables.enrollment.createdAt),
+      where: and(...conditions),
+      orderBy: [desc(tables.enrollment.createdAt), desc(tables.enrollment.id)],
+      limit: data.limit + 1,
     });
 
-    const prospectIds = [...new Set(rows.map((r) => r.prospectId))];
+    const hasMore = rows.length > data.limit;
+    const page = hasMore ? rows.slice(0, data.limit) : rows;
+    const last = page.at(-1);
+
+    const prospectIds = [...new Set(page.map((r) => r.prospectId))];
     const prospects =
       prospectIds.length > 0
         ? await db.query.prospect.findMany({
@@ -1044,7 +1082,7 @@ export const listEnrollments = createServerFn({ method: "GET" })
         : [];
     const prospectById = new Map(prospects.map((p) => [p.id, p]));
 
-    return rows.map((row) => {
+    const items = page.map((row) => {
       const prospect = prospectById.get(row.prospectId);
       return {
         ...serializeEnrollment(row),
@@ -1057,5 +1095,9 @@ export const listEnrollments = createServerFn({ method: "GET" })
             }
           : null,
       };
+    });
+
+    return Object.assign(items, {
+      nextCursor: hasMore && last ? { createdAt: last.createdAt.toISOString(), id: last.id } : null,
     });
   });

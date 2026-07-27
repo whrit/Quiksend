@@ -10,7 +10,7 @@ import {
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import type { EmailGateway } from "@quiksend/mail";
-import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { isDeliverabilityProEntitled, parseWorkspaceCanaryConfig } from "./canary-injection.ts";
 import { createServerFn } from "@tanstack/react-start";
@@ -95,6 +95,19 @@ export const getDeliverabilityGrid = createServerFn({ method: "POST" })
     };
   });
 
+const canaryHistoryCursorSchema = z.object({
+  createdAt: z.string().datetime(),
+  id: z.string().uuid(),
+});
+
+function canaryHistoryCursorCondition(cursor: z.infer<typeof canaryHistoryCursorSchema>) {
+  const cursorDate = new Date(cursor.createdAt);
+  return or(
+    lt(tables.canarySend.createdAt, cursorDate),
+    and(eq(tables.canarySend.createdAt, cursorDate), lt(tables.canarySend.id, cursor.id)),
+  )!;
+}
+
 export const getCanaryHistory = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((data: unknown) =>
@@ -104,7 +117,7 @@ export const getCanaryHistory = createServerFn({ method: "POST" })
         mailboxId: z.string().uuid().optional(),
         gateway: z.string().optional(),
         limit: z.number().int().min(1).max(100).default(25),
-        cursor: z.string().uuid().optional(),
+        cursor: canaryHistoryCursorSchema.optional(),
       })
       .parse(data),
   )
@@ -117,13 +130,24 @@ export const getCanaryHistory = createServerFn({ method: "POST" })
     if (data.mailboxId) {
       conditions.push(eq(tables.canarySend.mailboxId, data.mailboxId));
     }
+    if (data.gateway) {
+      conditions.push(
+        inArray(
+          tables.canarySend.seedInboxId,
+          db
+            .select({ id: tables.seedInbox.id })
+            .from(tables.seedInbox)
+            .where(eq(tables.seedInbox.gateway, data.gateway as EmailGateway)),
+        ),
+      );
+    }
     if (data.cursor) {
-      conditions.push(lt(tables.canarySend.id, data.cursor));
+      conditions.push(canaryHistoryCursorCondition(data.cursor));
     }
 
     const rows = await db.query.canarySend.findMany({
       where: and(...conditions),
-      orderBy: [desc(tables.canarySend.createdAt)],
+      orderBy: [desc(tables.canarySend.createdAt), desc(tables.canarySend.id)],
       limit: data.limit + 1,
       with: {
         seedInbox: { columns: { email: true, gateway: true } },
@@ -132,11 +156,10 @@ export const getCanaryHistory = createServerFn({ method: "POST" })
     });
 
     const hasMore = rows.length > data.limit;
-    let items = hasMore ? rows.slice(0, data.limit) : rows;
-    if (data.gateway) {
-      items = items.filter((row) => row.seedInbox?.gateway === data.gateway);
-    }
-    const nextCursor = hasMore ? items[items.length - 1]?.id : undefined;
+    const items = hasMore ? rows.slice(0, data.limit) : rows;
+    const last = items.at(-1);
+    const nextCursor =
+      hasMore && last ? { createdAt: last.createdAt.toISOString(), id: last.id } : undefined;
 
     return {
       items: items.map((row) => ({
