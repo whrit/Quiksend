@@ -1,8 +1,9 @@
 import { env } from "@quiksend/config";
 import { db, isSendSuppressed } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
+import { sendAndRecord } from "./durable-send.ts";
 import { transitionEnrollment } from "./sequences.functions.ts";
-import { buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
+import { buildUnsubscribeUrl, mintUnsubscribeToken, resolvePostalAddress } from "@quiksend/mail";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -25,16 +26,6 @@ const inboxFilterSchema = z.object({
 export type { InboxThreadSummary } from "./inbox-types.ts";
 import { listInboxThreadsForOrg } from "./inbox.server.ts";
 export { listInboxThreadsForOrg };
-
-function parseOrgPostalAddress(metadata: string | null): string {
-  if (!metadata) return "1 Main St, City";
-  try {
-    const parsed = JSON.parse(metadata) as { postal_address?: string };
-    return parsed.postal_address?.trim() || "1 Main St, City";
-  } catch {
-    return "1 Main St, City";
-  }
-}
 
 export const listInboxThreads = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -188,7 +179,10 @@ export const sendReply = createServerFn({ method: "POST" })
         env.BETTER_AUTH_URL ?? "http://localhost:3000",
         mintUnsubscribeToken({ prospectId: prospect.id, orgId: organizationId }),
       ),
-      senderPostalAddress: parseOrgPostalAddress(org?.metadata ?? null),
+      senderPostalAddress: resolvePostalAddress({
+        organizationId,
+        metadata: org?.metadata ?? null,
+      }),
       senderOrgName: org?.name ?? "Quiksend",
     };
 
@@ -206,41 +200,39 @@ export const sendReply = createServerFn({ method: "POST" })
     });
 
     const adapter = getMailboxAdapter(mailbox, compliance);
-    const sendResult = await adapter.send({
-      from: { email: mailbox.address, name: mailbox.fromName ?? undefined },
-      to: [
-        {
-          email: prospect.email,
-          name: [prospect.firstName, prospect.lastName].filter(Boolean).join(" ") || undefined,
-        },
-      ],
-      subject: threading.subject,
-      html: `${data.bodyHtml}${signature}`,
-      text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}`,
-      threading,
-    });
-
-    const messageIdHeader = normalizeMessageId(sendResult.messageId);
-
-    await db.insert(tables.message).values({
+    const { messageId: messageIdHeader, result: sendResult } = await sendAndRecord(
       organizationId,
-      mailboxId: mailbox.id,
-      prospectId: prospect.id,
-      enrollmentId: anchor.enrollmentId,
-      direction: "outbound",
-      subject: threading.subject,
-      bodyHtml: data.bodyHtml,
-      bodyText,
-      messageIdHeader,
-      providerMessageId: sendResult.providerMessageId,
-      providerThreadId: sendResult.providerThreadId ?? anchor.providerThreadId,
-      inReplyTo: normalizeMessageId(replyToId),
-      referencesHeader: [...priorRefs.map(normalizeMessageId), normalizeMessageId(replyToId)].join(
-        " ",
-      ),
-      status: "sent",
-      sentAt: sendResult.sentAt,
-    });
+      {
+        organizationId,
+        mailboxId: mailbox.id,
+        prospectId: prospect.id,
+        enrollmentId: anchor.enrollmentId,
+        direction: "outbound",
+        subject: threading.subject,
+        bodyHtml: data.bodyHtml,
+        bodyText,
+        providerThreadId: anchor.providerThreadId,
+        inReplyTo: normalizeMessageId(replyToId),
+        referencesHeader: [
+          ...priorRefs.map(normalizeMessageId),
+          normalizeMessageId(replyToId),
+        ].join(" "),
+      },
+      () =>
+        adapter.send({
+          from: { email: mailbox.address, name: mailbox.fromName ?? undefined },
+          to: [
+            {
+              email: prospect.email,
+              name: [prospect.firstName, prospect.lastName].filter(Boolean).join(" ") || undefined,
+            },
+          ],
+          subject: threading.subject,
+          html: `${data.bodyHtml}${signature}`,
+          text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}`,
+          threading,
+        }),
+    );
 
     return {
       messageId: messageIdHeader,

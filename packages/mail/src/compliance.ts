@@ -9,6 +9,8 @@
  * secret lives there. This module accepts a pre-signed URL — it does not sign.
  */
 
+import { logger } from "@quiksend/config";
+
 export interface ComplianceInput {
   /** One-click unsubscribe URL. Pre-signed by the caller. */
   readonly unsubscribeUrl: string;
@@ -68,4 +70,43 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/**
+ * Placeholder used when a workspace has not configured its CAN-SPAM postal
+ * address. Shipping it is a compliance risk, so every resolution that falls
+ * back here warns.
+ */
+export const DEFAULT_POSTAL_ADDRESS = "1 Main St, City";
+
+/**
+ * Resolve a workspace's physical postal address from `organization.metadata`.
+ *
+ * Lives here because it is a compliance concern and had drifted into four
+ * separate copies — the worker's warned on fallback, the three web copies were
+ * silent, so a manual compose or inbox reply from an unconfigured workspace
+ * shipped the placeholder with no signal at all.
+ */
+export function resolvePostalAddress(input: {
+  organizationId: string;
+  metadata: string | null;
+}): string {
+  const address = parsePostalAddress(input.metadata);
+  if (address) return address;
+
+  logger.warn(
+    { organizationId: input.organizationId },
+    "workspace postal_address not configured — using placeholder (CAN-SPAM/deliverability risk)",
+  );
+  return DEFAULT_POSTAL_ADDRESS;
+}
+
+function parsePostalAddress(metadata: string | null): string | null {
+  if (!metadata) return null;
+  try {
+    const parsed = JSON.parse(metadata) as { postal_address?: string };
+    return parsed.postal_address?.trim() || null;
+  } catch {
+    return null;
+  }
 }

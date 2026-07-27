@@ -45,6 +45,7 @@ export default defineConfig({
       files: [
         "apps/web/src/**/*.server.ts",
         "apps/web/src/lib/canary-injection.ts",
+        "apps/web/src/lib/durable-send.ts",
         "apps/web/src/lib/effect-executor.ts",
         "apps/web/src/lib/mailbox-adapter.ts",
         "apps/web/src/lib/org-fn.ts",

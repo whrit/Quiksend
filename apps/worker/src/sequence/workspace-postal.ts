@@ -1,13 +1,15 @@
-import { logger } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
+import { resolvePostalAddress } from "@quiksend/mail";
 import { eq } from "drizzle-orm";
 
-const DEFAULT_POSTAL_ADDRESS = "1 Main St, City";
-
 /**
- * Reads CAN-SPAM postal address from organization.metadata.postal_address.
- * Falls back to a documented default and logs a warning when unset.
+ * CAN-SPAM postal address for a workspace, read from
+ * `organization.metadata.postal_address`.
+ *
+ * Falls back to the documented placeholder and warns — the shared resolver in
+ * `@quiksend/mail` owns both behaviours so the worker and the web manual send
+ * paths cannot drift apart on a compliance field.
  */
 export async function getWorkspacePostalAddress(organizationId: string): Promise<string> {
   const org = await db.query.organization.findFirst({
@@ -15,25 +17,5 @@ export async function getWorkspacePostalAddress(organizationId: string): Promise
     columns: { metadata: true },
   });
 
-  if (!org?.metadata) {
-    logger.warn(
-      { organizationId },
-      "workspace postal_address not configured — using default (deliverability risk)",
-    );
-    return DEFAULT_POSTAL_ADDRESS;
-  }
-
-  try {
-    const parsed = JSON.parse(org.metadata) as { postal_address?: string };
-    const address = parsed.postal_address?.trim();
-    if (address) return address;
-  } catch {
-    // fall through to default
-  }
-
-  logger.warn(
-    { organizationId },
-    "workspace postal_address not configured — using default (deliverability risk)",
-  );
-  return DEFAULT_POSTAL_ADDRESS;
+  return resolvePostalAddress({ organizationId, metadata: org?.metadata ?? null });
 }

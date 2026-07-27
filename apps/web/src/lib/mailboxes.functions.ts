@@ -8,6 +8,7 @@ import {
   checkDomainAuth,
   encryptSmtpConfig,
   mintUnsubscribeToken,
+  resolvePostalAddress,
   type SmtpConfigPlain,
 } from "@quiksend/mail";
 import { createServerFn } from "@tanstack/react-start";
@@ -47,16 +48,6 @@ function decryptMailboxSmtp(smtpConfig: unknown): SmtpConfigPlain {
 
 /** Sentinel prospect id for mailbox test sends — unsubscribe handler no-ops when missing. */
 const TEST_SEND_UNSUBSCRIBE_PROSPECT_ID = "00000000-0000-4000-a000-000000000001";
-
-function parseOrgPostalAddress(metadata: string | null): string {
-  if (!metadata) return "1 Main St, City";
-  try {
-    const parsed = JSON.parse(metadata) as { postal_address?: string };
-    return parsed.postal_address?.trim() || "1 Main St, City";
-  } catch {
-    return "1 Main St, City";
-  }
-}
 
 /**
  * Nango's HTTP errors surface through the SDK as AxiosError-shaped objects with
@@ -428,7 +419,10 @@ export const testMailboxSend = createServerFn({ method: "POST" })
           orgId: organizationId,
         }),
       ),
-      senderPostalAddress: parseOrgPostalAddress(org?.metadata ?? null),
+      senderPostalAddress: resolvePostalAddress({
+        organizationId,
+        metadata: org?.metadata ?? null,
+      }),
       senderOrgName: org?.name ?? "Quiksend",
     };
     const adapter = resolveMailboxAdapter(mailbox, compliance);

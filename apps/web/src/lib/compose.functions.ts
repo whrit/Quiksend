@@ -1,7 +1,8 @@
 import { env } from "@quiksend/config";
-import { buildUnsubscribeUrl, mintUnsubscribeToken } from "@quiksend/mail";
+import { buildUnsubscribeUrl, mintUnsubscribeToken, resolvePostalAddress } from "@quiksend/mail";
 import { db, isSendSuppressed } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
+import { sendAndRecord } from "./durable-send.ts";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -26,16 +27,6 @@ const sendComposedMessageSchema = z.object({
   bodyText: z.string().optional(),
   anchor: anchorSchema.optional(),
 });
-
-function parseOrgPostalAddress(metadata: string | null): string {
-  if (!metadata) return "1 Main St, City";
-  try {
-    const parsed = JSON.parse(metadata) as { postal_address?: string };
-    return parsed.postal_address?.trim() || "1 Main St, City";
-  } catch {
-    return "1 Main St, City";
-  }
-}
 
 async function loadProspect(prospectId: string, organizationId: string) {
   const rows = await db.execute<{
@@ -148,7 +139,10 @@ export const sendComposedMessage = createServerFn({ method: "POST" })
       where: eq(tables.organization.id, organizationId),
     });
     const senderOrgName = org?.name ?? "Quiksend";
-    const senderPostalAddress = parseOrgPostalAddress(org?.metadata ?? null);
+    const senderPostalAddress = resolvePostalAddress({
+      organizationId,
+      metadata: org?.metadata ?? null,
+    });
 
     const compliance = {
       unsubscribeUrl: buildUnsubscribeUrl(
@@ -171,17 +165,6 @@ export const sendComposedMessage = createServerFn({ method: "POST" })
         })
       : null;
 
-    const adapter = getMailboxAdapter(mailbox, compliance);
-    const sendResult = await adapter.send({
-      from: { email: mailbox.address, name: mailbox.fromName ?? undefined },
-      to: [{ email: prospect.email, name: formatProspectName(prospect) }],
-      subject: threading?.subject ?? data.subject,
-      html: `${data.bodyHtml}${signature}`,
-      text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}`,
-      threading: threading ?? undefined,
-    });
-
-    const messageIdHeader = normalizeMessageId(sendResult.messageId);
     const threadingMeta = data.anchor
       ? {
           inReplyTo: normalizeMessageId(data.anchor.messageId),
@@ -192,23 +175,31 @@ export const sendComposedMessage = createServerFn({ method: "POST" })
         }
       : { inReplyTo: null, referencesHeader: null };
 
-    await db.insert(tables.message).values({
+    const adapter = getMailboxAdapter(mailbox, compliance);
+    const { messageId: messageIdHeader, result: sendResult } = await sendAndRecord(
       organizationId,
-      mailboxId: mailbox.id,
-      prospectId: prospect.id,
-      enrollmentId: data.enrollmentId ?? null,
-      direction: "outbound",
-      subject: threading?.subject ?? data.subject,
-      bodyHtml: data.bodyHtml,
-      bodyText,
-      messageIdHeader,
-      providerMessageId: sendResult.providerMessageId,
-      providerThreadId: sendResult.providerThreadId,
-      inReplyTo: threadingMeta.inReplyTo,
-      referencesHeader: threadingMeta.referencesHeader,
-      status: "sent",
-      sentAt: sendResult.sentAt,
-    });
+      {
+        organizationId,
+        mailboxId: mailbox.id,
+        prospectId: prospect.id,
+        enrollmentId: data.enrollmentId ?? null,
+        direction: "outbound",
+        subject: threading?.subject ?? data.subject,
+        bodyHtml: data.bodyHtml,
+        bodyText,
+        inReplyTo: threadingMeta.inReplyTo,
+        referencesHeader: threadingMeta.referencesHeader,
+      },
+      () =>
+        adapter.send({
+          from: { email: mailbox.address, name: mailbox.fromName ?? undefined },
+          to: [{ email: prospect.email, name: formatProspectName(prospect) }],
+          subject: threading?.subject ?? data.subject,
+          html: `${data.bodyHtml}${signature}`,
+          text: `${bodyText}${signature ? `\n\n${stripHtml(signature)}` : ""}`,
+          threading: threading ?? undefined,
+        }),
+    );
 
     if (data.enrollmentId) {
       await captureManualAnchorForEnrollment({
