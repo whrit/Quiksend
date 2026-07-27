@@ -324,9 +324,7 @@ export function isBounceMessage(headers: Record<string, string>, raw?: string): 
   const returnPath = headers["Return-Path"] ?? headers["return-path"] ?? "";
 
   if (contentType.includes("multipart/report")) return true;
-  if (autoSubmitted.includes("auto-replied") || autoSubmitted === "auto-generated") {
-    return true;
-  }
+  if (autoSubmitted.includes("auto-replied")) return true;
   if (returnPath === "<>" || returnPath.includes("<>")) return true;
 
   if (!raw) return false;
