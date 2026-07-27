@@ -1,5 +1,7 @@
 import { ImapFlow } from "imapflow";
 import type { SeedImapConfigPlain } from "@quiksend/mail";
+import { env } from "@quiksend/config";
+import type { ImapPoolConnection } from "./imap-pool.ts";
 
 type ImapSearchQuery = {
   since?: Date;
@@ -30,6 +32,18 @@ export interface ImapMessageMatch {
 }
 
 export type ArrivalFolder = "inbox" | "spam" | "quarantine" | "not_found";
+
+const CANARY_IMAP_MOCK_VALUES = ["inbox", "spam", "quarantine", "not_found", "bounce"] as const;
+type CanaryImapMockMode = (typeof CANARY_IMAP_MOCK_VALUES)[number];
+
+function resolveCanaryImapMockMode(): CanaryImapMockMode | undefined {
+  if (env.QUIKSEND_CANARY_IMAP_MOCK) return env.QUIKSEND_CANARY_IMAP_MOCK;
+  const raw = process.env.QUIKSEND_CANARY_IMAP_MOCK;
+  if (!raw) return undefined;
+  return CANARY_IMAP_MOCK_VALUES.includes(raw as CanaryImapMockMode)
+    ? (raw as CanaryImapMockMode)
+    : undefined;
+}
 
 const FOLDER_CANDIDATES = [
   "INBOX",
@@ -70,7 +84,7 @@ export async function searchCanaryMessages(
   canaryTokens: readonly string[],
   since: Date,
 ): Promise<Map<string, ImapMessageMatch>> {
-  const mockMode = process.env.QUIKSEND_CANARY_IMAP_MOCK;
+  const mockMode = resolveCanaryImapMockMode();
   if (mockMode === "not_found") {
     return new Map();
   }
@@ -84,33 +98,41 @@ export async function searchCanaryMessages(
     return buildMockMatches(canaryTokens, mockMode);
   }
 
-  const tokenSet = new Set(canaryTokens);
-  const found = new Map<string, ImapMessageMatch>();
   const client = createImapClient(config);
-
   try {
     await client.connect();
-    for (const folder of FOLDER_CANDIDATES) {
-      if (found.size === tokenSet.size) break;
-      try {
-        const lock = await client.getMailboxLock(folder);
-        try {
-          for (const token of canaryTokens) {
-            if (found.has(token)) continue;
-            const match = await findTokenInFolder(client, folder, token, since, tokenSet);
-            if (match) {
-              found.set(token, match);
-            }
-          }
-        } finally {
-          lock.release();
-        }
-      } catch {
-        // Folder may not exist on this provider — skip.
-      }
-    }
+    return await searchCanaryMessagesWithClient(client, canaryTokens, since);
   } finally {
     await client.logout().catch(() => undefined);
+  }
+}
+
+export async function searchCanaryMessagesWithClient(
+  client: ImapFlow,
+  canaryTokens: readonly string[],
+  since: Date,
+): Promise<Map<string, ImapMessageMatch>> {
+  const tokenSet = new Set(canaryTokens);
+  const found = new Map<string, ImapMessageMatch>();
+
+  for (const folder of FOLDER_CANDIDATES) {
+    if (found.size === tokenSet.size) break;
+    try {
+      const lock = await client.getMailboxLock(folder);
+      try {
+        for (const token of canaryTokens) {
+          if (found.has(token)) continue;
+          const match = await findTokenInFolder(client, folder, token, since, tokenSet);
+          if (match) {
+            found.set(token, match);
+          }
+        }
+      } finally {
+        lock.release();
+      }
+    } catch {
+      // Folder may not exist on this provider — skip.
+    }
   }
 
   return found;
@@ -205,6 +227,39 @@ function createImapClient(config: SeedImapConfigPlain): ImapFlow {
     auth: { user: config.auth.user, pass: config.auth.pass },
     logger: false,
   });
+}
+
+export { resolveCanaryImapMockMode };
+
+export type PooledSeedImap = ImapPoolConnection & {
+  searchCanary(
+    canaryTokens: readonly string[],
+    since: Date,
+  ): Promise<Map<string, ImapMessageMatch>>;
+};
+
+/** Opens a pooled seed IMAP session for repeated canary polling. */
+export async function openPooledSeedImap(
+  seedInboxId: string,
+  config: SeedImapConfigPlain,
+): Promise<PooledSeedImap> {
+  const client = createImapClient(config);
+  await client.connect();
+  let lastUsedAt = Date.now();
+  return {
+    seedInboxId,
+    get lastUsedAt() {
+      return lastUsedAt;
+    },
+    touch() {
+      lastUsedAt = Date.now();
+    },
+    close: async () => {
+      await client.logout().catch(() => undefined);
+    },
+    searchCanary: (canaryTokens, since) =>
+      searchCanaryMessagesWithClient(client, canaryTokens, since),
+  };
 }
 
 export function extractCanaryToken(raw: string, knownTokens?: ReadonlySet<string>): string | null {
@@ -306,7 +361,7 @@ export type CanaryArrivalStatus =
 export function folderToStatus(
   folder: ArrivalFolder,
   options?: { isBounce?: boolean },
-): CanaryArrivalStatus {
+): CanaryArrivalStatus | null {
   if (options?.isBounce) return "bounced";
   switch (folder) {
     case "spam":
@@ -316,7 +371,7 @@ export function folderToStatus(
     case "inbox":
       return "arrived_inbox";
     default:
-      return "arrived_inbox";
+      return null;
   }
 }
 

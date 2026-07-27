@@ -12,6 +12,13 @@ describe("pickInjectionPositions", () => {
     }
   });
 
+  it("random_position is deterministic when seeded", () => {
+    const a = pickInjectionPositions(steps, 3, "random_position", 2, "enrollment-abc");
+    const b = pickInjectionPositions(steps, 3, "random_position", 2, "enrollment-abc");
+    expect(a).toEqual(b);
+    expect(a).not.toEqual(pickInjectionPositions(steps, 3, "random_position", 2, "other-seed"));
+  });
+
   it("first_then_last alternates first and last step indices", () => {
     const positions = pickInjectionPositions(steps, 4, "first_then_last");
     expect(positions).toEqual([0, 4, 0, 4]);

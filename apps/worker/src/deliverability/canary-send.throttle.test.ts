@@ -138,7 +138,10 @@ describe("materializeCanarySend domain gap throttle", () => {
       expect(enqueue).toHaveBeenCalledWith(
         "canary.send",
         { canarySendId: canary!.id },
-        expect.objectContaining({ startAfter: expect.any(Number) }),
+        expect.objectContaining({
+          startAfter: expect.any(Number),
+          singletonKey: `canary.send:${canary!.id}`,
+        }),
       );
     });
   });

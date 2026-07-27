@@ -16,6 +16,7 @@ import { registerMailboxPollHandler, registerMailboxPollTick } from "./handlers/
 import { registerNangoWebhookSweep } from "./handlers/nango-webhook-sweep.ts";
 import { registerSequenceHandlers } from "./sequence/register.ts";
 import { registerCanaryCheckHandler } from "./handlers/canary-check.ts";
+import { registerCanaryRecoverHandler } from "./handlers/canary-recover.ts";
 import { registerCanarySendHandler } from "./handlers/canary-send-handler.ts";
 import { registerDeliverabilitySnapshotHandler } from "./handlers/deliverability-snapshot.ts";
 import { registerSeedInboxVerifyHandler } from "./handlers/seed-inbox-verify.ts";
@@ -72,6 +73,7 @@ async function main(): Promise<void> {
   await registerSeedPoolLegitMailHandler();
   await registerCanarySendHandler();
   await registerCanaryCheckHandler();
+  await registerCanaryRecoverHandler();
   await registerDeliverabilitySnapshotHandler();
   await registerMailboxPollTick();
   await registerNangoWebhookSweep();

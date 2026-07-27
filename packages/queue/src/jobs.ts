@@ -183,6 +183,10 @@ export interface CanarySendJobPayload {
 export const canaryCheckSchema = z.object({});
 export type CanaryCheckPayload = Record<string, never>;
 
+// ── canary.recover — re-evaluate auto-paused mailboxes for deliverability recovery ─
+export const canaryRecoverSchema = z.object({});
+export type CanaryRecoverPayload = Record<string, never>;
+
 // ── deliverability.snapshot — rollup grid aggregates (Phase 11C) ──────────────
 export const deliverabilitySnapshotSchema = z.object({});
 export type DeliverabilitySnapshotPayload = Record<string, never>;
@@ -219,6 +223,7 @@ export interface JobPayloadMap {
   "seed_inbox.verify": SeedInboxVerifyPayload;
   "canary.send": CanarySendJobPayload;
   "canary.check": CanaryCheckPayload;
+  "canary.recover": CanaryRecoverPayload;
   "deliverability.snapshot": DeliverabilitySnapshotPayload;
   "seed_pool.health_check": SeedPoolHealthCheckPayload;
   "seed_pool.generate_legit_mail": SeedPoolGenerateLegitMailPayload;
@@ -245,6 +250,7 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "seed_inbox.verify": seedInboxVerifySchema,
   "canary.send": canarySendJobSchema,
   "canary.check": canaryCheckSchema,
+  "canary.recover": canaryRecoverSchema,
   "deliverability.snapshot": deliverabilitySnapshotSchema,
   "seed_pool.health_check": seedPoolHealthCheckSchema,
   "seed_pool.generate_legit_mail": seedPoolGenerateLegitMailSchema,

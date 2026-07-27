@@ -95,7 +95,7 @@ describe("deliverability snapshot rollup math", () => {
           count(*) FILTER (WHERE cs.arrival_status = 'arrived_inbox')::int AS canary_delivered,
           count(*) FILTER (WHERE cs.arrival_status = 'arrived_spam')::int AS canary_spam,
           count(*) FILTER (WHERE cs.arrival_status = 'arrived_quarantine')::int AS canary_quarantine,
-          count(*) FILTER (WHERE cs.arrival_status IN ('silent_drop', 'bounced'))::int AS canary_silent_dropped,
+          count(*) FILTER (WHERE cs.arrival_status = 'silent_drop')::int AS canary_silent_dropped,
           round(
             100.0 * count(*) FILTER (WHERE cs.arrival_status = 'arrived_inbox') / nullif(count(*), 0),
             2

@@ -83,6 +83,11 @@ vi.mock("@quiksend/db", () => ({
       organization: {
         findFirst: vi.fn<() => Promise<Record<string, unknown> | null>>(async () => dbMocks.org),
       },
+      enrollment: {
+        findFirst: vi.fn<() => Promise<{ id: string } | null>>(async () => ({
+          id: "enrollment-test-id",
+        })),
+      },
       sequenceStep: {
         findMany: vi.fn<() => Promise<Record<string, unknown>[]>>(async () => dbMocks.steps),
       },
@@ -114,6 +119,15 @@ vi.mock("@quiksend/db", () => ({
   },
 }));
 
+vi.mock("../sequence/reserve-slot.ts", () => ({
+  reserveSendSlot: vi.fn<() => Promise<{ ok: true; reservationId: number }>>(async () => ({
+    ok: true,
+    reservationId: 1,
+  })),
+  markReservationSent: vi.fn<() => Promise<void>>(async () => undefined),
+  releaseReservation: vi.fn<() => Promise<void>>(async () => undefined),
+}));
+
 vi.mock("@quiksend/queue", () => ({
   enqueue: vi.fn<() => Promise<void>>(),
 }));
@@ -140,6 +154,13 @@ describe("materializeCanarySend sanitizer parity", () => {
       organizationId: "org-1",
       name: "Test Seq",
       canaryConfig: {},
+      settings: {
+        timezone: "UTC",
+        throttle_seconds: 0,
+        mailbox_ids: [],
+        stop_on_reply: true,
+        business_days_only: false,
+      },
     };
     dbMocks.mailbox = {
       id: dbMocks.canaryRow.mailboxId,

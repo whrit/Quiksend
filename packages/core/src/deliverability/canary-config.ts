@@ -38,6 +38,8 @@ export function pickInjectionPositions(
   count: number,
   strategy: InjectionStrategy = "random_position",
   everyNth = 2,
+  /** Stable seed for deterministic `random_position` (e.g. enrollment or canary token). */
+  seed?: string,
 ): number[] {
   if (stepIndices.length === 0 || count <= 0) return [];
 
@@ -48,7 +50,7 @@ export function pickInjectionPositions(
       return pickEveryNth(stepIndices, count, everyNth);
     case "random_position":
     default:
-      return pickRandomPositions(stepIndices, count);
+      return pickRandomPositions(stepIndices, count, seed);
   }
 }
 
@@ -73,7 +75,32 @@ function pickEveryNth(stepIndices: readonly number[], count: number, everyNth: n
   return out;
 }
 
-function pickRandomPositions(stepIndices: readonly number[], count: number): number[] {
+function hashSeed(seed: string): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return hash || 1;
+}
+
+/** Mulberry32 PRNG — deterministic given an integer seed. */
+function createSeededRng(seed: string): () => number {
+  let state = hashSeed(seed);
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function pickRandomPositions(
+  stepIndices: readonly number[],
+  count: number,
+  seed = "quiksend-canary",
+): number[] {
+  const rng = createSeededRng(seed);
   const pool = [...stepIndices];
   const out: number[] = [];
   for (let i = 0; i < count; i++) {
@@ -81,7 +108,7 @@ function pickRandomPositions(stepIndices: readonly number[], count: number): num
       out.push(stepIndices[i % stepIndices.length]!);
       continue;
     }
-    const idx = Math.floor(Math.random() * pool.length);
+    const idx = Math.floor(rng() * pool.length);
     out.push(pool[idx]!);
     pool.splice(idx, 1);
   }

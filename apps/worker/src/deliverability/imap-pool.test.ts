@@ -3,7 +3,8 @@ import { ImapConnectionPool, type ImapPoolConnection } from "./imap-pool.ts";
 
 function makeConn(seedInboxId: string): ImapPoolConnection {
   const touch = vi.fn<() => void>();
-  return { seedInboxId, lastUsedAt: Date.now(), touch };
+  const close = vi.fn<() => Promise<void>>(async () => undefined);
+  return { seedInboxId, lastUsedAt: Date.now(), touch, close };
 }
 
 describe("ImapConnectionPool", () => {
@@ -24,10 +25,11 @@ describe("ImapConnectionPool", () => {
     const pool = new ImapConnectionPool<ImapPoolConnection>({ idleTtlMs: 1000 });
     const factory = vi.fn<() => Promise<ImapPoolConnection>>(async () => makeConn("seed-1"));
 
-    await pool.getOrCreate("seed-1", factory);
+    const first = await pool.getOrCreate("seed-1", factory);
     vi.advanceTimersByTime(2000);
-    pool.evictStale();
+    await pool.evictStale();
 
+    expect(first.close).toHaveBeenCalled();
     expect(pool.get("seed-1")).toBeUndefined();
     await pool.getOrCreate("seed-1", factory);
     expect(factory).toHaveBeenCalledTimes(2);

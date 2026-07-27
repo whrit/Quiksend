@@ -5,6 +5,7 @@ export interface ImapPoolConnection {
   readonly seedInboxId: string;
   readonly lastUsedAt: number;
   touch(): void;
+  close(): Promise<void>;
 }
 
 interface PoolSlot<T extends ImapPoolConnection> {
@@ -45,7 +46,7 @@ export class ImapConnectionPool<T extends ImapPoolConnection> {
     }
 
     if (this.slots.size >= this.maxSize) {
-      this.evictOldest();
+      await this.evictOldest();
     }
 
     const connection = await factory();
@@ -66,15 +67,15 @@ export class ImapConnectionPool<T extends ImapPoolConnection> {
     this.touch(seedInboxId);
   }
 
-  evictStale(now = Date.now()): void {
+  async evictStale(now = Date.now()): Promise<void> {
     for (const [seedInboxId, slot] of this.slots) {
       if (now - slot.lastUsedAt > this.idleTtlMs) {
-        this.slots.delete(seedInboxId);
+        await this.removeSlot(seedInboxId);
       }
     }
   }
 
-  private evictOldest(): void {
+  private async evictOldest(): Promise<void> {
     let oldestId: string | undefined;
     let oldestAt = Number.POSITIVE_INFINITY;
     for (const [seedInboxId, slot] of this.slots) {
@@ -83,7 +84,14 @@ export class ImapConnectionPool<T extends ImapPoolConnection> {
         oldestId = seedInboxId;
       }
     }
-    if (oldestId) this.slots.delete(oldestId);
+    if (oldestId) await this.removeSlot(oldestId);
+  }
+
+  private async removeSlot(seedInboxId: string): Promise<void> {
+    const slot = this.slots.get(seedInboxId);
+    if (!slot) return;
+    this.slots.delete(seedInboxId);
+    await slot.connection.close().catch(() => undefined);
   }
 
   get size(): number {

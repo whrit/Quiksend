@@ -51,6 +51,8 @@ export function mergeDeliverabilityPolicy(
     routingPolicy: RoutingPolicy;
     contentSanitizerEnabled?: boolean;
     changedBy: string;
+    /** ISO-8601 timestamp — inject at the I/O boundary; core never calls `new Date()`. */
+    changedAt?: string;
   },
 ): string {
   let base: OrganizationMetadata = {};
@@ -66,7 +68,7 @@ export function mergeDeliverabilityPolicy(
 
   const deliverability: DeliverabilityPolicy = {
     routingPolicy: patch.routingPolicy,
-    routingPolicyChangedAt: new Date().toISOString(),
+    routingPolicyChangedAt: patch.changedAt ?? base.deliverability?.routingPolicyChangedAt,
     routingPolicyChangedBy: patch.changedBy,
     contentSanitizerEnabled,
   };
