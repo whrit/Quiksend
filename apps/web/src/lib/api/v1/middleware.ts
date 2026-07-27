@@ -5,7 +5,7 @@ import { env } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { and, eq, sql } from "drizzle-orm";
-import { countRecentApiKeyUsage, recordApiKeyUsage } from "./helpers.ts";
+import { recordApiKeyUsage } from "./helpers.ts";
 
 export const DEFAULT_API_RATE_LIMIT = 100;
 export const API_RATE_WINDOW_MS = 60_000;
@@ -100,6 +100,40 @@ export async function resolveApiKey(request: Request): Promise<ApiAuthContext | 
   };
 }
 
+export async function checkApiKeyRateLimit(
+  apiKeyId: string,
+  limit = DEFAULT_API_RATE_LIMIT,
+  windowMs = API_RATE_WINDOW_MS,
+): Promise<AuthRateLimitOutcome> {
+  const key = `api:${apiKeyId}`;
+  const windowSec = windowMs / 1000;
+
+  await db.execute(sql`
+    INSERT INTO auth_rate_bucket (key, tokens, updated_at)
+    VALUES (${key}, ${limit}, now())
+    ON CONFLICT (key) DO UPDATE SET
+      tokens = LEAST(
+        auth_rate_bucket.tokens + GREATEST(0, FLOOR(
+          EXTRACT(EPOCH FROM (now() - auth_rate_bucket.updated_at)) / ${windowSec} * ${limit}
+        )::int),
+        ${limit}
+      ),
+      updated_at = now()
+  `);
+
+  const consumed = await db.execute<{ tokens: number }>(sql`
+    UPDATE auth_rate_bucket
+    SET tokens = tokens - 1, updated_at = now()
+    WHERE key = ${key} AND tokens >= 1
+    RETURNING tokens
+  `);
+
+  if (consumed.length === 0) {
+    return { ok: false, retryAfter: Math.ceil(windowSec) };
+  }
+  return { ok: true };
+}
+
 export async function withApiAuth(
   request: Request,
   handler: (ctx: ApiAuthContext) => Promise<Response>,
@@ -107,9 +141,8 @@ export async function withApiAuth(
   const ctx = await resolveApiKey(request);
   if (!ctx) return jsonError("UNAUTHORIZED", "Invalid or missing API key", 401);
 
-  const recent = await countRecentApiKeyUsage(ctx.apiKeyId, API_RATE_WINDOW_MS);
-  if (recent >= DEFAULT_API_RATE_LIMIT) {
-    const retryAfter = Math.ceil(API_RATE_WINDOW_MS / 1000);
+  const rateLimit = await checkApiKeyRateLimit(ctx.apiKeyId);
+  if (!rateLimit.ok) {
     return new Response(
       JSON.stringify({
         error: { code: "RATE_LIMITED", message: "API rate limit exceeded" },
@@ -118,7 +151,7 @@ export async function withApiAuth(
         status: 429,
         headers: {
           "Content-Type": "application/json",
-          "Retry-After": String(retryAfter),
+          "Retry-After": String(rateLimit.retryAfter),
         },
       },
     );
