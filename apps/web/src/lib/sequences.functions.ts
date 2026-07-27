@@ -118,8 +118,28 @@ const stepInputSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+/**
+ * READ path for the JSONB `settings` column.
+ *
+ * Tolerant on purpose. `settings` has no DB-level shape guarantee, so a row
+ * written before a field existed — or written partially — must not throw:
+ * `parseSettings` runs per row in the sequences list, so one malformed record
+ * would take down the entire page with a raw Zod dump. Same defaults as the
+ * tolerant readers in `enrollments.functions.ts` and `api/v1/enrollments.ts`.
+ *
+ * WRITE paths keep validating against the strict `sequenceSettingsSchema`.
+ */
+const storedSettingsSchema = z.object({
+  timezone: z.string().min(1).max(100).catch("UTC"),
+  throttle_seconds: z.number().int().min(0).max(86400).catch(90),
+  mailbox_ids: z.array(z.string().uuid()).catch([]),
+  stop_on_reply: z.boolean().catch(true),
+  business_days_only: z.boolean().catch(true),
+});
+
 function parseSettings(raw: unknown): SequenceSettings {
-  return sequenceSettingsSchema.parse(raw ?? {});
+  const parsed = storedSettingsSchema.safeParse(raw ?? {});
+  return parsed.success ? parsed.data : storedSettingsSchema.parse({});
 }
 
 async function loadSuppressedEmails(

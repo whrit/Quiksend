@@ -1,5 +1,4 @@
 import { env } from "@quiksend/config";
-import { sanitize as sanitizeHtmlWithDomPurify } from "isomorphic-dompurify";
 
 /** HTML + plain parts before MIME assembly or adapter.send. */
 export interface BuiltMime {
@@ -92,14 +91,4 @@ export function extractRecipientDomain(email: string): string {
   return email.slice(at + 1).toLowerCase();
 }
 
-const INBOUND_HTML_PURIFY_CONFIG = {
-  USE_PROFILES: { html: true },
-  ADD_ATTR: ["target"],
-  FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "base", "link", "meta"],
-};
-
-/** Strip XSS vectors from inbound or user-authored HTML before storage or render. */
-export function sanitizeInboundHtml(html: string): string {
-  if (!html.trim()) return "";
-  return sanitizeHtmlWithDomPurify(html, INBOUND_HTML_PURIFY_CONFIG);
-}
+export { sanitizeInboundHtml } from "./sanitize-html.ts";

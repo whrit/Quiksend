@@ -15,7 +15,8 @@
     "./adapters/fake": "./src/adapters/fake.ts",
     "./adapters/index": "./src/adapters/index.ts",
     "./gateway-detect": "./src/gateway-detect.ts",
-    "./nango-proxy": "./src/nango-proxy.ts"
+    "./nango-proxy": "./src/nango-proxy.ts",
+    "./sanitize-html": "./src/sanitize-html.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -1,0 +1,1092 @@
+/* ui-kit.css -- primitives for dense product interfaces.
+ *
+ * Themeable: everything reads from custom properties, so retheming is editing
+ * the :root block. Dark mode via <html data-theme="dark">.
+ *
+ * Framework-agnostic on purpose. Porting to React/Vue/Svelte means keeping the
+ * class names and wrapping each block in a component -- the token layer and the
+ * semantic colour system are the parts worth preserving.
+ */
+
+/* ============================================================ TOKENS */
+:root {
+  /* Neutral ramp. Sampled from reference apps; close to a standard grey scale
+     because product UI genuinely benefits from the familiar one. */
+  --n0: #ffffff;
+  --n25: #fafafb;
+  --n50: #f3f4f6;
+  --n100: #e9eaed;
+  --n200: #dfe0e3;
+  --n300: #c7c9cf;
+  --n400: #9ca0a8;
+  --n500: #6b7078;
+  --n700: #3a3d44;
+  --n900: #16181c;
+
+  --bg: var(--n25); /* app background */
+  --surface: var(--n0); /* panels, cards, inputs */
+  --surface-2: var(--n50); /* nav rail, table headers, inset areas */
+  --line: var(--n200); /* hairline: the primary structural device */
+  --line-soft: var(--n100);
+  --ink: var(--n900); /* headings, primary values */
+  --ink-2: var(--n500); /* body, labels, secondary */
+  --ink-3: var(--n400); /* placeholders, empty states, disabled */
+
+  /* Primary. Indigo in five of seven references -- it reads as software. */
+  --p: #474ff5;
+  --p-600: #3a3ed6;
+  --p-400: #666dff;
+  --p-300: #9ea3ff;
+  --p-tint: #f2f3ff;
+  --p-tint-2: #e4e6ff;
+  --p-ink: #ffffff;
+
+  /* Semantic. These three carry meaning and must never be used decoratively. */
+  --pos: #30cc83;
+  --pos-tint: #e1faea;
+  --warn: #eca100;
+  --warn-tint: #fdf3dc;
+  --neg: #ff3b57;
+  --neg-tint: #ffe7ea;
+
+  /* Categorical. For type-coding -- node kinds, chart series, option cards.
+     Six is the ceiling; past that nobody can hold the mapping. */
+  --c1: #506aeb;
+  --c2: #fe7a5d;
+  --c3: #ff71e3;
+  --c4: #21a989;
+  --c5: #f2b441;
+  --c6: #a96ce2;
+
+  --r-sm: 6px;
+  --r: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-full: 999px;
+  --sp: 4px; /* 4px base unit */
+  --row: 52px; /* table row height */
+  --nav-item: 38px;
+  --shadow-sm: 0 1px 2px rgba(16, 18, 28, 0.06);
+  --shadow: 0 4px 12px rgba(16, 18, 28, 0.08);
+  --shadow-lg: 0 12px 32px rgba(16, 18, 28, 0.12);
+  --font: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+[data-theme="dark"] {
+  --n0: #0e0e12;
+  --n25: #101014;
+  --n50: #1a1a1e;
+  --n100: #242428;
+  --n200: #2e2e34;
+  --n300: #3c3c44;
+  --n400: #7a7f8a;
+  --n500: #9ba1ac;
+  --n700: #d3d7de;
+  --n900: #f5f6f8;
+  --bg: #0e0e12;
+  --surface: #16161b;
+  --surface-2: #1a1a1e;
+  --line: #2a2a31;
+  --line-soft: #222228;
+  --ink: #f5f6f8;
+  --ink-2: #9ba1ac;
+  --ink-3: #6c7280;
+  --p: #6e76ff;
+  --p-600: #5a62f0;
+  --p-400: #8c92ff;
+  --p-300: #4a4f86;
+  --p-ink: #ffffff;
+  --p-tint: #1c1d33;
+  --p-tint-2: #252748;
+  --pos: #75ffd4;
+  --pos-tint: #12302a;
+  --warn: #e7c600;
+  --warn-tint: #302a0e;
+  --neg: #ff6b80;
+  --neg-tint: #33161c;
+  --c1: #7f7bff;
+  --c2: #ff9a78;
+  --c3: #ff77e9;
+  --c4: #4fe0b0;
+  --c5: #f4c64b;
+  --c6: #b98bf0;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================ SHELL
+ * Four-zone grid. Omit any zone by leaving the element out and adjusting
+ * grid-template-columns; the rail is optional and only earns its place when
+ * there are 5+ top-level product areas. */
+.shell {
+  display: grid;
+  height: 100vh;
+  overflow: hidden;
+  grid-template-columns: var(--rail, 0) var(--side, 260px) 1fr var(--drawer, 0);
+}
+.shell.has-rail {
+  --rail: 60px;
+}
+.shell.has-drawer {
+  --drawer: 340px;
+}
+.rail {
+  background: var(--surface-2);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 0;
+}
+.rail-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-full);
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: transparent;
+}
+.rail-btn:hover {
+  background: var(--line-soft);
+  color: var(--ink);
+}
+.rail-btn[aria-current] {
+  background: var(--p-tint);
+  color: var(--p);
+  border-color: var(--p-300);
+}
+
+.side {
+  background: var(--surface-2);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.main {
+  overflow-y: auto;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+.drawer {
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+  padding: 18px;
+}
+
+/* ============================================================ NAV */
+.nav-group {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+  color: var(--ink-3);
+  padding: 16px 10px 6px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--nav-item);
+  padding: 0 10px;
+  border-radius: var(--r);
+  color: var(--ink-2);
+  text-decoration: none;
+  font-weight: 500;
+  position: relative;
+  cursor: pointer;
+}
+.nav-item:hover {
+  background: var(--line-soft);
+  color: var(--ink);
+}
+.nav-item[aria-current] {
+  background: var(--p-tint);
+  color: var(--p);
+  font-weight: 600;
+}
+.nav-item[aria-current] .ico {
+  color: var(--p);
+}
+/* Left marker: use it OR the tinted background, not both, unless the nav is
+   deep enough that the tint alone loses the parent-child relationship. */
+.nav-item.marked[aria-current]::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--p);
+}
+.nav-sub {
+  margin-left: 22px;
+}
+.nav-item .count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.ico {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  stroke-width: 1.6;
+}
+
+/* ============================================================ ICON TILE
+ * The atomic unit of this idiom -- it appears in every reference screenshot.
+ * A rounded square, radius ~30% of size, holding one glyph. Solid fill for
+ * identity and emphasis; tinted fill for inline metadata. */
+.tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 30%;
+  background: var(--p);
+  color: var(--p-ink);
+}
+.tile svg {
+  width: 58%;
+  height: 58%;
+  stroke-width: 1.9;
+}
+.tile.xs {
+  width: 20px;
+  height: 20px;
+}
+.tile.sm {
+  width: 26px;
+  height: 26px;
+}
+.tile.md {
+  width: 34px;
+  height: 34px;
+}
+.tile.lg {
+  width: 56px;
+  height: 56px;
+  border-radius: 26%;
+  box-shadow: var(--shadow);
+}
+.tile.soft {
+  background: var(--p-tint-2);
+  color: var(--p);
+}
+.tile.c1 {
+  background: var(--c1);
+}
+.tile.c2 {
+  background: var(--c2);
+}
+.tile.c3 {
+  background: var(--c3);
+}
+.tile.c4 {
+  background: var(--c4);
+}
+.tile.c5 {
+  background: var(--c5);
+}
+.tile.c6 {
+  background: var(--c6);
+}
+.tile.pos {
+  background: var(--pos);
+}
+.tile.warn {
+  background: var(--warn);
+}
+.tile.neg {
+  background: var(--neg);
+}
+
+/* ============================================================ PILLS
+ * Fully rounded for status, tags, filters and deltas. Never for buttons that
+ * perform destructive or primary actions -- those stay rectangular so the two
+ * families don't blur. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--r-full);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1px solid transparent;
+}
+.pill.pos {
+  background: var(--pos-tint);
+  color: color-mix(in srgb, var(--pos) 70%, var(--ink));
+}
+.pill.warn {
+  background: var(--warn-tint);
+  color: color-mix(in srgb, var(--warn) 75%, var(--ink));
+}
+.pill.neg {
+  background: var(--neg-tint);
+  color: color-mix(in srgb, var(--neg) 78%, var(--ink));
+}
+.pill.brand {
+  background: var(--p-tint);
+  color: var(--p);
+}
+.pill.tag::before {
+  content: "#";
+  opacity: 0.6;
+  font-weight: 700;
+}
+.pill.outline {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink-2);
+}
+.badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-full);
+  background: var(--neg);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.kbd {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+}
+
+/* ============================================================ BUTTONS */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--r);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--ink);
+  background: var(--surface);
+  transition:
+    background 0.14s,
+    border-color 0.14s;
+}
+.btn.sm {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.btn.lg {
+  height: 42px;
+  padding: 0 18px;
+  font-size: 14px;
+}
+.btn-1 {
+  background: var(--p);
+  color: var(--p-ink);
+}
+.btn-1:hover {
+  background: var(--p-600);
+}
+.btn-2 {
+  background: var(--surface);
+  border-color: var(--line);
+}
+.btn-2:hover {
+  background: var(--surface-2);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--ink-2);
+}
+.btn-ghost:hover {
+  background: var(--line-soft);
+  color: var(--ink);
+}
+/* Contrast primary: near-black regardless of theme accent. Reserve it for the
+   single most consequential action in a view (Compare, Delete, Publish). */
+.btn-dark {
+  background: var(--n900);
+  color: var(--n0);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+/* ============================================================ HEADER BARS */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  flex: none;
+}
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.crumbs .sep {
+  color: var(--ink-3);
+}
+.crumbs .here {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  padding: 3px 9px;
+  border-radius: var(--r-sm);
+}
+.spacer {
+  margin-left: auto;
+}
+.filterbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+  flex: none;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--r-full);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--ink);
+}
+.chip:hover {
+  background: var(--surface-2);
+}
+.chip.on {
+  background: var(--p-tint);
+  border-color: var(--p-300);
+  color: var(--p);
+}
+.chip .x {
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+/* Segmented control: small radius, inset track. */
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--surface-2);
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+}
+.seg button {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.seg button[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Counter tabs: underline, with the count as part of the label. */
+.tabs {
+  display: flex;
+  gap: 22px;
+  border-bottom: 1px solid var(--line);
+  padding: 0 18px;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink-2);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  background: 0;
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  font-family: inherit;
+}
+.tab[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--p);
+}
+.tab .n {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.tab[aria-selected="true"] .n {
+  color: var(--p);
+}
+
+/* ============================================================ PANELS
+ * Named regions divided by hairlines rather than gapped floating cards. This is
+ * what makes the reference dashboards read as instruments: the grid is
+ * continuous and the dividers do the separating. */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  margin: 18px;
+  overflow: hidden;
+}
+.panel-hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 600;
+}
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+.panel-grid > * {
+  padding: 18px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.panel-grid > *:last-child {
+  border-right: 0;
+}
+.page-hd {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 18px 14px;
+}
+.page-hd h1 {
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+/* ============================================================ METRIC
+ * Value, delta, label -- always this triple, always this order. */
+.metric-hd {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+.metric-hd .t {
+  font-weight: 600;
+  font-size: 15px;
+}
+.metric-val {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.metric-val b {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.metric-lbl {
+  color: var(--ink-2);
+  font-size: 13px;
+  margin-top: 2px;
+}
+.metric-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.metric-row b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================ TABLE */
+.tbl {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+.tbl th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-2);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  padding: 0 14px;
+  height: 44px;
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line-soft);
+  white-space: nowrap;
+}
+.tbl th .ico {
+  width: 15px;
+  height: 15px;
+  color: var(--ink-3);
+  vertical-align: -3px;
+  margin-right: 7px;
+}
+.tbl td {
+  height: var(--row);
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line-soft);
+  border-right: 1px solid var(--line-soft);
+  vertical-align: middle;
+}
+.tbl tr:hover td {
+  background: var(--surface-2);
+}
+.tbl tr[aria-selected="true"] td {
+  background: var(--p-tint);
+}
+.tbl .cell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.tbl .logo {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  flex: none;
+}
+.tbl a {
+  color: var(--p);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Empty cells say what's absent. A blank cell reads as a bug. */
+.empty {
+  color: var(--ink-3);
+}
+.checkcol {
+  width: 44px;
+  text-align: center;
+}
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--p);
+  cursor: pointer;
+}
+
+/* ============================================================ FORMS */
+.field {
+  margin-bottom: 16px;
+}
+.field > label {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.field .req {
+  color: var(--neg);
+  margin-left: 2px;
+}
+.field .help {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-top: 5px;
+}
+.input,
+.textarea,
+.select {
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 9px 12px;
+  min-height: 40px;
+}
+.textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+.input:focus,
+.textarea:focus,
+.select:focus {
+  outline: 2px solid var(--p-300);
+  outline-offset: -1px;
+  border-color: var(--p);
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--ink-3);
+}
+.counter {
+  text-align: right;
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.disclose {
+  border-top: 1px dashed var(--line);
+  padding-top: 14px;
+  margin-top: 18px;
+}
+.disclose > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.disclose > summary::-webkit-details-marker {
+  display: none;
+}
+.disclose > summary::before {
+  content: "›";
+  color: var(--ink-2);
+  font-size: 16px;
+  transition: transform 0.15s;
+}
+.disclose[open] > summary::before {
+  transform: rotate(90deg);
+}
+.disclose .sub {
+  color: var(--ink-2);
+  font-size: 13px;
+  margin: 4px 0 0 20px;
+}
+
+/* Option cards: a radio group rendered as tiles. Each option needs an icon, a
+   label and one line of consequence -- "what happens if I pick this". */
+.opts {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.opt {
+  position: relative;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 14px;
+  cursor: pointer;
+}
+.opt:hover {
+  border-color: var(--n300);
+}
+.opt[aria-checked="true"] {
+  border-color: var(--p);
+  box-shadow: 0 0 0 1px var(--p);
+}
+.opt .mark {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+.opt h4 {
+  margin: 12px 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.opt p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+/* ============================================================ CANVAS
+ * Dotted-grid plane for builders, flows and maps. Works in both themes. */
+.canvas {
+  position: relative;
+  flex: 1;
+  overflow: auto;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--n300) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+[data-theme="dark"] .canvas {
+  background-image: radial-gradient(#26262e 1px, transparent 1px);
+}
+/* Node: tinted header carrying the type colour, neutral body carrying content.
+   The header colour is the type's identity and repeats on its connectors. */
+.node {
+  width: 300px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.node-hd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  background: var(--p-tint);
+  color: var(--p);
+}
+.node-bd {
+  padding: 12px;
+}
+.node-bd b {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 3px;
+}
+.node-bd p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.node .kind {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: var(--r-full);
+  background: currentColor;
+  filter: brightness(1.1);
+}
+.node.c1 .node-hd {
+  background: color-mix(in srgb, var(--c1) 14%, var(--surface));
+  color: var(--c1);
+}
+.node.c3 .node-hd {
+  background: color-mix(in srgb, var(--c3) 14%, var(--surface));
+  color: var(--c3);
+}
+.node.c4 .node-hd {
+  background: color-mix(in srgb, var(--c4) 14%, var(--surface));
+  color: var(--c4);
+}
+.wire {
+  stroke-width: 1.5;
+  fill: none;
+}
+.wire-dot {
+  r: 4;
+}
+
+/* ============================================================ MINI CHARTS
+ * Enough to compose real-looking dashboards without a chart library. Reach for
+ * a real one when interaction matters; these are for layout and static views. */
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 150px;
+}
+.bars > i {
+  flex: 1;
+  background: var(--p-tint-2);
+  border-radius: 5px 5px 2px 2px;
+  display: block;
+  position: relative;
+}
+.bars > i.on {
+  background: var(--p);
+}
+.bars > i.mid {
+  background: var(--p-400);
+} /* comparison series */
+.hbar {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.hbar .track {
+  height: 34px;
+  border-radius: var(--r-full);
+  background: var(--p-tint);
+  position: relative;
+  overflow: hidden;
+}
+.hbar .track > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--p);
+  border-radius: var(--r-full);
+}
+.spark {
+  width: 100%;
+  height: 60px;
+}
+.legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-top: 10px;
+}
+.legend b {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+.legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: block;
+}
+
+/* ============================================================ STATES */
+.skel {
+  background: linear-gradient(90deg, var(--line-soft), var(--surface-2), var(--line-soft));
+  background-size: 200% 100%;
+  border-radius: var(--r-sm);
+  animation: sh 1.4s linear infinite;
+  height: 12px;
+}
+@keyframes sh {
+  to {
+    background-position: -200% 0;
+  }
+}
+.blank {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  padding: 56px 20px;
+  text-align: center;
+  color: var(--ink-2);
+}
+.blank h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--ink);
+}
+.blank p {
+  margin: 0;
+  font-size: 13px;
+  max-width: 38ch;
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  max-width: 380px;
+}
+
+/* ============================================================ A11Y */
+:focus-visible {
+  outline: 2px solid var(--p);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .rail,
+  .side,
+  .drawer {
+    display: none;
+  }
+  .panel-grid {
+    grid-template-columns: 1fr;
+  }
+}

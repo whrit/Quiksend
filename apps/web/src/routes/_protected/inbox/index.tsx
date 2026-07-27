@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Ban, Check, Loader2, Reply, Search, Send, X } from "lucide-react";
-import { sanitizeInboundHtml } from "@quiksend/mail";
+import { sanitizeInboundHtml } from "@quiksend/mail/sanitize-html";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";

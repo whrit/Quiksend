@@ -7,13 +7,14 @@ import {
   type ColumnDef,
   type RowSelectionState,
 } from "@tanstack/react-table";
-import { MoreHorizontal, Plus, Upload, Check, ChevronsUpDown } from "lucide-react";
+import { MoreHorizontal, Plus, Upload, Check, ChevronsUpDown, User } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { GatewayBadge, GATEWAY_FILTER_OPTIONS } from "@/components/gateway-badge.tsx";
-import { Badge } from "@/components/ui/badge";
+import { Absent, Pill, Tile } from "@/components/ui/primitives";
+import { formatRelative, prospectTone } from "@/lib/semantic.ts";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -141,12 +142,6 @@ export const Route = createFileRoute("/_protected/prospects/")({
   component: ProspectsPage,
 });
 
-function statusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "replied" || status === "active") return "default";
-  if (status === "bounced" || status === "do_not_contact") return "destructive";
-  return "secondary";
-}
-
 function SelectAllHeader({ table }: { table: ReturnType<typeof useReactTable<ProspectRow>> }) {
   return (
     <Checkbox
@@ -184,15 +179,23 @@ function prospectColumns(): ColumnDef<ProspectRow>[] {
       id: "name",
       header: "Name",
       accessorFn: (row) => [row.firstName, row.lastName].filter(Boolean).join(" ") || row.email,
-      cell: ({ row }) => (
-        <Link
-          to="/prospects/$id"
-          params={{ id: row.original.id }}
-          className="font-medium hover:underline"
-        >
-          {[row.original.firstName, row.original.lastName].filter(Boolean).join(" ") || "—"}
-        </Link>
-      ),
+      cell: ({ row }) => {
+        const name = [row.original.firstName, row.original.lastName].filter(Boolean).join(" ");
+        return (
+          <div className="cell">
+            <Tile size="xs" hue={prospectTone(row.original.status)} tint>
+              <User />
+            </Tile>
+            <Link
+              to="/prospects/$id"
+              params={{ id: row.original.id }}
+              className="truncate font-medium hover:underline"
+            >
+              {name || row.original.email}
+            </Link>
+          </div>
+        );
+      },
     },
     { accessorKey: "email", header: "Email" },
     {
@@ -205,29 +208,41 @@ function prospectColumns(): ColumnDef<ProspectRow>[] {
     {
       id: "company",
       header: "Company",
-      accessorFn: (row) => row.companyName ?? "—",
+      cell: ({ row }) =>
+        row.original.companyName ? (
+          <span className="block max-w-[14ch] truncate">{row.original.companyName}</span>
+        ) : (
+          <Absent>No company</Absent>
+        ),
     },
     {
       accessorKey: "title",
       header: "Title",
-      accessorFn: (row) => row.title ?? "—",
+      cell: ({ row }) =>
+        row.original.title ? (
+          <span className="block max-w-[20ch] truncate" title={row.original.title}>
+            {row.original.title}
+          </span>
+        ) : (
+          <Absent>No title</Absent>
+        ),
     },
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ getValue }) => (
-        <Badge variant={statusVariant(String(getValue()))}>{String(getValue())}</Badge>
-      ),
-    },
-    {
-      accessorKey: "source",
-      header: "Source",
-      cell: ({ getValue }) => <Badge variant="outline">{String(getValue())}</Badge>,
+      cell: ({ getValue }) => {
+        const status = String(getValue());
+        return (
+          <Pill tone={prospectTone(status)} dot>
+            {status.replace(/_/g, " ")}
+          </Pill>
+        );
+      },
     },
     {
       id: "activity",
       header: "Last activity",
-      accessorFn: (row) => new Date(row.updatedAt).toLocaleDateString(),
+      cell: ({ row }) => formatRelative(row.original.updatedAt) ?? <Absent>Never</Absent>,
     },
     {
       id: "actions",

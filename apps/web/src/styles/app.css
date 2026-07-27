@@ -19,100 +19,163 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ═══ COLOUR CONTRACT ════════════════════════════════════════════════════════
+   Every hue on screen must be explainable by a line below. If a colour is here
+   because a cell looked empty, it is a bug.
+
+   primary   Interactive or currently active. Buttons, links, active nav,
+             selected rows, focus rings, the highlighted series in a chart.
+             NEVER used to type a record.
+   pos       Delivered · replied · healthy mailbox · verified auth · above target
+   warn      Pending · paused · partial auth · nearing cap · needs attention
+   neg       Bounced · failed · suppressed · unsubscribed · destructive
+   cat-1..6  TYPE only, no valence: gateway family, sequence step kind, tag.
+             Type indicators (tiles, chips) never share a slot with state
+             indicators (status pills), so cat greens/ambers can't be misread.
+
+   Colour is never the only channel — every hue is paired with an icon, a label
+   or a position, so the UI survives colourblindness and greyscale.
+   ══════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  /* ── Neutral paper scale ─────────────────────────────────────────────────
-     True near-white with a hair of warmth (60° hue at 0.002 chroma — barely
-     perceptible). Steps down through hairline dividers, panel surfaces, muted
-     foregrounds, and body ink. This is a single warm-neutral family — no
-     mixing of warm and cool grays. */
-  --paper-000: oklch(0.985 0.002 60); /* page background */
-  --paper-050: oklch(0.975 0.003 60); /* subtle raised surface */
-  --paper-100: oklch(0.955 0.003 60); /* muted panel */
-  --paper-150: oklch(0.925 0.004 60); /* light divider */
-  --paper-200: oklch(0.895 0.004 60); /* border, hairline */
-  --paper-300: oklch(0.795 0.005 60); /* border strong, disabled fg */
-  --paper-400: oklch(0.66 0.006 60); /* muted foreground */
-  --paper-500: oklch(0.52 0.006 60); /* secondary body */
-  --paper-600: oklch(0.4 0.006 60);
-  --paper-700: oklch(0.3 0.006 60);
+  /* ── Neutral ramp ────────────────────────────────────────────────────────
+     Warm near-white (60° hue at ~0.003 chroma). Carries ~90% of the pixels.
+     Body copy sits at --paper-600, never full-strength ink: full black on
+     every line is what makes a dense screen feel harsh. */
+  --paper-000: oklch(0.988 0.002 60); /* page background */
+  --paper-050: oklch(0.973 0.003 60); /* inset / header fill */
+  --paper-100: oklch(0.952 0.004 60); /* muted panel, hover */
+  --paper-150: oklch(0.922 0.004 60); /* light divider */
+  --paper-200: oklch(0.892 0.005 60); /* hairline border */
+  --paper-300: oklch(0.8 0.006 60); /* strong border, disabled fg */
+  --paper-400: oklch(0.66 0.007 60); /* placeholder / ink-3 */
+  --paper-500: oklch(0.53 0.007 60); /* meta / muted fg */
+  --paper-600: oklch(0.41 0.007 60); /* body copy — ink-2 */
+  --paper-700: oklch(0.31 0.006 60);
   --paper-800: oklch(0.22 0.005 60);
-  --paper-900: oklch(0.15 0.005 60); /* primary ink */
+  --paper-900: oklch(0.16 0.005 60); /* headings — ink */
   --paper-950: oklch(0.09 0.004 60);
 
-  /* ── Semantic status colors ──────────────────────────────────────────────
-     Red = destructive/bounce. Green = success/delivered. Blue = link/info.
-     Yellow = warn. That's it — no brand accent, no warm heroic hue. Color
-     carries meaning, not decoration. */
-  --status-red-600: oklch(0.55 0.19 22);
-  --status-red-050: oklch(0.965 0.02 22);
-  --status-green-600: oklch(0.55 0.13 155);
-  --status-green-050: oklch(0.965 0.02 155);
-  --status-blue-600: oklch(0.5 0.16 240);
-  --status-blue-050: oklch(0.965 0.02 240);
-  --status-yellow-600: oklch(0.72 0.14 82);
-  --status-yellow-050: oklch(0.975 0.03 82);
+  /* ── Primary: indigo ─────────────────────────────────────────────────────
+     Reads as software without carrying an emotional charge. Meaning is
+     "interactive or active" and nothing else. */
+  --brand-700: oklch(0.42 0.19 268);
+  --brand-600: oklch(0.5 0.21 268); /* default interactive */
+  --brand-500: oklch(0.58 0.2 268);
+  --brand-400: oklch(0.7 0.15 268);
+  --brand-tint: oklch(0.955 0.028 268); /* selected row, active nav */
+  --brand-tint-2: oklch(0.915 0.05 268); /* chart rest-state, ring */
 
-  /* ── Red pen ink — the one product-specific accent ──────────────────────
-     Deep desaturated red distinct from `--status-red-600`. Used ONLY to mark
-     human-authored artifacts: a message you drafted and sent, a reply you're
-     composing, a manual suppression add. Never used for canary sends, gateway
-     classifications, or any auto/system-generated data. This is the design
-     system's one product-specific decision — everything else is neutral. */
+  /* ── Semantic triad ──────────────────────────────────────────────────────
+     `-050` is the wash; `-600` is the readable text/icon on that wash. The
+     text steps are darkened deliberately: a pure hue on its own tint is the
+     single most common contrast failure in this idiom (~1.9:1). */
+  --status-green-600: oklch(0.46 0.13 158);
+  --status-green-050: oklch(0.955 0.035 158);
+  --status-red-600: oklch(0.505 0.2 22);
+  --status-red-050: oklch(0.955 0.03 22);
+  --status-yellow-600: oklch(0.5 0.11 75);
+  --status-yellow-050: oklch(0.955 0.045 85);
+  --status-blue-600: oklch(0.48 0.16 245);
+  --status-blue-050: oklch(0.955 0.03 245);
+
+  /* Role aliases — prefer these in new work; the -600/-050 pairs above exist
+     because the badge and button variants already reference them by name. */
+  --pos: var(--status-green-600);
+  --pos-tint: var(--status-green-050);
+  --warn: var(--status-yellow-600);
+  --warn-tint: var(--status-yellow-050);
+  --neg: var(--status-red-600);
+  --neg-tint: var(--status-red-050);
+
+  /* ── Categorical set — TYPE, never state ─────────────────────────────────
+     Ordered for maximum adjacent separation. Assigned by stable identity
+     (see `categoricalFor` in lib/semantic.ts), never by array index. */
+  --cat-1: oklch(0.52 0.19 268); /* indigo   */
+  --cat-2: oklch(0.62 0.17 35); /* coral    */
+  --cat-3: oklch(0.58 0.22 330); /* magenta  */
+  --cat-4: oklch(0.55 0.12 190); /* teal     */
+  --cat-5: oklch(0.62 0.13 85); /* amber    */
+  --cat-6: oklch(0.55 0.18 305); /* violet   */
+
+  /* Retained so the existing `ink` badge/button variants keep resolving.
+     Marks human-authored artifacts — a TYPE distinction, not a state. */
   --ink-red-700: oklch(0.38 0.16 18);
   --ink-red-600: oklch(0.44 0.17 18);
   --ink-red-100: oklch(0.94 0.045 18);
 
-  --radius: 4px;
+  --radius: 6px;
 
   /* ── Semantic token bridge ──────────────────────────────────────────────
      Everything downstream reads these. Component libraries stay pure. */
   --background: var(--paper-000);
   --foreground: var(--paper-900);
-  --card: var(--paper-000);
+  --card: oklch(1 0 0);
   --card-foreground: var(--paper-900);
-  --popover: var(--paper-000);
+  --popover: oklch(1 0 0);
   --popover-foreground: var(--paper-900);
-  --primary: var(--paper-900);
-  --primary-foreground: var(--paper-000);
+  --primary: var(--brand-600);
+  --primary-foreground: oklch(0.99 0 0);
   --secondary: var(--paper-100);
   --secondary-foreground: var(--paper-800);
   --muted: var(--paper-100);
   --muted-foreground: var(--paper-500);
-  --accent: var(--paper-150);
-  --accent-foreground: var(--paper-900);
+  --accent: var(--brand-tint);
+  --accent-foreground: var(--brand-700);
   --destructive: var(--status-red-600);
   --success: var(--status-green-600);
-  --link: var(--status-blue-600);
+  --link: var(--brand-600);
   --border: var(--paper-200);
   --input: var(--paper-200);
-  --ring: var(--paper-500);
+  --ring: var(--brand-500);
 }
 
+/* Dark is a token override and nothing else — no second stylesheet.
+   Four things a naive inversion gets wrong, all handled here:
+   surfaces get lighter as they come closer but stay dark; saturated hues are
+   lifted (a mid green goes muddy on near-black); tints become dark washes of
+   the same hue rather than pale ones; borders need more contrast than feels
+   right, because the hairline grid is doing the layout work. */
 .dark {
-  --paper-000: oklch(0.155 0.006 60);
-  --paper-050: oklch(0.19 0.007 60);
-  --paper-100: oklch(0.225 0.007 60);
-  --paper-150: oklch(1 0 0 / 6%);
-  --paper-200: oklch(1 0 0 / 10%);
-  --paper-300: oklch(1 0 0 / 18%);
-  --paper-400: oklch(0.52 0.008 60);
-  --paper-500: oklch(0.65 0.008 60);
-  --paper-600: oklch(0.75 0.008 60);
-  --paper-700: oklch(0.82 0.008 60);
-  --paper-800: oklch(0.9 0.008 60);
-  --paper-900: oklch(0.955 0.008 60);
-  --paper-950: oklch(0.99 0.006 60);
+  --paper-000: oklch(0.165 0.005 285); /* page   */
+  --paper-050: oklch(0.205 0.006 285); /* panel  */
+  --paper-100: oklch(0.245 0.007 285); /* inset / hover */
+  --paper-150: oklch(1 0 0 / 8%);
+  --paper-200: oklch(1 0 0 / 13%); /* hairline — deliberately lifted */
+  --paper-300: oklch(1 0 0 / 22%);
+  --paper-400: oklch(0.56 0.008 285);
+  --paper-500: oklch(0.68 0.008 285);
+  --paper-600: oklch(0.78 0.008 285); /* body copy */
+  --paper-700: oklch(0.85 0.008 285);
+  --paper-800: oklch(0.92 0.008 285);
+  --paper-900: oklch(0.97 0.006 285); /* headings */
+  --paper-950: oklch(0.99 0.004 285);
 
-  --status-red-600: oklch(0.68 0.18 22);
-  --status-red-050: oklch(0.3 0.05 22);
-  --status-green-600: oklch(0.68 0.14 155);
-  --status-green-050: oklch(0.3 0.04 155);
-  --status-blue-600: oklch(0.68 0.15 240);
-  --status-blue-050: oklch(0.3 0.05 240);
-  --status-yellow-600: oklch(0.8 0.13 82);
-  --status-yellow-050: oklch(0.32 0.04 82);
+  --brand-700: oklch(0.72 0.16 272);
+  --brand-600: oklch(0.66 0.19 272);
+  --brand-500: oklch(0.72 0.17 272);
+  --brand-400: oklch(0.8 0.13 272);
+  --brand-tint: oklch(0.3 0.075 272);
+  --brand-tint-2: oklch(0.36 0.09 272);
 
-  --ink-red-700: oklch(0.62 0.17 18);
+  /* Lifted, and the wash inverts to a dark mix of the same hue. */
+  --status-green-600: oklch(0.8 0.17 162);
+  --status-green-050: oklch(0.29 0.055 162);
+  --status-red-600: oklch(0.72 0.19 20);
+  --status-red-050: oklch(0.29 0.065 20);
+  --status-yellow-600: oklch(0.84 0.15 88);
+  --status-yellow-050: oklch(0.3 0.05 88);
+  --status-blue-600: oklch(0.76 0.15 245);
+  --status-blue-050: oklch(0.29 0.06 245);
+
+  --cat-1: oklch(0.72 0.16 272);
+  --cat-2: oklch(0.75 0.15 38);
+  --cat-3: oklch(0.74 0.19 330);
+  --cat-4: oklch(0.76 0.13 190);
+  --cat-5: oklch(0.81 0.14 88);
+  --cat-6: oklch(0.72 0.16 305);
+
+  --ink-red-700: oklch(0.74 0.16 18);
   --ink-red-600: oklch(0.7 0.17 18);
   --ink-red-100: oklch(0.3 0.06 18);
 
@@ -122,20 +185,20 @@
   --card-foreground: var(--paper-900);
   --popover: var(--paper-100);
   --popover-foreground: var(--paper-900);
-  --primary: var(--paper-900);
-  --primary-foreground: var(--paper-000);
+  --primary: var(--brand-600);
+  --primary-foreground: oklch(0.14 0.01 272);
   --secondary: var(--paper-100);
   --secondary-foreground: var(--paper-900);
   --muted: var(--paper-100);
   --muted-foreground: var(--paper-500);
-  --accent: var(--paper-100);
-  --accent-foreground: var(--paper-900);
+  --accent: var(--brand-tint);
+  --accent-foreground: var(--paper-950);
   --destructive: var(--status-red-600);
   --success: var(--status-green-600);
-  --link: var(--status-blue-600);
+  --link: var(--brand-500);
   --border: var(--paper-200);
   --input: var(--paper-200);
-  --ring: var(--paper-400);
+  --ring: var(--brand-500);
 }
 
 @theme inline {
@@ -168,6 +231,11 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-brand: var(--brand-600);
+  --color-brand-tint: var(--brand-tint);
+  --color-pos: var(--pos);
+  --color-warn: var(--warn);
+  --color-neg: var(--neg);
 }
 
 @layer base {
@@ -264,44 +332,74 @@
     border-radius: var(--radius-md);
   }
 
-  /* Data table — everything a real operator's table needs, imported by name */
+  /* Data table. 48px rows, sticky header, and a selected state that is
+     redundant by design — tint AND checkbox — because one signal alone gets
+     missed. Wide tables scroll horizontally rather than reflowing into cards:
+     comparison across rows is the only reason a table exists. */
   .data-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     line-height: 1.4;
   }
   .data-table thead th {
-    font-family: var(--font-mono);
+    height: 38px;
     font-size: 0.6875rem;
-    font-weight: 500;
-    letter-spacing: 0.02em;
+    font-weight: 600;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--muted-foreground);
+    color: var(--paper-500);
     text-align: left;
-    padding: 0.5rem 0.75rem;
+    padding: 0 0.75rem;
     border-bottom: 1px solid var(--border);
     background: var(--paper-050);
     white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 1;
   }
   .data-table thead th.num {
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
   .data-table tbody td {
-    padding: 0.5rem 0.75rem;
+    height: 48px;
+    padding: 0 0.75rem;
     border-bottom: 1px solid var(--border);
-    color: var(--foreground);
+    color: var(--paper-700);
     vertical-align: middle;
   }
   .data-table tbody td.num {
     text-align: right;
     font-variant-numeric: tabular-nums;
-    font-family: var(--font-mono);
+  }
+  /* Cell content is a flex row so a tile, logo or status icon sits beside text
+     without ad-hoc margins. */
+  .cell {
+    display: flex;
+    align-items: center;
+    gap: 0.5625rem;
+    min-width: 0;
+  }
+  .cell > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .data-table tbody tr:hover td {
     background: var(--paper-050);
+  }
+  .data-table tbody tr[data-selected="true"] td {
+    background: var(--brand-tint);
+  }
+  .data-table tbody tr[data-selected="true"]:hover td {
+    background: color-mix(in oklch, var(--brand-tint) 82%, var(--paper-200));
+  }
+  /* One bad record must not break a table — mark the row, keep the rest usable. */
+  .data-table tbody tr[data-row-error="true"] td:first-child {
+    box-shadow: inset 2px 0 0 var(--neg);
   }
   .data-table tbody tr:last-child td {
     border-bottom: 0;
@@ -334,30 +432,52 @@
     border-radius: 3px;
   }
 
-  /* Sidebar nav item — no active-state accent bar; the row itself is the
-     active affordance. Boring on purpose. */
+  /* Sidebar nav item. Active state is a primary tint with primary text AND a
+     primary icon — the tint alone left the current page nearly unreadable
+     against hover. 34px keeps the console dense without cramping. */
   .nav-item {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.375rem 0.625rem;
-    border-radius: 4px;
+    height: 34px;
+    padding: 0 0.625rem;
+    border-radius: var(--radius);
     color: var(--paper-600);
     font-size: 0.8125rem;
-    font-weight: 400;
+    font-weight: 450;
     letter-spacing: -0.005em;
     transition:
       background-color 120ms ease,
       color 120ms ease;
   }
+  .nav-item svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    color: var(--paper-400);
+    transition: color 120ms ease;
+  }
   .nav-item:hover {
     background: var(--paper-100);
     color: var(--foreground);
   }
+  .nav-item:hover svg {
+    color: var(--paper-600);
+  }
   .nav-item[data-active="true"] {
-    background: var(--paper-100);
-    color: var(--foreground);
-    font-weight: 500;
+    background: var(--brand-tint);
+    color: var(--brand-700);
+    font-weight: 550;
+  }
+  .nav-item[data-active="true"] svg {
+    color: var(--brand-600);
+  }
+  /* Right-aligned count on things that accumulate. */
+  .nav-count {
+    margin-left: auto;
+    font-size: 0.6875rem;
+    color: var(--paper-400);
+    font-variant-numeric: tabular-nums;
   }
 
   /* Red-ink mark — the ONE product-specific accent. Used to indicate a
@@ -402,5 +522,258 @@
   }
   .fade-in {
     animation: fade-in 220ms ease-out both;
+  }
+}
+/* ═══ PRIMITIVES ═════════════════════════════════════════════════════════════
+   The small vocabulary every screen composes from. Five atoms do most of the
+   work: the icon tile, the pill, the hairline-divided panel, the
+   value/delta/label triple, and the named empty state.
+   ══════════════════════════════════════════════════════════════════════════ */
+@layer components {
+  /* ── Icon tile ───────────────────────────────────────────────────────────
+     The signature atom: a rounded square (radius ≈30% of its side) holding one
+     glyph at ~58%. Solid for identity and emphasis; tinted for repeated inline
+     metadata — forty solid tiles in a table is a Christmas tree. */
+  .tile {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    color: #fff;
+    background: var(--tile-hue, var(--brand-600));
+  }
+  .tile svg {
+    width: 58%;
+    height: 58%;
+  }
+  .tile-xs {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+  }
+  .tile-sm {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+  }
+  .tile-md {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+  .tile-lg {
+    width: 56px;
+    height: 56px;
+    border-radius: 17px;
+    box-shadow: 0 1px 2px oklch(0 0 0 / 8%);
+  }
+  /* Tinted: pale wash of the same hue, glyph at the full hue. */
+  .tile-tint {
+    color: var(--tile-hue, var(--brand-600));
+    background: color-mix(in oklch, var(--tile-hue, var(--brand-600)) 14%, var(--card));
+  }
+
+  /* Hue selectors — set --tile-hue, everything else follows. */
+  .hue-brand {
+    --tile-hue: var(--brand-600);
+  }
+  .hue-pos {
+    --tile-hue: var(--pos);
+  }
+  .hue-warn {
+    --tile-hue: var(--warn);
+  }
+  .hue-neg {
+    --tile-hue: var(--neg);
+  }
+  .hue-neutral {
+    --tile-hue: var(--paper-500);
+  }
+  .hue-c1 {
+    --tile-hue: var(--cat-1);
+  }
+  .hue-c2 {
+    --tile-hue: var(--cat-2);
+  }
+  .hue-c3 {
+    --tile-hue: var(--cat-3);
+  }
+  .hue-c4 {
+    --tile-hue: var(--cat-4);
+  }
+  .hue-c5 {
+    --tile-hue: var(--cat-5);
+  }
+  .hue-c6 {
+    --tile-hue: var(--cat-6);
+  }
+
+  /* ── Pill ────────────────────────────────────────────────────────────────
+     Metadata, never an action. Fully rounded so it can never be mistaken for
+     a button, which stays rectangular at --radius. Text is a darkened mix of
+     the hue toward ink; the pure hue on its own tint fails contrast. */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3125rem;
+    height: 22px;
+    padding: 0 0.5rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 550;
+    line-height: 1;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    color: var(--pill-hue, var(--paper-600));
+    background: color-mix(in oklch, var(--pill-hue, var(--paper-500)) 13%, var(--card));
+  }
+  .pill svg {
+    width: 11px;
+    height: 11px;
+    flex: none;
+  }
+  /* A 5px dot carries the status alongside the label, so the pill never relies
+     on colour alone. */
+  .pill-dot::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: currentColor;
+    flex: none;
+  }
+  .pill-pos {
+    --pill-hue: var(--pos);
+  }
+  .pill-warn {
+    --pill-hue: var(--warn);
+  }
+  .pill-neg {
+    --pill-hue: var(--neg);
+  }
+  .pill-brand {
+    --pill-hue: var(--brand-600);
+  }
+  .pill-neutral {
+    --pill-hue: var(--paper-500);
+    color: var(--paper-600);
+  }
+  .pill-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--paper-600);
+  }
+
+  /* ── Panel ───────────────────────────────────────────────────────────────
+     Cells that are variations of one thing belong in a continuous hairline
+     grid — it says "these are comparable". Genuinely independent modules get
+     their own panel with margin between. Gapped card grids read as a website;
+     hairline grids read as an instrument. */
+  .panel-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: -0.006em;
+  }
+  .hair-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--border);
+    overflow: hidden;
+    border-radius: var(--radius);
+  }
+  .hair-grid > * {
+    background: var(--card);
+  }
+
+  /* ── Metric: value / delta / label, always all three, always that order ── */
+  .metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.875rem 0.9375rem;
+  }
+  .metric-value {
+    font-size: 1.5rem;
+    font-weight: 650;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    color: var(--paper-900);
+  }
+  .metric-label {
+    font-size: 0.75rem;
+    color: var(--paper-500);
+  }
+  .metric-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  /* ── Empty state ─────────────────────────────────────────────────────────
+     lg tinted tile, a heading naming the SITUATION, one line saying what to
+     do, then at most one button. Lives inside the panel that would hold the
+     data, at the same width — an empty state centred in the viewport loses the
+     context that explains it. */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.5rem;
+    padding: 2.5rem 1.5rem;
+  }
+  .empty-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--paper-900);
+  }
+  .empty-body {
+    font-size: 0.8125rem;
+    color: var(--paper-500);
+    max-width: 46ch;
+    line-height: 1.5;
+  }
+
+  /* ── Skeleton ────────────────────────────────────────────────────────────
+     Shape-matched, never a spinner where the shape is known. Shimmer is
+     disabled under prefers-reduced-motion. */
+  .skel {
+    border-radius: 4px;
+    background: linear-gradient(
+      90deg,
+      var(--paper-100) 25%,
+      var(--paper-050) 37%,
+      var(--paper-100) 63%
+    );
+    background-size: 400% 100%;
+    animation: skel-shimmer 1.4s ease infinite;
+  }
+  @keyframes skel-shimmer {
+    from {
+      background-position: 100% 50%;
+    }
+    to {
+      background-position: 0 50%;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skel {
+      animation: none;
+    }
+  }
+
+  /* Absent value. A blank cell reads as a rendering bug, so every absence is
+     named — `No contact`, `Unassigned`, `Never`. */
+  .absent {
+    color: var(--paper-400);
+    font-variant-numeric: tabular-nums;
   }
 }

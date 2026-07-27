@@ -1,6 +1,17 @@
 import type { GatewayEvidence } from "@quiksend/mail/gateway-detect";
 import { SEG_GATEWAYS } from "@quiksend/core/deliverability";
-import { Badge } from "@/components/ui/badge";
+import { gatewayMeta } from "@/lib/semantic.ts";
+import { cn } from "@/lib/utils";
+
+/**
+ * Gateway is a TYPE, so it takes a categorical hue — never a semantic one.
+ * Proofpoint isn't "bad", it's a different filter to route around.
+ *
+ * Rendered as a colour chip plus the label rather than a coloured pill: the
+ * previous version used fourteen raw Tailwind hues (outside the colour
+ * contract, and unreadable in dark mode) and wrapped "Google Workspace" onto
+ * two lines, which broke the row rhythm of the whole table.
+ */
 
 const GATEWAY_LABELS: Record<string, string> = {
   proofpoint: "Proofpoint",
@@ -19,23 +30,6 @@ const GATEWAY_LABELS: Record<string, string> = {
   unknown: "Unknown",
 };
 
-const GATEWAY_COLORS: Record<string, string> = {
-  proofpoint: "bg-red-100 text-red-800 border-red-200",
-  mimecast: "bg-orange-100 text-orange-800 border-orange-200",
-  barracuda: "bg-orange-100 text-orange-900 border-orange-200",
-  cisco_ironport: "bg-slate-100 text-slate-800 border-slate-200",
-  trend_micro: "bg-purple-100 text-purple-800 border-purple-200",
-  fortinet: "bg-red-50 text-red-700 border-red-100",
-  sophos: "bg-blue-50 text-blue-800 border-blue-100",
-  symantec: "bg-yellow-100 text-yellow-900 border-yellow-200",
-  google_workspace: "bg-green-100 text-green-800 border-green-200",
-  microsoft_365: "bg-blue-100 text-blue-800 border-blue-200",
-  zoho: "bg-amber-100 text-amber-800 border-amber-200",
-  fastmail: "bg-teal-100 text-teal-800 border-teal-200",
-  other: "bg-gray-100 text-gray-700 border-gray-200",
-  unknown: "bg-gray-100 text-gray-500 border-gray-200",
-};
-
 function formatEvidence(evidence: GatewayEvidence[] | null | undefined): string {
   if (!evidence?.length) return "Classification pending";
   return evidence.map((e) => e.detail).join("; ");
@@ -50,18 +44,27 @@ export function GatewayBadge({
   evidence?: GatewayEvidence[] | null;
   className?: string;
 }) {
-  const key = gateway ?? "unknown";
-  const label = GATEWAY_LABELS[key] ?? "Unknown";
-  const color = GATEWAY_COLORS[key] ?? GATEWAY_COLORS.unknown;
+  const { cat, label } = gatewayMeta(gateway);
+  const isSeg = gateway ? (SEG_GATEWAYS as readonly string[]).includes(gateway) : false;
 
   return (
-    <Badge
-      variant="outline"
-      className={`${color} ${className ?? ""}`}
-      title={formatEvidence(evidence)}
+    <span
+      className={cn("flex min-w-0 items-center gap-2", className)}
+      title={`${label}${isSeg ? " — enterprise security gateway" : ""}. ${formatEvidence(evidence)}`}
     >
-      {label}
-    </Badge>
+      <span aria-hidden className={cn("tile tile-xs !h-2.5 !w-2.5 !rounded-[3px]", `hue-${cat}`)} />
+      <span className="truncate text-[0.75rem] text-[color:var(--paper-600)]">{label}</span>
+      {/* SEG routing is the product's core concern, so it earns a mark of its own. */}
+      {isSeg ? (
+        <span
+          aria-label="Enterprise security gateway"
+          title="Enterprise security gateway"
+          className="rounded-[3px] border border-border px-1 text-[0.5625rem] font-semibold tracking-wide text-[color:var(--paper-500)]"
+        >
+          SEG
+        </span>
+      ) : null}
+    </span>
   );
 }
 
