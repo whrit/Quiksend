@@ -351,6 +351,7 @@ export async function registerImportProspectsHandler(): Promise<void> {
         const emails = [...new Set(importedEmails)];
         if (emails.length > 0) {
           await enqueueWithRetries("gateway.detect_bulk", { emails });
+          await enqueueWithRetries("gateway.apply_classification", { organizationId });
         }
       } catch (err) {
         logger.error({ err, batchId, organizationId }, "import.process failed");
