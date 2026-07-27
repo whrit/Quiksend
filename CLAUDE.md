@@ -18,7 +18,7 @@ in a companion.
 Run everything from the repo root with pnpm. Package-scoped scripts use `--filter @quiksend/<pkg>`.
 
 ```bash
-pnpm check              # THE CI gate: lint + format + typecheck + test. Run before finishing work.
+pnpm check              # THE CI gate: lint + format + typecheck + test + build. Run before finishing work.
 pnpm lint               # oxlint --deny-warnings
 pnpm format:fix         # oxlint --fix then oxfmt --write (formatter writes last)
 pnpm typecheck          # tsc --noEmit per package via Turbo

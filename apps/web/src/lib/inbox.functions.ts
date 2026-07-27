@@ -2,7 +2,6 @@ import { env } from "@quiksend/config";
 import { db, isSendSuppressed } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { sendAndRecord } from "./durable-send.ts";
-import { transitionEnrollment } from "./sequences.functions.ts";
 import { buildUnsubscribeUrl, mintUnsubscribeToken, resolvePostalAddress } from "@quiksend/mail";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
@@ -24,8 +23,11 @@ const inboxFilterSchema = z.object({
 // Types + server-only reader now live in dedicated files so the client bundle
 // can import the shape (`InboxThreadSummary`) without pulling in `db`/`env`.
 export type { InboxThreadSummary } from "./inbox-types.ts";
+// NOT re-exported: this module is client-reachable and `inbox.server.ts` is
+// server-only. A re-export cannot be stripped from the client bundle the way a
+// server-fn handler body is, so re-exporting it fails the production build.
+// Tests import it from `./inbox.server.ts` directly.
 import { listInboxThreadsForOrg } from "./inbox.server.ts";
-export { listInboxThreadsForOrg };
 
 export const listInboxThreads = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -238,28 +240,6 @@ export const sendReply = createServerFn({ method: "POST" })
       messageId: messageIdHeader,
       sentAt: sendResult.sentAt.toISOString(),
     };
-  });
-
-export const manuallyStopEnrollment = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .validator((data: unknown) =>
-    z
-      .object({
-        enrollmentId: z.string().uuid(),
-        reason: z.string().max(500).optional(),
-      })
-      .parse(data),
-  )
-  .handler(async ({ data, context }) => {
-    // Delegate to the shared transition path. Previously this wrote
-    // `state: "stopped"` straight to the row, which skipped the state
-    // machine's terminate/emit_event effects — so a manual stop from the
-    // inbox never reached webhook subscribers or the CRM.
-    await transitionEnrollment(data.enrollmentId, context.orgContext.organizationId, {
-      kind: "stop",
-      reason: data.reason,
-    });
-    return { ok: true };
   });
 
 export const suppressEmail = createServerFn({ method: "POST" })

@@ -3,8 +3,6 @@ import "@tanstack/react-start/server-only";
 import { auth } from "@quiksend/auth";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
-import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeaders } from "@tanstack/react-start/server";
 import { and, desc, eq } from "drizzle-orm";
 
 export type ProtectedAccessResult =
@@ -85,9 +83,3 @@ export async function prepareOnboardingAccess(headers: Headers): Promise<Onboard
 
   return { action: "stay", removedFromWorkspace: false };
 }
-
-/** RPC bridge for `/onboarding` `beforeLoad` — keeps server imports out of the route bundle. */
-export const getOnboardingContext = createServerFn({ method: "GET" }).handler(async () => {
-  const headers = getRequestHeaders();
-  return prepareOnboardingAccess(headers);
-});

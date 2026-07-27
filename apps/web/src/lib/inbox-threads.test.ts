@@ -3,7 +3,7 @@ import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { listInboxThreadsForOrg } from "./inbox.functions.ts";
+import { listInboxThreadsForOrg } from "./inbox.server.ts";
 
 describe("listInboxThreadsForOrg", () => {
   it("returns one thread per thread key, not one row per message", async () => {

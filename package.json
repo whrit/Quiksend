@@ -11,7 +11,7 @@
     "typecheck": "turbo run typecheck --filter='./packages/*' --filter='./apps/*'",
     "test": "vitest run",
     "build": "turbo run build --filter='./packages/*' --filter='./apps/*'",
-    "check": "pnpm lint && pnpm format && pnpm typecheck && pnpm test",
+    "check": "pnpm lint && pnpm format && pnpm typecheck && pnpm test && pnpm build",
     "db:generate": "pnpm --filter @quiksend/db generate",
     "db:migrate": "pnpm --filter @quiksend/db migrate",
     "db:studio": "pnpm --filter @quiksend/db studio",

@@ -1,6 +1,3 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-
 /* ─── Typography ────────────────────────────────────────────────────────────
    Two families, both from IBM. Chosen because:
    - IBM Plex Sans has real character (calligraphic terminals, distinctive `g`,
@@ -8,8 +5,17 @@
    - IBM Plex Mono ships with the same design DNA — numbers, IDs, timestamps
      and code all read as siblings of the surrounding UI.
    No display serif. No cream. No amber. Utility over affect.
+
+   This @import MUST stay above `@import "tailwindcss"`. CSS requires every
+   @import to precede all other statements, and Tailwind inlines its entire
+   output at its own @import site — so a font @import placed after it lands
+   beyond thousands of emitted rules and PostCSS drops it, silently falling
+   back to system fonts.
    ────────────────────────────────────────────────────────────────────────── */
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+@import "tailwindcss";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 

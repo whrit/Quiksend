@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
-import { getOnboardingContext } from "@/lib/protected-guard.ts";
+import { getOnboardingContext } from "@/lib/auth.functions.ts";
 
 const onboardingSearchSchema = z.object({
   removed: z.coerce.boolean().optional(),
