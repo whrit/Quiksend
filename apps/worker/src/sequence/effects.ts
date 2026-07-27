@@ -1,4 +1,10 @@
-import { transition, type Effect, type EnrollmentState } from "@quiksend/core/state-machine";
+import {
+  transition,
+  type Effect,
+  type EnrollmentState,
+  type Event,
+} from "@quiksend/core/state-machine";
+import { logger } from "@quiksend/config";
 import { isSegGateway } from "@quiksend/core/deliverability";
 import { env } from "@quiksend/config";
 import { db } from "@quiksend/db";
@@ -107,7 +113,20 @@ async function createComposeTask(
   stepIndex: number,
 ): Promise<void> {
   const step = ctx.steps.find((s) => s.stepIndex === stepIndex);
-  if (!step) return;
+  if (!step) {
+    logger.error(
+      {
+        organizationId: ctx.organizationId,
+        enrollmentId: ctx.enrollmentId,
+        stepIndex,
+        taskType: "compose",
+      },
+      "sequence step not found for task creation",
+    );
+    throw new Error(
+      `Sequence step ${stepIndex} not found for compose task (enrollment ${ctx.enrollmentId})`,
+    );
+  }
   const config = step.config as EmailStepConfig;
   await tx.insert(tables.task).values({
     organizationId: ctx.organizationId,
@@ -128,7 +147,20 @@ async function createGenericTask(
   stepIndex: number,
 ): Promise<void> {
   const step = ctx.steps.find((s) => s.stepIndex === stepIndex);
-  if (!step) return;
+  if (!step) {
+    logger.error(
+      {
+        organizationId: ctx.organizationId,
+        enrollmentId: ctx.enrollmentId,
+        stepIndex,
+        taskType: "generic",
+      },
+      "sequence step not found for task creation",
+    );
+    throw new Error(
+      `Sequence step ${stepIndex} not found for generic task (enrollment ${ctx.enrollmentId})`,
+    );
+  }
   const config = step.config as TaskStepConfig;
   await tx.insert(tables.task).values({
     organizationId: ctx.organizationId,
@@ -345,7 +377,12 @@ async function handleSendAuto(
     const guard = await recheckSendAllowedInTx(tx, working);
     if (!guard.ok) {
       await releaseReservationInTx(tx, slot.reservationId);
-      return { kind: "done" as const, ctx: working };
+      const updated = await handleSendGuardInTx(tx, working, guard, {
+        phase: "pre_send",
+        at,
+        attempt,
+      });
+      return { kind: "done" as const, ctx: updated };
     }
 
     if (!working.anchorMessage?.messageIdHeader) {
@@ -477,20 +514,6 @@ async function handleSendAuto(
 
     return await db.transaction(async (tx) => {
       const guard = await recheckSendAllowedInTx(tx, prep.working);
-      if (!guard.ok) {
-        await releaseReservationInTx(tx, prep.slot.reservationId);
-        await tx
-          .update(tables.message)
-          .set({ status: "failed" })
-          .where(
-            and(
-              eq(tables.message.idempotencyKey, prep.idempotencyKey),
-              eq(tables.message.organizationId, prep.working.organizationId),
-            ),
-          );
-        return prep.working;
-      }
-
       const messageIdHeader = normalizeMessageId(sendResult.messageId);
 
       await tx
@@ -510,6 +533,15 @@ async function handleSendAuto(
         );
 
       await markReservationSentInTx(tx, prep.slot.reservationId);
+
+      if (!guard.ok) {
+        return handleSendGuardInTx(tx, prep.working, guard, {
+          phase: "post_send",
+          at: sendResult.sentAt,
+          attempt: prep.attempt,
+          providerMessageId: sendResult.providerMessageId,
+        });
+      }
 
       const snapshot = toSnapshot(prep.working);
       const result = transition(snapshot, {
@@ -609,6 +641,84 @@ async function hasReplyOnThreadInTx(tx: DbTx, ctx: EnrollmentContext): Promise<b
   }
 
   return false;
+}
+
+function sendGuardEvent(
+  ctx: EnrollmentContext,
+  reason: string,
+  at: Date,
+  phase: "pre_send" | "post_send",
+  providerMessageId?: string,
+): Event | null {
+  switch (reason) {
+    case "suppressed":
+      return { kind: "suppressed", at };
+    case "reply_received":
+      return { kind: "reply_received", at, stopOnReply: ctx.stopOnReply };
+    case "enrollment_not_active":
+      if (phase === "post_send" && providerMessageId !== undefined) {
+        return { kind: "auto_sent", providerMessageId, at };
+      }
+      return null;
+    case "enrollment_missing":
+      throw new Error(`Enrollment not found during send guard: ${ctx.enrollmentId}`);
+    default:
+      throw new Error(`Unknown send guard reason: ${reason}`);
+  }
+}
+
+async function reloadEnrollmentInTx(tx: DbTx, ctx: EnrollmentContext): Promise<EnrollmentContext> {
+  const enrollment = await tx.query.enrollment.findFirst({
+    where: and(
+      eq(tables.enrollment.id, ctx.enrollmentId),
+      eq(tables.enrollment.organizationId, ctx.organizationId),
+    ),
+  });
+  if (!enrollment) {
+    throw new Error(`Enrollment not found during send guard: ${ctx.enrollmentId}`);
+  }
+  return { ...ctx, enrollment };
+}
+
+async function handleSendGuardInTx(
+  tx: DbTx,
+  ctx: EnrollmentContext,
+  guard: { ok: false; reason: string },
+  options: {
+    phase: "pre_send" | "post_send";
+    at: Date;
+    attempt: number;
+    providerMessageId?: string;
+  },
+): Promise<EnrollmentContext> {
+  logger.warn(
+    {
+      organizationId: ctx.organizationId,
+      enrollmentId: ctx.enrollmentId,
+      reason: guard.reason,
+      phase: options.phase,
+    },
+    "send guard blocked",
+  );
+
+  const event = sendGuardEvent(
+    ctx,
+    guard.reason,
+    options.at,
+    options.phase,
+    options.providerMessageId,
+  );
+  if (!event) {
+    return reloadEnrollmentInTx(tx, ctx);
+  }
+
+  if (options.phase === "post_send" && event.kind !== "auto_sent") {
+    await handleEmitEvent(tx, ctx, "message.sent");
+  }
+
+  const snapshot = toSnapshot(ctx);
+  const result = transition(snapshot, event);
+  return applyTransitionEffects(tx, ctx, result.effects, options.attempt, result.nextState);
 }
 
 async function recheckSendAllowedInTx(
