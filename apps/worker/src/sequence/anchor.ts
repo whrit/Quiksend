@@ -1,11 +1,53 @@
+import { computeSchedule } from "@quiksend/core/schedule";
+import type { StepKind } from "@quiksend/core/schedule";
 import { transition } from "@quiksend/core/state-machine";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { and, asc, eq } from "drizzle-orm";
-import { computeNextRunAt } from "./context.ts";
+import { computeNextRunAt, toMailboxSchedule, toSnapshot, type SequenceSettings } from "./context.ts";
 import { applyTransitionEffects } from "./effects.ts";
 import { loadContext } from "./load-context.ts";
-import { toSnapshot } from "./context.ts";
+
+function parseSettings(raw: unknown): SequenceSettings {
+  const s = (raw ?? {}) as Partial<SequenceSettings>;
+  return {
+    timezone: s.timezone ?? "UTC",
+    throttle_seconds: s.throttle_seconds ?? 90,
+    mailbox_ids: s.mailbox_ids ?? [],
+    stop_on_reply: s.stop_on_reply ?? true,
+    business_days_only: s.business_days_only ?? true,
+  };
+}
+
+function computeEnrollmentNextRunAt(
+  steps: {
+    stepIndex: number;
+    stepType: string;
+    delayMinutes: number;
+    businessDaysOnly: boolean;
+  }[],
+  settings: SequenceSettings,
+  mailbox: typeof tables.mailbox.$inferSelect,
+  stepIndex: number,
+  anchor: Date,
+): Date | null {
+  if (process.env.QUIKSEND_ENGINE_FAKE_MAIL === "1") {
+    const step = steps.find((s) => s.stepIndex === stepIndex);
+    return new Date(anchor.getTime() + (step?.delayMinutes ?? 0) * 60_000);
+  }
+  const specs = steps.map((s) => ({
+    index: s.stepIndex,
+    kind: s.stepType as StepKind,
+    delayMinutes: s.delayMinutes,
+    businessDaysOnly: s.businessDaysOnly && settings.business_days_only,
+  }));
+  const schedule = computeSchedule(
+    specs,
+    toMailboxSchedule(mailbox.sendWindow, mailbox, settings),
+    anchor,
+  );
+  return schedule.find((s) => s.index === stepIndex)?.scheduledAt ?? null;
+}
 
 export interface CaptureManualAnchorInput {
   readonly enrollmentId: string;
@@ -102,15 +144,20 @@ export async function enrollWithExistingAnchor(
   const firstStep = steps[0];
   if (!firstStep) throw new Error("Sequence has no steps");
 
-  const settings = (sequence.settings ?? {}) as {
-    mailbox_ids?: string[];
-  };
+  const settings = parseSettings(sequence.settings);
   const mailboxId = message.mailboxId ?? settings.mailbox_ids?.[0];
   if (!mailboxId) throw new Error("No mailbox available for enrollment");
 
-  const anchor = message.sentAt;
-  const delayMs = firstStep.delayMinutes * 60 * 1000;
-  const nextRunAt = new Date(anchor.getTime() + delayMs);
+  const mailbox = await db.query.mailbox.findFirst({
+    where: and(
+      eq(tables.mailbox.id, mailboxId),
+      eq(tables.mailbox.organizationId, input.organizationId),
+    ),
+  });
+  if (!mailbox) throw new Error("Mailbox not found for enrollment");
+
+  const nextRunAt = computeEnrollmentNextRunAt(steps, settings, mailbox, 0, message.sentAt);
+  if (!nextRunAt) throw new Error("Could not compute next run time for enrollment");
 
   const [enrollment] = await db
     .insert(tables.enrollment)
