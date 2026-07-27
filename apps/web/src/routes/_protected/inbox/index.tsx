@@ -74,6 +74,31 @@ const SENTIMENT_LABELS: Record<MessageSentiment, string> = {
   unsubscribe_request: "Unsubscribe",
 };
 
+const MESSAGE_BODY_CLASS =
+  "mt-2.5 text-[0.8125rem] leading-[1.55] text-foreground [&_a]:text-[color:var(--link)] [&_a]:underline [&_a]:underline-offset-2 [&_p]:mb-2 [&_p:last-child]:mb-0";
+
+/** Sanitize inbound HTML when thread data enters this route's state. */
+function sanitizeInboundThreadDetail(detail: InboxThreadDetail): InboxThreadDetail {
+  return {
+    ...detail,
+    messages: detail.messages.map((message) =>
+      message.direction === "inbound" && message.bodyHtml
+        ? { ...message, bodyHtml: sanitizeInboundHtml(message.bodyHtml) }
+        : message,
+    ),
+  };
+}
+
+/**
+ * Single safe-render entry for inbound message HTML. All inbound `bodyHtml` in this
+ * file must be rendered through this component — never use `dangerouslySetInnerHTML`
+ * with raw inbound HTML elsewhere.
+ */
+function SafeInboundHtml({ html, className }: { html: string; className?: string }) {
+  const safeHtml = useMemo(() => sanitizeInboundHtml(html), [html]);
+  return <div className={className} dangerouslySetInnerHTML={{ __html: safeHtml }} />;
+}
+
 function InboxPage() {
   const [threads, setThreads] = useState<InboxThreadSummary[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -137,7 +162,7 @@ function InboxPage() {
     setDetailLoading(true);
     void getInboxThread({ data: { threadKey: selectedKey } })
       .then((detail) => {
-        setThreadDetail(detail as InboxThreadDetail);
+        setThreadDetail(sanitizeInboundThreadDetail(detail as InboxThreadDetail));
         window.requestAnimationFrame(() => {
           const el = messageScrollRef.current;
           if (el) el.scrollTop = el.scrollHeight;
@@ -190,7 +215,7 @@ function InboxPage() {
       setReplyBody("");
       void loadThreads();
       const detail = await getInboxThread({ data: { threadKey: selectedKey } });
-      setThreadDetail(detail as InboxThreadDetail);
+      setThreadDetail(sanitizeInboundThreadDetail(detail as InboxThreadDetail));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send reply");
     } finally {
@@ -649,10 +674,6 @@ function MessageArticle({ message }: { message: InboxMessage }) {
   const ts = message.direction === "inbound" ? message.receivedAt : message.sentAt;
   const isOutbound = message.direction === "outbound";
   const hasHtml = Boolean(message.bodyHtml && message.bodyHtml.trim().length > 0);
-  const safeHtml = useMemo(
-    () => (hasHtml ? sanitizeInboundHtml(message.bodyHtml ?? "") : ""),
-    [hasHtml, message.bodyHtml],
-  );
 
   return (
     <article
@@ -692,14 +713,16 @@ function MessageArticle({ message }: { message: InboxMessage }) {
       </header>
 
       {hasHtml ? (
-        <div
-          className="mt-2.5 text-[0.8125rem] leading-[1.55] text-foreground [&_a]:text-[color:var(--link)] [&_a]:underline [&_a]:underline-offset-2 [&_p]:mb-2 [&_p:last-child]:mb-0"
-          dangerouslySetInnerHTML={{ __html: safeHtml }}
-        />
+        isOutbound ? (
+          <div
+            className={MESSAGE_BODY_CLASS}
+            dangerouslySetInnerHTML={{ __html: message.bodyHtml ?? "" }}
+          />
+        ) : (
+          <SafeInboundHtml html={message.bodyHtml ?? ""} className={MESSAGE_BODY_CLASS} />
+        )
       ) : (
-        <div className="mt-2.5 whitespace-pre-wrap text-[0.8125rem] leading-[1.55] text-foreground">
-          {message.bodyText ?? ""}
-        </div>
+        <div className={cn(MESSAGE_BODY_CLASS, "whitespace-pre-wrap")}>{message.bodyText ?? ""}</div>
       )}
     </article>
   );
