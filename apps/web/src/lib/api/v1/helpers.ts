@@ -12,21 +12,58 @@ export function generateWebhookSecret(): string {
   return randomBytes(32).toString("hex");
 }
 
+const BLOCKED_WEBHOOK_HOSTNAMES = new Set(["localhost", "metadata.google.internal"]);
+
+const BLOCKED_WEBHOOK_SUFFIXES = [".local", ".internal", ".test", ".localhost"] as const;
+
+const BLOCKED_WEBHOOK_IPV4_PATTERNS = [
+  /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
+  /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/,
+  /^192\.168\.\d{1,3}\.\d{1,3}$/,
+  /^169\.254\.\d{1,3}\.\d{1,3}$/,
+  /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
+  /^0\.0\.0\.0$/,
+] as const;
+
+const CLOUD_METADATA_WEBHOOK_HOSTS = new Set(["169.254.169.254", "metadata.google.internal"]);
+
+function isBlockedWebhookIpv4(host: string): boolean {
+  if (CLOUD_METADATA_WEBHOOK_HOSTS.has(host)) return true;
+  return BLOCKED_WEBHOOK_IPV4_PATTERNS.some((pattern) => pattern.test(host));
+}
+
+function normalizeWebhookHost(host: string): string {
+  const lower = host.toLowerCase();
+  if (lower.startsWith("[") && lower.endsWith("]")) {
+    return lower.slice(1, -1);
+  }
+  return lower;
+}
+
+function isBlockedWebhookIpv6(host: string): boolean {
+  const normalized = normalizeWebhookHost(host);
+  if (normalized === "::1") return true;
+  if (normalized.startsWith("fe80:")) return true;
+  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+  return false;
+}
+
+function isBlockedWebhookHostname(host: string): boolean {
+  const lower = normalizeWebhookHost(host);
+  if (BLOCKED_WEBHOOK_HOSTNAMES.has(lower)) return true;
+  if (BLOCKED_WEBHOOK_SUFFIXES.some((suffix) => lower.endsWith(suffix))) return true;
+  if (isBlockedWebhookIpv4(lower)) return true;
+  if (isBlockedWebhookIpv6(lower)) return true;
+  return false;
+}
+
 export function isAllowedWebhookUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:" && env.NODE_ENV === "production") return false;
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-    const host = parsed.hostname.toLowerCase();
-    if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".local")) {
-      return env.NODE_ENV !== "production";
-    }
-    if (
-      host.startsWith("10.") ||
-      host.startsWith("192.168.") ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(host)
-    ) {
-      return env.NODE_ENV !== "production";
+    if (isBlockedWebhookHostname(parsed.hostname)) {
+      return false;
     }
     return true;
   } catch {

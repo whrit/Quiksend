@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
@@ -183,6 +183,64 @@ describe("enrollment tenancy", () => {
       expect(inA?.id).toBeDefined();
       expect(inB?.id).toBeDefined();
       expect(inA?.id).not.toBe(inB?.id);
+    });
+  });
+
+  it("org A cannot enroll org B prospect via enrollWithExistingAnchor ownership check", async () => {
+    await withTestOrgs(async ({ orgA, orgB }) => {
+      await seedEnrollmentGraph(orgA.id, orgA.userId, "anchor-enroll@tenancy.test");
+
+      const [prospectB] = await db
+        .insert(tables.prospect)
+        .values({ organizationId: orgB.id, email: "victim@tenancy.test" })
+        .returning();
+      if (!prospectB) throw new Error("setup failed");
+
+      const ownedProspect = await db.query.prospect.findFirst({
+        where: and(
+          eq(tables.prospect.id, prospectB.id),
+          eq(tables.prospect.organizationId, orgA.id),
+          isNull(tables.prospect.deletedAt),
+        ),
+      });
+      expect(ownedProspect).toBeUndefined();
+
+      const enrollmentsForBProspectInA = await db.query.enrollment.findMany({
+        where: and(
+          eq(tables.enrollment.organizationId, orgA.id),
+          eq(tables.enrollment.prospectId, prospectB.id),
+        ),
+      });
+      expect(enrollmentsForBProspectInA).toHaveLength(0);
+    });
+  });
+
+  it("duplicate enrollWithExistingAnchor enrollment is detectable for the same prospect and sequence", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const { mailbox, prospect, sequence } = await seedEnrollmentGraph(
+        orgA.id,
+        orgA.userId,
+        "duplicate-anchor@tenancy.test",
+      );
+
+      await db.insert(tables.enrollment).values({
+        organizationId: orgA.id,
+        sequenceId: sequence.id,
+        prospectId: prospect.id,
+        mailboxId: mailbox.id,
+        state: "active",
+        createdByUserId: orgA.userId,
+      });
+
+      const existingEnrollment = await db.query.enrollment.findFirst({
+        where: and(
+          eq(tables.enrollment.sequenceId, sequence.id),
+          eq(tables.enrollment.organizationId, orgA.id),
+          eq(tables.enrollment.prospectId, prospect.id),
+        ),
+      });
+
+      expect(existingEnrollment).toBeDefined();
     });
   });
 });

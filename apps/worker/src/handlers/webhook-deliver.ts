@@ -1,4 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { env, logger } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
@@ -13,7 +15,7 @@ export const WEBHOOK_RETRY_DELAYS_MS = [
   12 * 60 * 60_000,
 ] as const;
 
-export const MAX_WEBHOOK_ATTEMPTS = WEBHOOK_RETRY_DELAYS_MS.length;
+export const MAX_WEBHOOK_ATTEMPTS = WEBHOOK_RETRY_DELAYS_MS.length + 1;
 
 export function signWebhookPayload(
   payload: unknown,
@@ -53,6 +55,115 @@ export function computeNextAttemptAt(attempts: number): Date | null {
   const delay = WEBHOOK_RETRY_DELAYS_MS[attempts - 1];
   if (delay === undefined) return null;
   return new Date(Date.now() + delay);
+}
+
+const BLOCKED_WEBHOOK_HOSTNAMES = new Set(["localhost", "metadata.google.internal"]);
+
+const BLOCKED_WEBHOOK_SUFFIXES = [".local", ".internal", ".test", ".localhost"] as const;
+
+const BLOCKED_WEBHOOK_IPV4_PATTERNS = [
+  /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
+  /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/,
+  /^192\.168\.\d{1,3}\.\d{1,3}$/,
+  /^169\.254\.\d{1,3}\.\d{1,3}$/,
+  /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
+  /^0\.0\.0\.0$/,
+] as const;
+
+const CLOUD_METADATA_WEBHOOK_HOSTS = new Set(["169.254.169.254", "metadata.google.internal"]);
+
+function isBlockedWebhookIpv4(host: string): boolean {
+  if (CLOUD_METADATA_WEBHOOK_HOSTS.has(host)) return true;
+  return BLOCKED_WEBHOOK_IPV4_PATTERNS.some((pattern) => pattern.test(host));
+}
+
+function normalizeWebhookHost(host: string): string {
+  const lower = host.toLowerCase();
+  if (lower.startsWith("[") && lower.endsWith("]")) {
+    return lower.slice(1, -1);
+  }
+  return lower;
+}
+
+function isBlockedWebhookIpv6(address: string): boolean {
+  const normalized = normalizeWebhookHost(address);
+  if (normalized === "::1") return true;
+  if (normalized.startsWith("fe80:")) return true;
+  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+  return false;
+}
+
+function isBlockedWebhookLiteralHost(host: string): boolean {
+  const lower = normalizeWebhookHost(host);
+  if (BLOCKED_WEBHOOK_HOSTNAMES.has(lower)) return true;
+  if (BLOCKED_WEBHOOK_SUFFIXES.some((suffix) => lower.endsWith(suffix))) return true;
+  if (isBlockedWebhookIpv4(lower)) return true;
+  if (isBlockedWebhookIpv6(lower)) return true;
+  return false;
+}
+
+function isBlockedWebhookResolvedAddress(address: string): boolean {
+  const version = isIP(address);
+  if (version === 4) return isBlockedWebhookIpv4(address);
+  if (version === 6) return isBlockedWebhookIpv6(address);
+  return true;
+}
+
+export async function validateWebhookDeliveryUrl(url: string): Promise<void> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("Invalid webhook URL");
+  }
+
+  if (parsed.protocol !== "https:" && env.NODE_ENV === "production") {
+    throw new Error("Webhook URL must use HTTPS in production");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Webhook URL must use HTTP or HTTPS");
+  }
+
+  const host = normalizeWebhookHost(parsed.hostname);
+  if (isBlockedWebhookLiteralHost(host)) {
+    throw new Error("Webhook URL resolves to a blocked host");
+  }
+
+  if (isIP(host)) return;
+
+  const results = await lookup(host, { all: true, verbatim: true });
+  if (results.length === 0) {
+    throw new Error("Webhook URL hostname did not resolve");
+  }
+
+  for (const { address } of results) {
+    if (isBlockedWebhookResolvedAddress(address)) {
+      throw new Error("Webhook URL resolves to a private or metadata address");
+    }
+  }
+}
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+export async function fetchWebhookWithSsrfProtection(
+  url: string,
+  init: RequestInit,
+  maxRedirects = 5,
+): Promise<Response> {
+  let currentUrl = url;
+
+  for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount++) {
+    await validateWebhookDeliveryUrl(currentUrl);
+    const res = await fetch(currentUrl, { ...init, redirect: "manual" });
+    if (!REDIRECT_STATUSES.has(res.status)) return res;
+
+    const location = res.headers.get("location");
+    if (!location) return res;
+
+    currentUrl = new URL(location, currentUrl).href;
+  }
+
+  throw new Error("Webhook delivery exceeded redirect limit");
 }
 
 export function getWebhookSweepConfig(): { intervalMs: number; batchSize: number } {
@@ -115,7 +226,7 @@ export async function registerWebhookDeliverHandler(): Promise<void> {
     let succeeded = false;
 
     try {
-      const res = await fetch(endpoint.url, {
+      const res = await fetchWebhookWithSsrfProtection(endpoint.url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
