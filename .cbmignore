@@ -1,0 +1,120 @@
+# =============================================================================
+# Quiksend .cbmignore
+# Keep runtime code, tests, migrations, architecture docs, and active runbooks.
+# Exclude generated files, historical planning artifacts, samples, and noise.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Generated source and generated metadata
+# -----------------------------------------------------------------------------
+
+# Generated TanStack Router tree.
+# This is derived from apps/web/src/routes and should not become a major graph
+# node or semantic-search result.
+apps/web/src/routeTree.gen.ts
+
+# Drizzle-generated migration snapshots are large machine-generated schema
+# representations. Keep the actual SQL migrations and handwritten schema code.
+packages/db/drizzle/meta/*_snapshot.json
+packages/db/drizzle/meta/_journal.json
+
+# TypeScript incremental/build artifacts, if they appear locally.
+*.tsbuildinfo
+
+# Coverage, test reports, profiling, and local output.
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+reports/
+*.lcov
+
+# Common generated framework output not already handled by CBM's built-ins.
+.next/
+.nuxt/
+.output/
+.vercel/
+.turbo/
+.vite/
+storybook-static/
+
+
+# -----------------------------------------------------------------------------
+# Historical implementation waves and orchestration artifacts
+# -----------------------------------------------------------------------------
+
+# These contain historical plans, parallel-agent briefs, and launch scripts.
+# They can dominate semantic retrieval without describing the current system.
+wave1/
+wave2/
+wave3/
+wave4/
+wave5/
+wave6/
+wave7/
+wave8/
+
+# Historical phase review work products.
+phase11-review/
+
+# Generated or completed review findings.
+review/
+
+
+# -----------------------------------------------------------------------------
+# Agent/editor support assets
+# -----------------------------------------------------------------------------
+
+# Keep AGENTS.md, CLAUDE.md, WAVE_CONTEXT.md, and relevant documentation.
+# Exclude the UI-system skill's demo/static assets and editor preferences.
+.omp/skills/webapp-ui-system/assets/
+.vscode/
+
+
+# -----------------------------------------------------------------------------
+# Fixtures, samples, and synthetic input
+# -----------------------------------------------------------------------------
+
+# Generic fixture folders at any depth.
+**/fixtures/**
+
+# Raw sample email messages used by bounce parser tests.
+# The parser implementation and tests remain indexed.
+packages/mail/src/bounce.samples/
+
+# Example operational configuration rather than executable logic.
+internal-runbooks/seed-pool-config.example.json
+
+# Example environment values.
+.env.example
+
+
+# -----------------------------------------------------------------------------
+# Static design/UI metadata
+# -----------------------------------------------------------------------------
+
+# shadcn component generator metadata.
+apps/web/components.json
+
+
+# -----------------------------------------------------------------------------
+# Lockfiles and package-manager metadata
+# -----------------------------------------------------------------------------
+
+# Package manifests remain indexed, but the lockfile adds little architectural
+# value and is extremely noisy. CBM fast modes may skip this automatically.
+pnpm-lock.yaml
+
+
+# -----------------------------------------------------------------------------
+# Miscellaneous local artifacts
+# -----------------------------------------------------------------------------
+
+.DS_Store
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
