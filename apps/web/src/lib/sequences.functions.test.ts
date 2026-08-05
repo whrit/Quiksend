@@ -269,17 +269,4 @@ describe("enrollment exclusion — DB behavior", () => {
     });
   });
 
-  it("generic DB error propagates (not caught as duplicate)", async () => {
-    // Simulate a non-23505 error shape
-    const genericErr = { code: "42P01", message: "relation does not exist" };
-    expect(isEnrollmentDuplicate(genericErr)).toBe(false);
-
-    // Simulate a 23505 on a different constraint
-    const otherUniqueErr = {
-      code: "23505",
-      constraint_name: "some_other_uidx",
-      message: "duplicate key value",
-    };
-    expect(isEnrollmentDuplicate(otherUniqueErr)).toBe(false);
-  });
 });

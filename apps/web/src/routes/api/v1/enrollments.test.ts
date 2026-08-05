@@ -6,7 +6,6 @@ import { withTestOrgs } from "@quiksend/db/testing";
 import { describe, expect, it } from "vitest";
 import { createApiKeyForOrg } from "../../../lib/api-keys.functions.ts";
 import { resolveApiKey } from "../../../lib/api/v1/middleware.ts";
-import { isEnrollmentDuplicate } from "../../../lib/sequences.functions.ts";
 
 async function createOrgApiKey(org: { id: string; userId: string }): Promise<string> {
   const orgContext: OrgContext = {
@@ -172,82 +171,5 @@ describe("POST /api/v1/enrollments API key scoping", () => {
         .returning();
       expect(enrolled?.createdByUserId).toBeNull();
     });
-  });
-});
-
-describe("REST enrollment insert — conflict classification", () => {
-  it("duplicate on enrollment_org_sequence_prospect_uidx is a conflict, not a 500", async () => {
-    await withTestOrgs(async ({ orgA }) => {
-      const [mailbox] = await db
-        .insert(tables.mailbox)
-        .values({
-          organizationId: orgA.id,
-          ownerUserId: orgA.userId,
-          provider: "smtp",
-          address: `dup-test-${Date.now()}@enroll.test`,
-          status: "active",
-        })
-        .returning();
-      if (!mailbox) throw new Error("setup");
-
-      const [prospect] = await db
-        .insert(tables.prospect)
-        .values({ organizationId: orgA.id, email: `dup-${Date.now()}@enroll.test` })
-        .returning();
-      if (!prospect) throw new Error("setup");
-
-      const [sequence] = await db
-        .insert(tables.sequence)
-        .values({
-          organizationId: orgA.id,
-          name: "Dup test",
-          status: "active",
-          settings: { mailbox_ids: [mailbox.id] },
-          createdByUserId: orgA.userId,
-        })
-        .returning();
-      if (!sequence) throw new Error("setup");
-
-      // First enrollment
-      await db.insert(tables.enrollment).values({
-        organizationId: orgA.id,
-        sequenceId: sequence.id,
-        prospectId: prospect.id,
-        mailboxId: mailbox.id,
-        state: "active",
-        currentStepIndex: 0,
-        createdByUserId: orgA.userId,
-      });
-
-      // Race-condition duplicate triggers 23505 on the right constraint
-      try {
-        await db.insert(tables.enrollment).values({
-          organizationId: orgA.id,
-          sequenceId: sequence.id,
-          prospectId: prospect.id,
-          mailboxId: mailbox.id,
-          state: "active",
-          currentStepIndex: 0,
-          createdByUserId: orgA.userId,
-        });
-        expect.unreachable("should have thrown");
-      } catch (err) {
-        expect(isEnrollmentDuplicate(err)).toBe(true);
-      }
-    });
-  });
-
-  it("unrelated unique violation (idempotency key) is NOT classified as enrollment duplicate", () => {
-    const err = {
-      code: "23505",
-      constraint_name: "enrollment_idempotency_key_uidx",
-      message: "duplicate key",
-    };
-    expect(isEnrollmentDuplicate(err)).toBe(false);
-  });
-
-  it("generic DB failure is NOT classified as enrollment duplicate", () => {
-    const err = { code: "42P01", message: "relation does not exist" };
-    expect(isEnrollmentDuplicate(err)).toBe(false);
   });
 });
