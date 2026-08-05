@@ -77,31 +77,10 @@ export function createMicrosoftAdapter(config: MicrosoftAdapterConfig): MailboxA
         };
       }
 
-      let detail: GraphMessageSummary;
-      try {
-        const response = await nango.get({
-          endpoint: `/v1.0/me/messages/${sent.id}`,
-          providerConfigKey: MICROSOFT_PROVIDER_KEY,
-          connectionId: config.nangoConnectionId,
-          params: { $select: "internetMessageId,conversationId" },
-        });
-        detail = response.data as GraphMessageSummary;
-      } catch {
-        return {
-          messageId: normalizeMessageId(mime.messageId),
-          providerMessageId: sent.id,
-          providerThreadId: sent.conversationId ?? null,
-          sentAt: new Date(),
-          metadataReconciled: false,
-        };
-      }
-
-      const messageId = normalizeMessageId(detail.internetMessageId ?? mime.messageId);
-
       return {
-        messageId,
+        messageId: normalizeMessageId(sent.internetMessageId ?? mime.messageId),
         providerMessageId: sent.id,
-        providerThreadId: detail.conversationId ?? sent.conversationId ?? null,
+        providerThreadId: sent.conversationId ?? null,
         sentAt: new Date(),
         metadataReconciled: true,
       };
