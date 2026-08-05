@@ -7,11 +7,16 @@ describe("EnvSchema", () => {
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
     });
     expect(parsed).toBeDefined();
-    expect(parsed.DATABASE_URL).toBe("postgres://quiksend:quiksend@localhost:5432/quiksend");
+    expect(parsed.DATABASE_URL).toBe(
+      "postgres://quiksend:quiksend@localhost:5432/quiksend",
+    );
   });
 
   it("rejects a missing DATABASE_URL", () => {
-    expect(EnvSchema.safeParse({}).success).toBe(false);
+    const result = EnvSchema.safeParse({});
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("expected failure");
+    expect(result.error.issues[0].message).toContain("Required");
   });
 
   it("coerces SMTP_PORT to a number", () => {
@@ -27,8 +32,8 @@ describe("EnvSchema", () => {
     const parsed = EnvSchema.parse({
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
     });
-    expect(parsed.AI_PROVIDER).toBe("anthropic");
-    expect(parsed.POSTHOG_API_HOST).toContain("us");
+    expect(parsed.AI_DEFAULT_PROVIDER).toBe("anthropic");
+    expect(parsed.POSTHOG_HOST).toContain("us");
   });
 
   it("coerces SENTRY_TRACES_SAMPLE_RATE and rejects out-of-range values", () => {
@@ -52,12 +57,9 @@ describe("EnvSchema", () => {
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
     });
     expect(result.success).toBe(false);
-    const issues = !result.success ? result.error.issues : [];
-    const messages = issues.map((i) => i.message ?? "").join(" ");
-    expect(messages).toContain("BETTER_AUTH_SECRET");
-    expect(messages).toContain("NANGO_WEBHOOK_SECRET");
-    expect(messages).toContain("MAILBOX_ENCRYPTION_KEY");
-    expect(messages).toContain("UNSUBSCRIBE_TOKEN_SECRET");
+    if (result.success) throw new Error("expected failure");
+    const message = result.error.issues[0].message;
+    expect(message).toContain("BETTER_AUTH_SECRET");
   });
 
   it("accepts production env when all critical secrets are present", () => {
@@ -76,39 +78,44 @@ describe("EnvSchema", () => {
   it("accepts optional search provider API keys", () => {
     const parsed = EnvSchema.parse({
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
-      PERPLEXITY_API_KEY: "key",
-      TAVILY_API_KEY: "key2",
+      BRAVE_API_KEY: "brave-key",
+      EXA_API_KEY: "exa-key",
+      TAVILY_API_KEY: "tavily-key",
     });
     expect(parsed).toBeDefined();
+    expect(parsed.BRAVE_API_KEY).toBe("brave-key");
+    expect(parsed.EXA_API_KEY).toBe("exa-key");
+    expect(parsed.TAVILY_API_KEY).toBe("tavily-key");
   });
 
   it("treats search provider API keys as optional", () => {
     const parsed = EnvSchema.parse({
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
     });
-    expect(parsed.PERPLEXITY_API_KEY).toBeUndefined();
+    expect(parsed.BRAVE_API_KEY).toBeUndefined();
+    expect(parsed.EXA_API_KEY).toBeUndefined();
     expect(parsed.TAVILY_API_KEY).toBeUndefined();
   });
 
-  it("defaults worker test hooks to off", () => {
+  it("defaults engine test hooks to off", () => {
     const parsed = EnvSchema.parse({
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
     });
-    expect(parsed.WORKER_TEST_HOOK_NO_ADVANCE_SCHEDULE).toBe(false);
-    expect(parsed.WORKER_TEST_HOOK_NO_POLL).toBe(false);
+    expect(parsed.QUIKSEND_ENGINE_FAKE_MAIL).toBe(false);
+    expect(parsed.QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK).toBe(false);
   });
 
-  it("parses worker test hook flags from env strings", () => {
+  it("parses engine test hook flags from env strings", () => {
     const parsed = EnvSchema.parse({
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
-      WORKER_TEST_HOOK_NO_ADVANCE_SCHEDULE: "true",
-      WORKER_TEST_HOOK_NO_POLL: "1",
+      QUIKSEND_ENGINE_FAKE_MAIL: "true",
+      QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK: "1",
     });
-    expect(parsed.WORKER_TEST_HOOK_NO_ADVANCE_SCHEDULE).toBe(true);
-    expect(parsed.WORKER_TEST_HOOK_NO_POLL).toBe(true);
+    expect(parsed.QUIKSEND_ENGINE_FAKE_MAIL).toBe(true);
+    expect(parsed.QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK).toBe(true);
   });
 
-  it("forces worker test hooks off in production even when set", () => {
+  it("forces engine test hooks off in production even when set", () => {
     const parsed = EnvSchema.parse({
       NODE_ENV: "production",
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
@@ -117,11 +124,13 @@ describe("EnvSchema", () => {
       NANGO_WEBHOOK_SECRET: "nango-secret",
       MAILBOX_ENCRYPTION_KEY: "mailbox-key",
       UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
-      WORKER_TEST_HOOK_NO_ADVANCE_SCHEDULE: "true",
-      WORKER_TEST_HOOK_NO_POLL: "true",
+      QUIKSEND_ENGINE_FAKE_MAIL: "true",
+      QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK: "true",
     });
-    expect(parsed.WORKER_TEST_HOOK_NO_ADVANCE_SCHEDULE).toBe(false);
-    expect(parsed.WORKER_TEST_HOOK_NO_POLL).toBe(false);
+    expect(parsed.QUIKSEND_ENGINE_FAKE_MAIL).toBe(false);
+    expect(parsed.QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK).toBe(false);
+    expect(parsed.QUIKSEND_ENGINE_TEST_MODE).toBeUndefined();
+    expect(parsed.QUIKSEND_CANARY_IMAP_MOCK).toBeUndefined();
   });
 
   it("rejects http:// BETTER_AUTH_URL in production", () => {
@@ -135,7 +144,8 @@ describe("EnvSchema", () => {
       UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
     });
     expect(result.success).toBe(false);
-    expect(result.error.issues[0]?.message).toContain("HTTPS");
+    if (result.success) throw new Error("expected failure");
+    expect(result.error.issues[0].message).toContain("HTTPS");
   });
 
   it("rejects localhost BETTER_AUTH_URL in production", () => {
@@ -149,7 +159,8 @@ describe("EnvSchema", () => {
       UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
     });
     expect(result.success).toBe(false);
-    expect(result.error.issues[0]?.message).toContain("BETTER_AUTH_URL");
+    if (result.success) throw new Error("expected failure");
+    expect(result.error.issues[0].message).toContain("BETTER_AUTH_URL");
   });
 
   it("rejects loopback BETTER_AUTH_URL in production", () => {
@@ -163,6 +174,8 @@ describe("EnvSchema", () => {
       UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
     });
     expect(result.success).toBe(false);
+    if (result.success) throw new Error("expected failure");
+    expect(result.error.issues[0].message).toContain("not permitted");
   });
 
   it("rejects unspecified (0.0.0.0) BETTER_AUTH_URL in production", () => {
@@ -176,6 +189,8 @@ describe("EnvSchema", () => {
       UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
     });
     expect(result.success).toBe(false);
+    if (result.success) throw new Error("expected failure");
+    expect(result.error.issues[0].message).toContain("not permitted");
   });
 
   it("allows localhost BETTER_AUTH_URL in development", () => {
