@@ -7,10 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
+import { acceptInvitation } from "@/lib/invitations.functions.ts";
 
 const loginSearchSchema = z.object({
   token: z.string().optional(),
   error: z.string().optional(),
+  invitationId: z.string().optional(),
+  invitedEmail: z.string().optional(),
+  organizationName: z.string().optional(),
 });
 
 export const Route = createFileRoute("/login")({
@@ -39,9 +43,10 @@ type ResetValues = z.infer<typeof resetSchema>;
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { token, error: resetError } = Route.useSearch();
+  const { token, error: resetError, invitationId, invitedEmail, organizationName } =
+    Route.useSearch();
   const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset">(
-    token ? "reset" : "signin",
+    token ? "reset" : invitationId ? "signup" : "signin",
   );
   const [error, setError] = useState<string | null>(resetError ?? null);
   const [info, setInfo] = useState<string | null>(null);
@@ -49,7 +54,10 @@ function LoginPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { email: invitedEmail ?? "" },
+  });
   const forgotForm = useForm<ForgotValues>({ resolver: zodResolver(forgotSchema) });
   const resetForm = useForm<ResetValues>({ resolver: zodResolver(resetSchema) });
 
@@ -67,6 +75,20 @@ function LoginPage() {
     if (res.error) {
       setError(res.error.message ?? "Something went wrong. Please try again.");
       return;
+    }
+    if (invitationId) {
+      try {
+        await acceptInvitation({ data: { invitationId } });
+      } catch (err) {
+        // Truthful failure: the account exists now, but never claim the
+        // workspace invite succeeded when the server rejected it.
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Signed in, but the invitation could not be accepted — ask an admin to resend it.",
+        );
+        return;
+      }
     }
     await navigate({ to: "/dashboard" });
   });
@@ -224,9 +246,11 @@ function LoginPage() {
     <AuthShell
       title={mode === "signin" ? "Sign in" : "Create your account"}
       subtitle={
-        mode === "signin"
-          ? "Access your workspace, sequences, and inbox."
-          : "You'll create your first workspace next."
+        invitationId
+          ? `You've been invited to join ${organizationName ?? "a workspace"} on Quiksend.`
+          : mode === "signin"
+            ? "Access your workspace, sequences, and inbox."
+            : "You'll create your first workspace next."
       }
     >
       <form onSubmit={onSubmit} noValidate className="mt-6 flex flex-col gap-3">
@@ -247,6 +271,7 @@ function LoginPage() {
             type="email"
             placeholder="you@company.com"
             autoComplete="email"
+            readOnly={Boolean(invitedEmail)}
             {...register("email")}
           />
           {errors.email && (
