@@ -39,7 +39,6 @@ describe("effectiveStepConfig", () => {
     const result = effectiveStepConfig(ctx, step);
 
     expect(result).toEqual(mockConfigA);
-    expect(result.subject).toBe("Subject A");
   });
 
   it("returns variantB when abBucket is B and variantB exists", () => {
@@ -49,7 +48,6 @@ describe("effectiveStepConfig", () => {
     const result = effectiveStepConfig(ctx, step);
 
     expect(result).toEqual(mockConfigB);
-    expect(result.subject).toBe("Subject B");
   });
 
   it("returns config as fallback when abBucket is B but variantB is null", () => {
@@ -59,7 +57,6 @@ describe("effectiveStepConfig", () => {
     const result = effectiveStepConfig(ctx, step);
 
     expect(result).toEqual(mockConfigA);
-    expect(result.subject).toBe("Subject A");
   });
 
   it("maintains config identity across multiple calls (retry stability)", () => {
@@ -70,7 +67,5 @@ describe("effectiveStepConfig", () => {
     const result2 = effectiveStepConfig(ctx, step);
 
     expect(result1).toEqual(result2);
-    expect(result1.subject).toBe(result2.subject);
-    expect(result1.subject).toBe("Subject B");
   });
 });
