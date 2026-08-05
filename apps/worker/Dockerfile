@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
-# Worker image. Compile TypeScript to JavaScript (dist/index.js), then run
-# with node — no tsx, no source tree, no TypeScript dev deps at runtime.
-# Pino's transport worker bundles correctly with compiled JS.
+# Worker image. Bundle TypeScript to JavaScript using esbuild (dist/index.js),
+# then run with node — no tsx, no source tree, no TypeScript dev deps at runtime.
+# Pino's transport modules are externalized so they can be dynamically loaded.
 
 FROM node:24-slim AS base
 ENV PNPM_HOME=/pnpm \
@@ -15,15 +15,14 @@ FROM base AS pruner
 COPY . .
 RUN pnpm dlx turbo@2.10.2 prune @quiksend/worker --docker
 
-# Install, build (compile TypeScript), then emit dist/index.js.
+# Install, bundle TypeScript -> JavaScript, then emit dist/index.js.
 FROM base AS builder
 COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
-COPY tsconfig.base.json ./tsconfig.base.json
 RUN pnpm --filter @quiksend/worker build
 
-# Runtime: compiled JS + runtime deps only. Non-root user, no source tree.
+# Runtime: bundled JS + runtime deps only. Non-root user, no source tree.
 FROM base AS runner
 ENV NODE_ENV=production \
     NODE_OPTIONS=--disable-warning=DISABLED_WARNING_MESSAGE
@@ -39,7 +38,7 @@ COPY --from=pruner /app/out/json/ .
 # Install production deps only (no dev deps, no tsx).
 RUN pnpm install --frozen-lockfile --prod
 
-# Copy compiled JavaScript from builder.
+# Copy bundled JavaScript from builder.
 COPY --from=builder --chown=worker:worker /app/apps/worker/dist ./apps/worker/dist
 
 # Copy workspace package builds (from builder).
@@ -50,6 +49,6 @@ RUN chmod -R 555 ./apps/worker/dist ./packages
 USER worker
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD test -f /tmp/worker-health || exit 1
+  CMD node -e "process.kill(1, 0)"
 
 CMD ["node", "apps/worker/dist/index.js"]

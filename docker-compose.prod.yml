@@ -214,7 +214,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'node apps/worker' || exit 1"]
+      test: ["CMD", "node", "-e", "process.kill(1, 0)"]
       interval: 30s
       timeout: 3s
       retries: 3

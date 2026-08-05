@@ -7,7 +7,7 @@
     "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
     "start": "dotenv -e ../../.env -- tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "build": "tsc"
+    "build": "node build.mjs"
   },
   "dependencies": {
     "@quiksend/ai": "workspace:*",
@@ -25,6 +25,7 @@
   "devDependencies": {
     "@types/mailparser": "3.4.6",
     "dotenv-cli": "11.0.0",
+    "esbuild": "0.28.1",
     "tsx": "4.22.4"
   }
 }
