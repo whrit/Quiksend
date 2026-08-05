@@ -7,6 +7,8 @@ import { escapeHtml } from "@quiksend/mail";
 import { enqueueWithRetries } from "@quiksend/queue";
 import { APIError, betterAuth } from "better-auth";
 import { organization } from "better-auth/plugins";
+import { createAccessControl } from "better-auth/plugins/access";
+import { adminAc, defaultStatements, memberAc, ownerAc } from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, gt } from "drizzle-orm";
 
@@ -115,6 +117,30 @@ export async function enqueueTransactionalEmail(payload: {
 }
 
 /**
+ * Explicit organization access control for the `apiKey` resource. Better
+ * Auth's built-in org statements (`organization`, `member`, `invitation`,
+ * `team`, `ac`) say nothing about API keys, so without this the `apiKey`
+ * plugin's own `references: "organization"` authorization (see
+ * `checkOrgApiKeyPermission` in `@better-auth/api-key`) silently falls back
+ * to "only the org creator role can touch API keys at all" — every other
+ * admin action in this app treats admin and owner as equivalent
+ * (`isAdminOrOwner`, `packages/core/src/tenancy.ts`), so API keys get the
+ * same explicit grant here. This is enforced by Better Auth itself, so it
+ * applies uniformly to app server functions AND to the raw
+ * `/api/auth/api-key/*` endpoints — no vendor-default accident either way.
+ */
+const organizationStatement = {
+  ...defaultStatements,
+  apiKey: ["create", "read", "update", "delete"],
+} as const;
+const organizationAc = createAccessControl(organizationStatement);
+const organizationRoles = {
+  owner: organizationAc.newRole({ ...ownerAc.statements, apiKey: ["create", "read", "update", "delete"] }),
+  admin: organizationAc.newRole({ ...adminAc.statements, apiKey: ["create", "read", "update", "delete"] }),
+  member: organizationAc.newRole({ ...memberAc.statements, apiKey: [] }),
+};
+
+/**
  * Better Auth server instance, shared by apps/web (handler + server fns) and, later,
  * the public API. Multi-tenancy comes from the `organization` plugin (org = workspace).
  *
@@ -218,6 +244,10 @@ export const auth = betterAuth({
       // directly and never calls `/organization/create`.
       allowUserToCreateOrganization: (user) =>
         !env.SYSTEM_ADMIN_EMAIL || isSystemAdminEmail(user.email),
+      // Explicit `apiKey` resource grants (owner + admin, never member) —
+      // see the `organizationAc`/`organizationRoles` comment above.
+      ac: organizationAc,
+      roles: organizationRoles,
       // Longer than the password-reset window on purpose — accepting a
       // workspace invite reasonably takes longer to notice than resetting a
       // forgotten password.

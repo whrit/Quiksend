@@ -2,7 +2,7 @@ import { auth } from "@quiksend/auth";
 import { isAdminOrOwner, type OrgContext } from "@quiksend/core";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
@@ -25,36 +25,44 @@ export interface ApiKeySummary {
 }
 
 /**
- * List/revoke go straight to the table: Better Auth's own endpoints only
- * grant the `owner` role — this app's admin-or-owner policy needs direct DB.
- * Create still uses `auth.api.createApiKey` for key generation and hashing.
+ * Core logic behind every `*ApiKey*` server function, factored out so tests
+ * can drive it with a hand-built `OrgContext` + real session headers instead
+ * of faking a request. Keys are organization-owned (Better Auth
+ * `apiKey({ references: "organization" })`, `packages/auth/src/auth.ts`):
+ * `apikey.referenceId` *is* the organization id. Authorization is enforced
+ * twice on purpose — `isAdminOrOwner` here for a clear app-level error, and
+ * again inside Better Auth via the explicit `apiKey` access-control
+ * statement on the `organization` plugin (owner + admin, never member) —
+ * that grant is what lets create/list/revoke go straight through
+ * `auth.api.*` instead of bypassing the plugin's own authorization.
  */
-export async function listApiKeysForOrg(orgContext: OrgContext): Promise<ApiKeySummary[]> {
+export async function listApiKeysForOrg(
+  orgContext: OrgContext,
+  authHeaders?: HeadersInit,
+): Promise<ApiKeySummary[]> {
   if (!isAdminOrOwner(orgContext)) {
     throw new Error("Admin or owner role required to manage API keys");
   }
 
-  const rows = await db.query.apikey.findMany({
-    where: eq(tables.apikey.referenceId, orgContext.organizationId),
-    orderBy: [desc(tables.apikey.createdAt)],
-    limit: LIST_API_KEYS_LIMIT,
-    columns: {
-      id: true,
-      name: true,
-      prefix: true,
-      enabled: true,
-      createdAt: true,
-      expiresAt: true,
-      lastRequest: true,
-    },
+  const result = await auth.api.listApiKeys({
+    query: { organizationId: orgContext.organizationId, limit: LIST_API_KEYS_LIMIT },
+    headers: authHeaders,
   });
-  return rows.map((row) => ({ ...row, enabled: row.enabled ?? true }));
+  return (result.apiKeys ?? []).map((key) => ({
+    id: key.id,
+    name: key.name,
+    prefix: key.prefix,
+    enabled: key.enabled,
+    createdAt: key.createdAt,
+    expiresAt: key.expiresAt,
+    lastRequest: key.lastRequest,
+  }));
 }
 
 export const listApiKeys = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .validator(z.object({}))
-  .handler(async ({ context }) => listApiKeysForOrg(context.orgContext));
+  .handler(async ({ context }) => listApiKeysForOrg(context.orgContext, context.authHeaders));
 
 export async function createApiKeyForOrg(
   orgContext: OrgContext,
@@ -69,7 +77,9 @@ export async function createApiKeyForOrg(
     body: {
       name: data.name,
       organizationId: orgContext.organizationId,
-      // Plugin org-permission check needs an acting user; tests have no session.
+      // Session/cookie-derived via `authHeaders` in production; passed
+      // explicitly too since the plugin's own org-permission check needs an
+      // acting user and some callers (e.g. server-only tests) carry no session.
       userId: orgContext.userId,
       expiresIn: data.expiresIn,
       prefix: "qsk",
@@ -91,18 +101,28 @@ export const createApiKey = createServerFn({ method: "POST" })
   .validator(createApiKeySchema)
   .handler(async ({ data, context }) => createApiKeyForOrg(context.orgContext, data, context.authHeaders));
 
-export async function revokeApiKeyForOrg(orgContext: OrgContext, keyId: string): Promise<{ ok: true }> {
+export async function revokeApiKeyForOrg(
+  orgContext: OrgContext,
+  keyId: string,
+  authHeaders?: HeadersInit,
+): Promise<{ ok: true }> {
   if (!isAdminOrOwner(orgContext)) {
     throw new Error("Admin or owner role required to manage API keys");
   }
 
-  const deleted = await db
-    .delete(tables.apikey)
-    .where(and(eq(tables.apikey.id, keyId), eq(tables.apikey.referenceId, orgContext.organizationId)))
-    .returning({ id: tables.apikey.id });
-  if (deleted.length === 0) {
+  const listed = await auth.api.listApiKeys({
+    query: { organizationId: orgContext.organizationId, limit: LIST_API_KEYS_LIMIT },
+    headers: authHeaders,
+  });
+  const existing = (listed.apiKeys ?? []).find((key) => key.id === keyId);
+  if (!existing) {
     throw new Error("API key not found in this workspace");
   }
+
+  await auth.api.deleteApiKey({
+    body: { keyId },
+    headers: authHeaders,
+  });
 
   return { ok: true as const };
 }
@@ -110,7 +130,7 @@ export async function revokeApiKeyForOrg(orgContext: OrgContext, keyId: string):
 export const revokeApiKey = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ keyId: z.string().min(1) }))
-  .handler(async ({ data, context }) => revokeApiKeyForOrg(context.orgContext, data.keyId));
+  .handler(async ({ data, context }) => revokeApiKeyForOrg(context.orgContext, data.keyId, context.authHeaders));
 
 export const getApiUsageSummary = createServerFn({ method: "GET" })
   .middleware([authMiddleware])

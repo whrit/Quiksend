@@ -3,9 +3,8 @@ import "@tanstack/react-start/server-only";
 import { auth } from "@quiksend/auth";
 import { env, logger } from "@quiksend/config";
 import { db } from "@quiksend/db";
-import { tables } from "@quiksend/db/tables";
 import { getRequestIP } from "@tanstack/react-start/server";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { recordApiKeyUsage } from "./helpers.ts";
 
 export const DEFAULT_API_RATE_LIMIT = 100;
@@ -14,7 +13,14 @@ export const API_RATE_WINDOW_MS = 60_000;
 export interface ApiAuthContext {
   apiKeyId: string;
   orgId: string;
-  userId: string;
+  /**
+   * Organization-owned keys (Better Auth `apiKey({ references: "organization" })`,
+   * `packages/auth/src/auth.ts`) carry no individual creator identity —
+   * there is no truthful human user to attribute a key-authenticated
+   * request to. Always `null`; callers that need an audit actor use
+   * `apiKeyId` instead (see `recordApiKeyUsage`).
+   */
+  userId: null;
 }
 
 export interface ApiErrorBody {
@@ -67,26 +73,6 @@ function rateLimitIpKey(): string {
   return `ip:${clientIp() ?? "unknown"}`;
 }
 
-/**
- * Attributes API-key-authenticated writes that still require a user FK
- * (e.g. `enrollment.createdByUserId`) to the organization's earliest owner.
- * Org-owned keys (Better Auth `apiKey({ references: "organization" })`, see
- * `packages/auth/src/auth.ts`) carry no individual creator identity — the
- * `referenceId` on the key row *is* the organization id, full stop.
- *
- * ponytail: picks the oldest owner as a stand-in actor; add a per-org
- * "system" user (or make the FK nullable) if per-request attribution for
- * API-key-originated writes is ever needed.
- */
-async function resolveOrgOwnerUserId(organizationId: string): Promise<string | null> {
-  const owner = await db.query.member.findFirst({
-    where: and(eq(tables.member.organizationId, organizationId), eq(tables.member.role, "owner")),
-    orderBy: [asc(tables.member.createdAt)],
-    columns: { userId: true },
-  });
-  return owner?.userId ?? null;
-}
-
 export async function resolveApiKey(request: Request): Promise<ApiAuthContext | null> {
   const rawKey = extractBearerToken(request);
   if (!rawKey) return null;
@@ -96,17 +82,16 @@ export async function resolveApiKey(request: Request): Promise<ApiAuthContext | 
   });
   if (!result.valid || !result.key) return null;
 
-  // `referenceId` IS the organization id — set at creation, verified by the plugin.
+  // `referenceId` IS the organization id — set at creation, verified by the
+  // plugin. No membership lookup needed: the key's validity and org scope
+  // don't depend on any particular member (or any member at all) existing.
   const organizationId = result.key.referenceId;
   if (!organizationId) return null;
-
-  const userId = await resolveOrgOwnerUserId(organizationId);
-  if (!userId) return null;
 
   return {
     apiKeyId: result.key.id,
     orgId: organizationId,
-    userId,
+    userId: null,
   };
 }
 

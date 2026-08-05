@@ -141,6 +141,7 @@ describe("POST /api/v1/enrollments API key scoping", () => {
 
       const ctx = await resolveApiKey(request);
       expect(ctx).not.toBeNull();
+      expect(ctx!.userId).toBeNull();
 
       const seq = await db.query.sequence.findFirst({
         where: and(
@@ -152,6 +153,23 @@ describe("POST /api/v1/enrollments API key scoping", () => {
 
       expect(seq).toBeDefined();
       expect(seq!.status).toBe("active");
+
+      // Mirrors the exact write `apps/web/src/routes/api/v1/enrollments.ts`
+      // makes on a successful enrollment — `ctx.userId` is truthfully `null`
+      // (org-owned keys have no human creator), never a synthetic owner.
+      const [enrolled] = await db
+        .insert(tables.enrollment)
+        .values({
+          organizationId: ctx!.orgId,
+          sequenceId: sequenceA.id,
+          prospectId: prospectA.id,
+          mailboxId: mailboxA.id,
+          state: "active",
+          currentStepIndex: 0,
+          createdByUserId: ctx!.userId,
+        })
+        .returning();
+      expect(enrolled?.createdByUserId).toBeNull();
     });
   });
 });

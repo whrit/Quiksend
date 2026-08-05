@@ -124,9 +124,9 @@ export const enrollment = pgTable(
     lastError: text("last_error"),
     idempotencyKey: text("idempotency_key"),
     abBucket: text("ab_bucket"),
-    createdByUserId: text("created_by_user_id")
-      .notNull()
-      .references(() => user.id),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
