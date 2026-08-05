@@ -30,6 +30,7 @@ import { Route as ApiV1EnrollmentsRouteImport } from './routes/api/v1/enrollment
 import { Route as ApiNangoWebhookRouteImport } from './routes/api/nango/webhook'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ProtectedSettingsSuppressionRouteImport } from './routes/_protected/settings/suppression'
+import { Route as ProtectedSettingsMembersRouteImport } from './routes/_protected/settings/members'
 import { Route as ProtectedSettingsDeliverabilityRouteImport } from './routes/_protected/settings/deliverability'
 import { Route as ProtectedSettingsComplianceRouteImport } from './routes/_protected/settings/compliance'
 import { Route as ProtectedSequencesNewRouteImport } from './routes/_protected/sequences/new'
@@ -158,6 +159,12 @@ const ProtectedSettingsSuppressionRoute =
   ProtectedSettingsSuppressionRouteImport.update({
     id: '/settings/suppression',
     path: '/settings/suppression',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSettingsMembersRoute =
+  ProtectedSettingsMembersRouteImport.update({
+    id: '/settings/members',
+    path: '/settings/members',
     getParentRoute: () => ProtectedRoute,
   } as any)
 const ProtectedSettingsDeliverabilityRoute =
@@ -306,6 +313,7 @@ export interface FileRoutesByFullPath {
   '/sequences/new': typeof ProtectedSequencesNewRoute
   '/settings/compliance': typeof ProtectedSettingsComplianceRoute
   '/settings/deliverability': typeof ProtectedSettingsDeliverabilityRoute
+  '/settings/members': typeof ProtectedSettingsMembersRoute
   '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
@@ -351,6 +359,7 @@ export interface FileRoutesByTo {
   '/sequences/new': typeof ProtectedSequencesNewRoute
   '/settings/compliance': typeof ProtectedSettingsComplianceRoute
   '/settings/deliverability': typeof ProtectedSettingsDeliverabilityRoute
+  '/settings/members': typeof ProtectedSettingsMembersRoute
   '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
@@ -398,6 +407,7 @@ export interface FileRoutesById {
   '/_protected/sequences/new': typeof ProtectedSequencesNewRoute
   '/_protected/settings/compliance': typeof ProtectedSettingsComplianceRoute
   '/_protected/settings/deliverability': typeof ProtectedSettingsDeliverabilityRoute
+  '/_protected/settings/members': typeof ProtectedSettingsMembersRoute
   '/_protected/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
@@ -445,6 +455,7 @@ export interface FileRouteTypes {
     | '/sequences/new'
     | '/settings/compliance'
     | '/settings/deliverability'
+    | '/settings/members'
     | '/settings/suppression'
     | '/api/auth/$'
     | '/api/nango/webhook'
@@ -490,6 +501,7 @@ export interface FileRouteTypes {
     | '/sequences/new'
     | '/settings/compliance'
     | '/settings/deliverability'
+    | '/settings/members'
     | '/settings/suppression'
     | '/api/auth/$'
     | '/api/nango/webhook'
@@ -536,6 +548,7 @@ export interface FileRouteTypes {
     | '/_protected/sequences/new'
     | '/_protected/settings/compliance'
     | '/_protected/settings/deliverability'
+    | '/_protected/settings/members'
     | '/_protected/settings/suppression'
     | '/api/auth/$'
     | '/api/nango/webhook'
@@ -736,6 +749,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedSettingsSuppressionRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/settings/members': {
+      id: '/_protected/settings/members'
+      path: '/settings/members'
+      fullPath: '/settings/members'
+      preLoaderRoute: typeof ProtectedSettingsMembersRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/settings/deliverability': {
       id: '/_protected/settings/deliverability'
       path: '/settings/deliverability'
@@ -919,6 +939,7 @@ interface ProtectedRouteChildren {
   ProtectedSequencesNewRoute: typeof ProtectedSequencesNewRoute
   ProtectedSettingsComplianceRoute: typeof ProtectedSettingsComplianceRoute
   ProtectedSettingsDeliverabilityRoute: typeof ProtectedSettingsDeliverabilityRoute
+  ProtectedSettingsMembersRoute: typeof ProtectedSettingsMembersRoute
   ProtectedSettingsSuppressionRoute: typeof ProtectedSettingsSuppressionRoute
   ProtectedAnalyticsIndexRoute: typeof ProtectedAnalyticsIndexRoute
   ProtectedDeliverabilityIndexRoute: typeof ProtectedDeliverabilityIndexRoute
@@ -949,6 +970,7 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedSequencesNewRoute: ProtectedSequencesNewRoute,
   ProtectedSettingsComplianceRoute: ProtectedSettingsComplianceRoute,
   ProtectedSettingsDeliverabilityRoute: ProtectedSettingsDeliverabilityRoute,
+  ProtectedSettingsMembersRoute: ProtectedSettingsMembersRoute,
   ProtectedSettingsSuppressionRoute: ProtectedSettingsSuppressionRoute,
   ProtectedAnalyticsIndexRoute: ProtectedAnalyticsIndexRoute,
   ProtectedDeliverabilityIndexRoute: ProtectedDeliverabilityIndexRoute,

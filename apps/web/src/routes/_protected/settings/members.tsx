@@ -26,7 +26,7 @@ import { formatDate, formatRelative } from "@/lib/semantic.ts";
 import { cancelInvitation, inviteMember, listInvitations } from "@/lib/invitations.functions.ts";
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/_protected/settings/members/")({
+export const Route = createFileRoute("/_protected/settings/members")({
   component: MembersPage,
 });
 
