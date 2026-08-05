@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import { emailDomain } from "@quiksend/core";
 import { isProspectStatusSuppressed, checkSendPreConditions } from "./guards.ts";
 
-const matchesGuard = (m: { direction: string; isAutoReply: boolean }) =>
-  m.direction === "inbound" && m.isAutoReply === false;
 
 describe("isProspectStatusSuppressed", () => {
   it("returns false for active prospect with no suppression row", () => {
@@ -167,32 +165,3 @@ describe("accepted send result handling", () => {
   });
 });
 
-describe("hasReplyOnThread auto-reply exclusion", () => {
-  it("ORM branch requires isAutoReply=false to exclude OOO", () => {
-    // The ORM query in hasReplyOnThreadInTx uses:
-    //   eq(tables.message.isAutoReply, false)
-    // An OOO auto-reply with isAutoReply=true must not trigger stop-on-reply.
-    const isAutoReply = true;
-    const wouldMatch = isAutoReply === false;
-    expect(wouldMatch).toBe(false);
-  });
-
-  it("raw SQL branch requires is_auto_reply = false to exclude OOO", () => {
-    // The raw SQL query in hasReplyOnThreadInTx includes:
-    //   and is_auto_reply = false
-    // This mirrors guards.ts hasReplyOnThread exactly.
-    const sqlFragment = "and is_auto_reply = false";
-    expect(sqlFragment).toContain("is_auto_reply = false");
-  });
-
-  it("both branches match guards.ts hasReplyOnThread contract", () => {
-    // guards.ts (out-of-tx) and effects.ts (in-tx) must apply the identical
-    // filter: direction=inbound AND is_auto_reply=false. An OOO message
-    // must never cause an enrollment to stop on reply.
-    const oomMessage = { direction: "inbound", isAutoReply: true };
-    const realReply = { direction: "inbound", isAutoReply: false };
-
-    expect(matchesGuard(oomMessage)).toBe(false);
-    expect(matchesGuard(realReply)).toBe(true);
-  });
-});

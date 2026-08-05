@@ -1252,7 +1252,8 @@
           "name": "ingestion_attempts",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": 0
         },
         "ingestion_complete": {
           "name": "ingestion_complete",

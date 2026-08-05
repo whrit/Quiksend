@@ -300,7 +300,7 @@ export async function processInboundMessage(
       target: [tables.message.mailboxId, tables.message.providerMessageId],
       targetWhere: sql`${tables.message.direction} = 'inbound' AND ${tables.message.providerMessageId} IS NOT NULL`,
       set: {
-        ingestionAttempts: sql`CASE WHEN ${tables.message.ingestionComplete} = true OR ${tables.message.status} = 'quarantined' THEN ${tables.message.ingestionAttempts} ELSE COALESCE(${tables.message.ingestionAttempts}, 0) + 1 END`,
+        ingestionAttempts: sql`CASE WHEN ${tables.message.ingestionComplete} = true OR ${tables.message.status} = 'quarantined' THEN ${tables.message.ingestionAttempts} ELSE ${tables.message.ingestionAttempts} + 1 END`,
       },
     })
     .returning();
