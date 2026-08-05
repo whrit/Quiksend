@@ -49,6 +49,17 @@ export type TaskStepConfig = { title: string; instructions: string };
 
 export type StepConfig = EmailStepConfig | WaitStepConfig | TaskStepConfig;
 
+export type EnrollmentExclusionReason =
+  | "already_enrolled"
+  | "prospect_deleted"
+  | "prospect_suppressed"
+  | "sequence_archived";
+
+/** PostgreSQL unique-violation error code. Only this code maps to `already_enrolled`. */
+export function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && err.code === "23505";
+}
+
 export type EntryCondition = {
   kind?: "if_no_reply";
   recipientGatewayIn?: string[];
@@ -803,6 +814,18 @@ export const enrollProspects = createServerFn({ method: "POST" })
     }
     const { organizationId, userId } = context.orgContext;
     const seq = await loadSequenceOrThrow(data.sequenceId, organizationId);
+    if (seq.status === "archived") {
+      return {
+        enrolled: 0,
+        skipped: data.prospectIds.length,
+        skippedIds: data.prospectIds,
+        exclusions: data.prospectIds.map((prospectId) => ({
+          prospectId,
+          reason: "sequence_archived" as const,
+        })),
+        canariesCreated: 0,
+      };
+    }
     if (seq.status !== "active") {
       throw new SequenceError("INVALID_STATE", "Can only enroll into active sequences");
     }
@@ -851,18 +874,18 @@ export const enrollProspects = createServerFn({ method: "POST" })
     });
     const alreadyEnrolled = new Set(existing.map((e) => e.prospectId));
 
-    const skipped: string[] = [];
+    const exclusions: { prospectId: string; reason: EnrollmentExclusionReason }[] = [];
     const enrolled: string[] = [];
     const anchor = new Date();
     let mailboxIndex = 0;
 
     for (const prospectId of data.prospectIds) {
       if (!prospectSet.has(prospectId)) {
-        skipped.push(prospectId);
+        exclusions.push({ prospectId, reason: "prospect_deleted" });
         continue;
       }
       if (alreadyEnrolled.has(prospectId)) {
-        skipped.push(prospectId);
+        exclusions.push({ prospectId, reason: "already_enrolled" });
         continue;
       }
 
@@ -875,14 +898,14 @@ export const enrollProspects = createServerFn({ method: "POST" })
           prospect.status === "do_not_contact" ||
           prospect.status === "bounced"
         ) {
-          skipped.push(prospectId);
+          exclusions.push({ prospectId, reason: "prospect_suppressed" });
           continue;
         }
       }
 
       const mailbox = mailboxes[mailboxIndex % mailboxes.length];
       if (!mailbox) {
-        skipped.push(prospectId);
+        exclusions.push({ prospectId, reason: "prospect_suppressed" });
         continue;
       }
       mailboxIndex++;
@@ -903,8 +926,12 @@ export const enrollProspects = createServerFn({ method: "POST" })
         });
         enrolled.push(prospectId);
         alreadyEnrolled.add(prospectId);
-      } catch {
-        skipped.push(prospectId);
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          exclusions.push({ prospectId, reason: "already_enrolled" });
+          continue;
+        }
+        throw err;
       }
     }
 
@@ -924,8 +951,9 @@ export const enrollProspects = createServerFn({ method: "POST" })
 
     return {
       enrolled: enrolled.length,
-      skipped: skipped.length,
-      skippedIds: skipped,
+      skipped: exclusions.length,
+      skippedIds: exclusions.map((e) => e.prospectId),
+      exclusions,
       canariesCreated,
     };
   });

@@ -34,6 +34,8 @@ export async function loadContext(
   });
   if (!enrollment) throw new Error(`Enrollment not found: ${enrollmentId}`);
 
+  // Intentionally loads regardless of sequence.status — archived sequences
+  // stop *new* enrollments but already-active enrollments continue executing.
   const sequence = await executor.query.sequence.findFirst({
     where: and(
       eq(tables.sequence.id, enrollment.sequenceId),

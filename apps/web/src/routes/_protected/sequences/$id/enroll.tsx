@@ -42,6 +42,13 @@ const DEFERRAL_LABELS: Record<string, string> = {
   daily_cap: "Daily cap",
 };
 
+const EXCLUSION_LABELS: Record<string, string> = {
+  already_enrolled: "already enrolled",
+  prospect_deleted: "deleted",
+  prospect_suppressed: "suppressed or unsubscribed",
+  sequence_archived: "sequence is archived",
+};
+
 function EnrollPage() {
   const { sequence, mailboxes } = Route.useLoaderData();
   const { id } = Route.useParams();
@@ -134,12 +141,23 @@ function EnrollPage() {
       const result = await enrollProspects({
         data: { sequenceId: id, prospectIds: [...selected] },
       });
-      toast.success(`Enrolled ${result.enrolled} prospect(s)`, {
-        description:
-          result.skipped > 0
-            ? `${result.skipped} skipped (already enrolled or invalid)`
-            : undefined,
-      });
+      if (result.enrolled === 0 && result.exclusions.length > 0) {
+        const first = result.exclusions[0];
+        const label = EXCLUSION_LABELS[first?.reason ?? ""] ?? "ineligible";
+        toast.error(`No prospects enrolled — ${label}`);
+      } else {
+        const parts: string[] = [];
+        const counts: Record<string, number> = {};
+        for (const e of result.exclusions) {
+          counts[e.reason] = (counts[e.reason] ?? 0) + 1;
+        }
+        for (const [reason, count] of Object.entries(counts)) {
+          parts.push(`${count} ${EXCLUSION_LABELS[reason] ?? reason}`);
+        }
+        toast.success(`Enrolled ${result.enrolled} prospect(s)`, {
+          description: parts.length > 0 ? `Skipped: ${parts.join(", ")}` : undefined,
+        });
+      }
       setSelected(new Set());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to enroll");
