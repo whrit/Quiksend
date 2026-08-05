@@ -58,6 +58,9 @@ const APP_SCOPED_TABLES: readonly string[] = [
   "seedInbox",
   "canarySend",
   "deliverabilitySnapshot",
+  // Task 3 — server-owned entitlements:
+  "organizationLimit",
+  "organizationUsage",
 ];
 
 const SCAN_ROOTS = ["apps/web/src", "apps/worker/src", "packages"];

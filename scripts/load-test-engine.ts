@@ -188,10 +188,16 @@ async function seedCanaryFixture(canaryCount: number, seedCount: number): Promis
       slug: `canary-${orgIndex}-${randomUUID().slice(0, 8)}`,
       metadata: JSON.stringify({
         postal_address: "100 Test Ave, Load City, CA 94000",
-        entitlements: { deliverability_pro: { activeUntil: "2099-01-01T00:00:00.000Z" } },
         canary_defaults: { enabled: true, seedsPerCampaign: 3, minProspectsPerSeg: 2 },
       }),
       createdAt: now,
+    });
+
+    // Server-owned entitlement row — organization.metadata is client-writable
+    // and must never be the source of Deliverability Pro entitlement.
+    await db.insert(tables.organizationLimit).values({
+      organizationId: orgId,
+      deliverabilityProUntil: new Date("2099-01-01T00:00:00.000Z"),
     });
 
     await db.insert(tables.member).values({
@@ -302,7 +308,6 @@ async function seedCanaryFixture(canaryCount: number, seedCount: number): Promis
         seedsPerCampaign: 3,
         minProspectsPerSeg: 2,
       },
-      isProEntitled: true,
     });
 
     if (injected === 0) throw new Error(`canary injection failed for org ${orgId}`);

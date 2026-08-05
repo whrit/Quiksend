@@ -6,6 +6,7 @@ import { db } from "@quiksend/db";
 import { getRequestIP } from "@tanstack/react-start/server";
 import { sql } from "drizzle-orm";
 import { recordApiKeyUsage } from "./helpers.ts";
+import { consumePeriodicQuota } from "@quiksend/db/organization-limits";
 
 export const DEFAULT_API_RATE_LIMIT = 100;
 export const API_RATE_WINDOW_MS = 60_000;
@@ -150,6 +151,10 @@ export async function withApiAuth(
         },
       },
     );
+  }
+
+  if (!(await consumePeriodicQuota(ctx.orgId, "apiRequest"))) {
+    return jsonError("QUOTA_EXCEEDED", "Daily API request limit reached for this workspace", 429);
   }
 
   const url = new URL(request.url);

@@ -7,7 +7,7 @@ import type { EmailGateway } from "@quiksend/mail";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { encryptSeedImapConfig, validateImapHost, type SeedImapConfigPlain } from "@quiksend/mail";
-import { isDeliverabilityProEntitled } from "./canary-injection.ts";
+import { getDeliverabilityProStatus } from "@quiksend/db/organization-limits";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
 
@@ -110,11 +110,7 @@ export const listSeedInboxes = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const { organizationId } = context.orgContext;
-    const org = await db.query.organization.findFirst({
-      where: eq(tables.organization.id, organizationId),
-      columns: { metadata: true },
-    });
-    const pro = isDeliverabilityProEntitled(org?.metadata);
+    const { entitled: pro } = await getDeliverabilityProStatus(organizationId);
 
     const userSeeds = await db.query.seedInbox.findMany({
       where: eq(tables.seedInbox.organizationId, organizationId),
@@ -232,17 +228,8 @@ export const toggleSeedInboxActive = createServerFn({ method: "POST" })
 export const isEntitledToProviderSeeds = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
-    const org = await db.query.organization.findFirst({
-      where: eq(tables.organization.id, context.orgContext.organizationId),
-      columns: { metadata: true },
-    });
-    const parsed =
-      typeof org?.metadata === "string"
-        ? (JSON.parse(org.metadata) as Record<string, unknown>)
-        : (org?.metadata as Record<string, unknown> | null);
-    const until = (
-      parsed?.entitlements as { deliverability_pro?: { activeUntil?: string } } | undefined
-    )?.deliverability_pro?.activeUntil;
-    const entitled = isDeliverabilityProEntitled(org?.metadata);
-    return { entitled, expiresAt: until };
+    const { entitled, expiresAt } = await getDeliverabilityProStatus(
+      context.orgContext.organizationId,
+    );
+    return { entitled, expiresAt };
   });

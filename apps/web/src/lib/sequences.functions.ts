@@ -13,11 +13,7 @@ import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
 import { applyWebEffects } from "./effect-executor.ts";
-import {
-  injectCanariesForEnrollment,
-  isDeliverabilityProEntitled,
-  parseWorkspaceCanaryConfig,
-} from "./canary-injection.ts";
+import { injectCanariesForEnrollment, parseWorkspaceCanaryConfig } from "./canary-injection.ts";
 import { validateTemplate } from "./sequence-templates.ts";
 
 class SequenceError extends Error {
@@ -924,7 +920,6 @@ export const enrollProspects = createServerFn({ method: "POST" })
       mailboxIds: mailboxes.map((m) => m.id),
       sequenceCanaryConfig: seq.canaryConfig,
       workspaceCanaryConfig: parseWorkspaceCanaryConfig(org?.metadata),
-      isProEntitled: isDeliverabilityProEntitled(org?.metadata),
     });
 
     return {

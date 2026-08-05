@@ -55,6 +55,8 @@ export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
   "canary_send",
   "seed_inbox",
   "deliverability_snapshot",
+  "organization_usage",
+  "organization_limit",
 ];
 
 /**

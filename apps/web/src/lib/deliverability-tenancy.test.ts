@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { client, db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
+import { isDeliverabilityProEntitled } from "@quiksend/db/organization-limits";
 
 async function cleanupDeliverabilityTables(): Promise<void> {
   await client.unsafe(
@@ -11,7 +12,8 @@ async function cleanupDeliverabilityTables(): Promise<void> {
   );
 }
 
-function proMetadata(): string {
+/** A client-forged metadata payload — must never grant entitlement. */
+function forgedProMetadata(): string {
   return JSON.stringify({
     entitlements: { deliverability_pro: { activeUntil: "2099-12-31T00:00:00.000Z" } },
   });
@@ -176,12 +178,23 @@ describe("deliverability tenancy", () => {
     });
   });
 
-  it("provider-managed seeds visible only to Pro-entitled workspaces", async () => {
-    await withTestOrgs(async ({ orgA, orgB }) => {
+  it("client-forged organization.metadata cannot grant Deliverability Pro", async () => {
+    await withTestOrgs(async ({ orgA }) => {
       await db
         .update(tables.organization)
-        .set({ metadata: proMetadata() })
+        .set({ metadata: forgedProMetadata() })
         .where(eq(tables.organization.id, orgA.id));
+
+      expect(await isDeliverabilityProEntitled(orgA.id)).toBe(false);
+    });
+  });
+
+  it("provider-managed seeds visible only to workspaces with a server-owned Pro row", async () => {
+    await withTestOrgs(async ({ orgA, orgB }) => {
+      await db.insert(tables.organizationLimit).values({
+        organizationId: orgA.id,
+        deliverabilityProUntil: new Date("2099-12-31T00:00:00.000Z"),
+      });
 
       await db.insert(tables.seedInbox).values({
         organizationId: null,
@@ -194,16 +207,13 @@ describe("deliverability tenancy", () => {
       });
 
       try {
+        expect(await isDeliverabilityProEntitled(orgA.id)).toBe(true);
+        expect(await isDeliverabilityProEntitled(orgB.id)).toBe(false);
+
         const proOrgSees = await db.query.seedInbox.findMany({
           where: isNull(tables.seedInbox.organizationId),
         });
         expect(proOrgSees.length).toBeGreaterThanOrEqual(1);
-
-        const nonProOrgQuery = await db.query.organization.findFirst({
-          where: eq(tables.organization.id, orgB.id),
-          columns: { metadata: true },
-        });
-        expect(nonProOrgQuery?.metadata).toBeNull();
       } finally {
         await cleanupDeliverabilityTables();
       }

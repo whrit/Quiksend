@@ -7,11 +7,7 @@ import { tables } from "@quiksend/db/tables";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
-import {
-  injectCanariesForEnrollment,
-  isDeliverabilityProEntitled,
-  parseWorkspaceCanaryConfig,
-} from "@/lib/canary-injection.ts";
+import { injectCanariesForEnrollment, parseWorkspaceCanaryConfig } from "@/lib/canary-injection.ts";
 import { jsonData, jsonError, parseJsonBody, withApiAuth } from "@/lib/api/v1/middleware.ts";
 
 type SequenceSettings = {
@@ -242,7 +238,6 @@ export const Route = createFileRoute("/api/v1/enrollments")({
             mailboxIds: mailboxes.map((m) => m.id),
             sequenceCanaryConfig: seq.canaryConfig,
             workspaceCanaryConfig: parseWorkspaceCanaryConfig(org?.metadata),
-            isProEntitled: isDeliverabilityProEntitled(org?.metadata),
           });
 
           return jsonData(

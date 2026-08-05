@@ -11,6 +11,7 @@ import {
 import type { EmailGateway } from "@quiksend/mail";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
+import { isDeliverabilityProEntitled } from "@quiksend/db/organization-limits";
 import { enqueue } from "@quiksend/queue";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
@@ -21,7 +22,6 @@ interface InjectCanariesInput {
   mailboxIds: readonly string[];
   sequenceCanaryConfig: unknown;
   workspaceCanaryConfig: unknown;
-  isProEntitled: boolean;
 }
 
 export async function injectCanariesForEnrollment(input: InjectCanariesInput): Promise<number> {
@@ -58,8 +58,11 @@ export async function injectCanariesForEnrollment(input: InjectCanariesInput): P
     ),
   });
 
+  // Server-owned entitlement only — never trust a caller-supplied flag or
+  // organization.metadata, which is client-writable via Better Auth's
+  // org-update endpoint.
   let providerSeeds: (typeof tables.seedInbox.$inferSelect)[] = [];
-  if (input.isProEntitled) {
+  if (await isDeliverabilityProEntitled(input.organizationId)) {
     providerSeeds = await db.query.seedInbox.findMany({
       where: and(isNull(tables.seedInbox.organizationId), eq(tables.seedInbox.active, true)),
     });
@@ -141,17 +144,6 @@ export function parseWorkspaceCanaryConfig(metadata: unknown): CanaryConfig | nu
   return defaults && typeof defaults === "object" ? (defaults as CanaryConfig) : null;
 }
 
-export function isDeliverabilityProEntitled(metadata: unknown): boolean {
-  const parsed =
-    typeof metadata === "string"
-      ? (JSON.parse(metadata) as Record<string, unknown>)
-      : (metadata as Record<string, unknown> | null);
-  const entitlements = parsed?.entitlements as
-    | { deliverability_pro?: { activeUntil?: string } }
-    | undefined;
-  const until = entitlements?.deliverability_pro?.activeUntil;
-  if (!until) return false;
-  return new Date(until).getTime() > Date.now();
-}
+export { isDeliverabilityProEntitled };
 
 export { SEG_GATEWAY_VALUES };

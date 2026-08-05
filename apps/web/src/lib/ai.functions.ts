@@ -11,6 +11,7 @@ import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import type { GenerationPromptPayload, ResearchFact } from "@quiksend/db/schema";
 import { enqueue, enqueueWithRetries } from "@quiksend/queue";
+import { consumePeriodicQuota } from "@quiksend/db/organization-limits";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
@@ -18,7 +19,7 @@ import { authMiddleware } from "./org-fn.ts";
 import { deleteValueProp, listValueProps, type PublicValueProp } from "./value-props.functions.ts";
 
 class AiError extends Error {
-  readonly code: "NOT_FOUND" | "VALIDATION";
+  readonly code: "NOT_FOUND" | "VALIDATION" | "FORBIDDEN";
   constructor(code: AiError["code"], message: string) {
     super(message);
     this.name = "AiError";
@@ -271,6 +272,9 @@ export const generateEmailForProspect = createServerFn({ method: "POST" })
     // `ai.research` with retries and hand `RESEARCH_PENDING` back to the
     // client to poll.
     if (forceResearch || !isResearchFresh(profile)) {
+      if (!(await consumePeriodicQuota(organizationId, "aiResearch"))) {
+        throw new AiError("FORBIDDEN", "Monthly AI research limit reached for this workspace");
+      }
       await enqueueWithRetries("ai.research", {
         prospectId: data.prospectId,
         forceRefresh: forceResearch,
@@ -306,6 +310,9 @@ export const generateEmailForProspect = createServerFn({ method: "POST" })
       variant,
     });
 
+    if (!(await consumePeriodicQuota(organizationId, "aiResearch"))) {
+      throw new AiError("FORBIDDEN", "Monthly AI research limit reached for this workspace");
+    }
     const generated = await generateEmail(built);
     const generationId = randomUUID();
     const humanized = humanizeEmail(
@@ -433,6 +440,9 @@ export const triggerResearch = createServerFn({ method: "POST" })
       ),
     });
     if (!prospect) throw new AiError("NOT_FOUND", "Prospect not found");
+    if (!(await consumePeriodicQuota(organizationId, "aiResearch"))) {
+      throw new AiError("FORBIDDEN", "Monthly AI research limit reached for this workspace");
+    }
 
     await enqueue("ai.research", {
       prospectId: data.prospectId,
