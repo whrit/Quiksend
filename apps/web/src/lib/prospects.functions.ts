@@ -3,7 +3,7 @@ import { tables } from "@quiksend/db/tables";
 import { enqueue, enqueueWithRetries } from "@quiksend/queue";
 import type { EmailGateway } from "@quiksend/mail/gateway-detect";
 import { isAdminOrOwner } from "@quiksend/core";
-import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, not, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeDomain, normalizeEmail } from "./prospect-import.ts";
 import { createServerFn } from "@tanstack/react-start";
@@ -16,6 +16,8 @@ type CompanyRow = typeof tables.company.$inferSelect;
 type ListRow = typeof tables.list.$inferSelect;
 type ImportBatchRow = typeof tables.importBatch.$inferSelect;
 type ImportErrorRow = typeof tables.importError.$inferSelect;
+
+const NON_TERMINAL_ENROLLMENT_STATES = ["active", "waiting", "waiting_manual", "paused"];
 
 function serializeProspect(row: ProspectRow) {
   return {
@@ -454,7 +456,6 @@ export const deleteProspect = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
-    const NON_TERMINAL = ["active", "waiting", "waiting_manual", "paused"];
 
     return db.transaction(async (tx) => {
       const [deleted] = await tx
@@ -479,7 +480,7 @@ export const deleteProspect = createServerFn({ method: "POST" })
           and(
             eq(tables.enrollment.prospectId, data.id),
             eq(tables.enrollment.organizationId, organizationId),
-            inArray(tables.enrollment.state, NON_TERMINAL),
+            inArray(tables.enrollment.state, NON_TERMINAL_ENROLLMENT_STATES),
           ),
         );
 
@@ -492,7 +493,6 @@ export const bulkDeleteProspects = createServerFn({ method: "POST" })
   .validator(z.object({ ids: z.array(z.string().uuid()).min(1).max(500) }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
-    const NON_TERMINAL = ["active", "waiting", "waiting_manual", "paused"];
 
     return db.transaction(async (tx) => {
       const existing = await tx
@@ -528,7 +528,7 @@ export const bulkDeleteProspects = createServerFn({ method: "POST" })
           and(
             inArray(tables.enrollment.prospectId, data.ids),
             eq(tables.enrollment.organizationId, organizationId),
-            inArray(tables.enrollment.state, NON_TERMINAL),
+            inArray(tables.enrollment.state, NON_TERMINAL_ENROLLMENT_STATES),
           ),
         );
 

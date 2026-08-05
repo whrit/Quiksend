@@ -13,7 +13,7 @@ import { tables } from "@quiksend/db/tables";
 import { buildUnsubscribeUrl, mintUnsubscribeToken, resolvePostalAddress, sanitizeForSeg } from "@quiksend/mail";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import type { ComplianceInput, OutboundEmail } from "@quiksend/mail";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type * as schema from "@quiksend/db/schema";
 import { backoffUntil } from "./backoff.ts";
@@ -33,7 +33,7 @@ import {
   reserveSendSlotInTx,
 } from "./reserve-slot.ts";
 import { handleEmitEvent } from "./execute-effects.ts";
-import { isProspectStatusSuppressed } from "./guards.ts";
+import { checkSendPreConditions } from "./guards.ts";
 import { getWorkspacePostalAddress } from "./workspace-postal.ts";
 import { selectMailboxForSend } from "./mailbox-router.ts";
 
@@ -745,29 +745,32 @@ async function recheckSendAllowedInTx(
   if (!enrollment) return { ok: false, reason: "enrollment_missing" };
   if (enrollment.state !== "active") return { ok: false, reason: "enrollment_not_active" };
 
-  // Fail-closed: archived mailbox must never dispatch
-  const mailbox = await tx.query.mailbox.findFirst({
-    where: and(
-      eq(tables.mailbox.id, ctx.mailbox.id),
-      eq(tables.mailbox.organizationId, ctx.organizationId),
-    ),
-    columns: { status: true },
-  });
-  if (!mailbox || mailbox.status === "archived") {
-    return { ok: false, reason: "mailbox_archived" };
-  }
+  const [mailbox, prospect] = await Promise.all([
+    tx.query.mailbox.findFirst({
+      where: and(
+        eq(tables.mailbox.id, ctx.mailbox.id),
+        eq(tables.mailbox.organizationId, ctx.organizationId),
+      ),
+      columns: { status: true },
+    }),
+    tx.query.prospect.findFirst({
+      where: and(
+        eq(tables.prospect.id, ctx.prospect.id),
+        eq(tables.prospect.organizationId, ctx.organizationId),
+      ),
+      columns: { deletedAt: true },
+    }),
+  ]);
+  if (!mailbox) return { ok: false, reason: "mailbox_archived" };
+  if (!prospect) return { ok: false, reason: "prospect_deleted" };
 
-  // Fail-closed: deleted prospect must never receive mail
-  const prospect = await tx.query.prospect.findFirst({
-    where: and(
-      eq(tables.prospect.id, ctx.prospect.id),
-      eq(tables.prospect.organizationId, ctx.organizationId),
-    ),
-    columns: { deletedAt: true },
+  const sync = checkSendPreConditions({
+    mailboxStatus: mailbox.status,
+    prospectStatus: ctx.prospect.status,
+    prospectDeletedAt: prospect.deletedAt,
+    enrollmentState: null, // stricter active-only check handled above
   });
-  if (!prospect || prospect.deletedAt != null) {
-    return { ok: false, reason: "prospect_deleted" };
-  }
+  if (!sync.ok) return sync;
 
   // Fail-closed: missing CAN-SPAM postal address
   const org = await tx.query.organization.findFirst({
@@ -780,7 +783,6 @@ async function recheckSendAllowedInTx(
     return { ok: false, reason: "missing_postal_address" };
   }
 
-  if (isProspectStatusSuppressed(ctx.prospect.status)) return { ok: false, reason: "suppressed" };
   if (await isSuppressionListedInTx(tx, ctx.organizationId, ctx.prospect.email)) {
     return { ok: false, reason: "suppressed" };
   }
