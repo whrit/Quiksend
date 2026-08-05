@@ -41,10 +41,6 @@ RUN pnpm install --frozen-lockfile --prod
 # Copy bundled JavaScript from builder.
 COPY --from=builder --chown=worker:worker /app/apps/worker/dist ./apps/worker/dist
 
-# Copy workspace package builds (from builder).
-# Copy bundled JavaScript from builder only (no workspace packages).
-COPY --from=builder --chown=worker:worker /app/apps/worker/dist ./apps/worker/dist
-
 # Lock down filesystem: drop capabilities, no new privileges, read-only root (except /tmp).
 RUN chmod -R 555 ./apps/worker/dist
 USER worker

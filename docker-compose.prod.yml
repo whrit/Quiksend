@@ -25,8 +25,6 @@
 # Start services:
 #   docker compose -f docker-compose.prod.yml up -d
 
-version: "3.8"
-
 networks:
   # Private network for database — internal only, no external access
   db:

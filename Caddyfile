@@ -3,14 +3,5 @@
 # Automatically obtains and renews Let's Encrypt certificates
 
 {$QUIKSEND_DOMAIN} {
-    # Reverse proxy to internal web service
-    reverse_proxy web:3000 {
-        # Preserve original request host and scheme for BETTER_AUTH_URL validation
-        header_up X-Forwarded-For {http.request.remote}
-        header_up X-Forwarded-Proto {http.request.proto}
-    }
-}
-
-# Admin API (local only for management)
-localhost:2019 {
+    reverse_proxy web:3000
 }
