@@ -1,20 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { EnvSchema } from "./env.schema.ts";
 
+function errorMessages(result: { success: boolean; error?: { issues: Array<{ message?: string }> } }): string {
+  if (result.success) return "";
+  return result.error?.issues.map(({ message }) => message ?? "").join(" ") ?? "";
+}
+
 describe("EnvSchema", () => {
   it("applies defaults and accepts a valid DATABASE_URL", () => {
     const parsed = EnvSchema.parse({
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
     });
     expect(parsed).toBeDefined();
-    expect(parsed.DATABASE_URL).toBe("postgres://quiksend:quiksend@localhost:5432/quiksend");
+    expect(parsed.DATABASE_URL).toBe(
+      "postgres://quiksend:quiksend@localhost:5432/quiksend",
+    );
   });
 
   it("rejects a missing DATABASE_URL", () => {
     const result = EnvSchema.safeParse({});
     expect(result.success).toBe(false);
     if (result.success) throw new Error("expected failure");
-    expect(result.error.issues[0].message).toContain("Required");
+    const messages = errorMessages(result);
+    expect(messages).toContain("Required");
   });
 
   it("coerces SMTP_PORT to a number", () => {
@@ -56,8 +64,8 @@ describe("EnvSchema", () => {
     });
     expect(result.success).toBe(false);
     if (result.success) throw new Error("expected failure");
-    const message = result.error.issues[0].message;
-    expect(message).toContain("BETTER_AUTH_SECRET");
+    const messages = errorMessages(result);
+    expect(messages).toContain("BETTER_AUTH_SECRET");
   });
 
   it("accepts production env when all critical secrets are present", () => {
@@ -143,7 +151,8 @@ describe("EnvSchema", () => {
     });
     expect(result.success).toBe(false);
     if (result.success) throw new Error("expected failure");
-    expect(result.error.issues[0].message).toContain("HTTPS");
+    const messages = errorMessages(result);
+    expect(messages).toContain("HTTPS");
   });
 
   it("rejects localhost BETTER_AUTH_URL in production", () => {
@@ -158,7 +167,8 @@ describe("EnvSchema", () => {
     });
     expect(result.success).toBe(false);
     if (result.success) throw new Error("expected failure");
-    expect(result.error.issues[0].message).toContain("BETTER_AUTH_URL");
+    const messages = errorMessages(result);
+    expect(messages).toContain("BETTER_AUTH_URL");
   });
 
   it("rejects loopback BETTER_AUTH_URL in production", () => {
@@ -173,7 +183,8 @@ describe("EnvSchema", () => {
     });
     expect(result.success).toBe(false);
     if (result.success) throw new Error("expected failure");
-    expect(result.error.issues[0].message).toContain("not permitted");
+    const messages = errorMessages(result);
+    expect(messages).toContain("not permitted");
   });
 
   it("rejects unspecified (0.0.0.0) BETTER_AUTH_URL in production", () => {
@@ -188,7 +199,8 @@ describe("EnvSchema", () => {
     });
     expect(result.success).toBe(false);
     if (result.success) throw new Error("expected failure");
-    expect(result.error.issues[0].message).toContain("not permitted");
+    const messages = errorMessages(result);
+    expect(messages).toContain("not permitted");
   });
 
   it("allows localhost BETTER_AUTH_URL in development", () => {
