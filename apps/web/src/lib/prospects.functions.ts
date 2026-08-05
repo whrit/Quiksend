@@ -3,7 +3,7 @@ import { tables } from "@quiksend/db/tables";
 import { enqueue, enqueueWithRetries } from "@quiksend/queue";
 import type { EmailGateway } from "@quiksend/mail/gateway-detect";
 import { isAdminOrOwner } from "@quiksend/core";
-import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, not, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeDomain, normalizeEmail } from "./prospect-import.ts";
 import { createServerFn } from "@tanstack/react-start";
@@ -454,21 +454,37 @@ export const deleteProspect = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
+    const NON_TERMINAL = ["active", "waiting", "waiting_manual", "paused"];
 
-    const [deleted] = await db
-      .update(tables.prospect)
-      .set({ deletedAt: new Date() })
-      .where(
-        and(
-          eq(tables.prospect.id, data.id),
-          eq(tables.prospect.organizationId, organizationId),
-          isNull(tables.prospect.deletedAt),
-        ),
-      )
-      .returning({ id: tables.prospect.id });
+    return db.transaction(async (tx) => {
+      const [deleted] = await tx
+        .update(tables.prospect)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            eq(tables.prospect.id, data.id),
+            eq(tables.prospect.organizationId, organizationId),
+            isNull(tables.prospect.deletedAt),
+          ),
+        )
+        .returning({ id: tables.prospect.id });
 
-    if (!deleted) notFound();
-    return { ok: true as const };
+      if (!deleted) notFound();
+
+      // Stop active enrollments — core stop transition sets state to "stopped"
+      await tx
+        .update(tables.enrollment)
+        .set({ state: "stopped", nextRunAt: null })
+        .where(
+          and(
+            eq(tables.enrollment.prospectId, data.id),
+            eq(tables.enrollment.organizationId, organizationId),
+            inArray(tables.enrollment.state, NON_TERMINAL),
+          ),
+        );
+
+      return { ok: true as const };
+    });
   });
 
 export const bulkDeleteProspects = createServerFn({ method: "POST" })
@@ -476,33 +492,48 @@ export const bulkDeleteProspects = createServerFn({ method: "POST" })
   .validator(z.object({ ids: z.array(z.string().uuid()).min(1).max(500) }))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
+    const NON_TERMINAL = ["active", "waiting", "waiting_manual", "paused"];
 
-    const existing = await db
-      .select({ id: tables.prospect.id })
-      .from(tables.prospect)
-      .where(
-        and(
-          inArray(tables.prospect.id, data.ids),
-          eq(tables.prospect.organizationId, organizationId),
-          isNull(tables.prospect.deletedAt),
-        ),
-      );
+    return db.transaction(async (tx) => {
+      const existing = await tx
+        .select({ id: tables.prospect.id })
+        .from(tables.prospect)
+        .where(
+          and(
+            inArray(tables.prospect.id, data.ids),
+            eq(tables.prospect.organizationId, organizationId),
+            isNull(tables.prospect.deletedAt),
+          ),
+        );
 
-    if (existing.length !== data.ids.length) {
-      throw new Error("One or more prospects were not found in this workspace");
-    }
+      if (existing.length !== data.ids.length) {
+        throw new Error("One or more prospects were not found in this workspace");
+      }
 
-    await db
-      .update(tables.prospect)
-      .set({ deletedAt: new Date() })
-      .where(
-        and(
-          inArray(tables.prospect.id, data.ids),
-          eq(tables.prospect.organizationId, organizationId),
-        ),
-      );
+      await tx
+        .update(tables.prospect)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            inArray(tables.prospect.id, data.ids),
+            eq(tables.prospect.organizationId, organizationId),
+          ),
+        );
 
-    return { deleted: data.ids.length };
+      // Stop active enrollments for all deleted prospects
+      await tx
+        .update(tables.enrollment)
+        .set({ state: "stopped", nextRunAt: null })
+        .where(
+          and(
+            inArray(tables.enrollment.prospectId, data.ids),
+            eq(tables.enrollment.organizationId, organizationId),
+            inArray(tables.enrollment.state, NON_TERMINAL),
+          ),
+        );
+
+      return { deleted: data.ids.length };
+    });
   });
 
 export const listCompanies = createServerFn({ method: "GET" })

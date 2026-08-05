@@ -77,3 +77,37 @@ export async function hasReplyOnThread(ctx: EnrollmentContext): Promise<boolean>
 
   return false;
 }
+
+/**
+ * Fail-closed pre-send safety check. Every send entry point — worker auto,
+ * web compose, inbox reply — MUST reject when any condition returns not-ok.
+ *
+ * Synchronous checks only; callers add async suppression-list and
+ * reply-on-thread queries at their own layer (in-tx or out-of-tx).
+ */
+export type SendSafeResult = { ok: true } | { ok: false; reason: string };
+
+export function checkSendPreConditions(opts: {
+  mailboxStatus: string;
+  prospectStatus: string;
+  prospectDeletedAt: Date | null;
+  enrollmentState?: string | null;
+}): SendSafeResult {
+  if (opts.mailboxStatus === "archived") {
+    return { ok: false, reason: "mailbox_archived" };
+  }
+  if (opts.prospectDeletedAt != null) {
+    return { ok: false, reason: "prospect_deleted" };
+  }
+  if (isProspectStatusSuppressed(opts.prospectStatus)) {
+    return { ok: false, reason: "suppressed" };
+  }
+  if (
+    opts.enrollmentState != null &&
+    opts.enrollmentState !== "active" &&
+    opts.enrollmentState !== "waiting_manual"
+  ) {
+    return { ok: false, reason: "enrollment_not_active" };
+  }
+  return { ok: true };
+}

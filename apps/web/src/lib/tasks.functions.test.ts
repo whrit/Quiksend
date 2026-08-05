@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
@@ -286,6 +286,111 @@ describe("task server functions", () => {
       await expect(
         completeGenericTaskCore("00000000-0000-0000-0000-000000000000", orgA.id),
       ).rejects.toThrow("Task not found");
+    });
+  });
+});
+
+describe("compose task done marking (integration)", () => {
+  it("compose task is marked done via idempotent status-guarded update", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const { task } = await seedTaskGraph(orgA.id, orgA.userId, {
+        taskType: "compose",
+        enrollmentState: "waiting_manual",
+      });
+
+      // Simulate the idempotent update compose.functions.ts performs
+      const updated = await db
+        .update(tables.task)
+        .set({ status: "done", completedAt: new Date() })
+        .where(
+          and(
+            eq(tables.task.id, task.id),
+            eq(tables.task.organizationId, orgA.id),
+            inArray(tables.task.status, ["open", "in_progress"]),
+          ),
+        )
+        .returning({ id: tables.task.id });
+
+      expect(updated).toHaveLength(1);
+
+      const row = await db.query.task.findFirst({
+        where: eq(tables.task.id, task.id),
+      });
+      expect(row?.status).toBe("done");
+      expect(row?.completedAt).not.toBeNull();
+    });
+  });
+
+  it("second compose-done marking is a no-op (idempotent)", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const { task } = await seedTaskGraph(orgA.id, orgA.userId, {
+        taskType: "compose",
+        enrollmentState: "waiting_manual",
+      });
+
+      // First mark
+      await db
+        .update(tables.task)
+        .set({ status: "done", completedAt: new Date() })
+        .where(
+          and(
+            eq(tables.task.id, task.id),
+            eq(tables.task.organizationId, orgA.id),
+            inArray(tables.task.status, ["open", "in_progress"]),
+          ),
+        );
+
+      // Second mark — matches nothing because status is already 'done'
+      const retry = await db
+        .update(tables.task)
+        .set({ status: "done", completedAt: new Date() })
+        .where(
+          and(
+            eq(tables.task.id, task.id),
+            eq(tables.task.organizationId, orgA.id),
+            inArray(tables.task.status, ["open", "in_progress"]),
+          ),
+        )
+        .returning({ id: tables.task.id });
+
+      // No rows matched — idempotent no-op
+      expect(retry).toHaveLength(0);
+
+      const row = await db.query.task.findFirst({
+        where: eq(tables.task.id, task.id),
+      });
+      expect(row?.status).toBe("done");
+    });
+  });
+
+  it("skipped compose task is not overwritten by done marking", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const { task } = await seedTaskGraph(orgA.id, orgA.userId, {
+        taskType: "compose",
+        enrollmentState: "waiting_manual",
+      });
+
+      await skipTaskCore(task.id, orgA.id);
+
+      // Compose send arrives after skip — must not overwrite
+      const stale = await db
+        .update(tables.task)
+        .set({ status: "done", completedAt: new Date() })
+        .where(
+          and(
+            eq(tables.task.id, task.id),
+            eq(tables.task.organizationId, orgA.id),
+            inArray(tables.task.status, ["open", "in_progress"]),
+          ),
+        )
+        .returning({ id: tables.task.id });
+
+      expect(stale).toHaveLength(0);
+
+      const row = await db.query.task.findFirst({
+        where: eq(tables.task.id, task.id),
+      });
+      expect(row?.status).toBe("skipped");
     });
   });
 });

@@ -12,7 +12,7 @@ import {
   type SmtpConfigPlain,
 } from "@quiksend/mail";
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import {
   decryptSmtpConfigForMailbox,
@@ -201,7 +201,10 @@ export const listMailboxes = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { organizationId } = context.orgContext;
     const rows = await db.query.mailbox.findMany({
-      where: eq(tables.mailbox.organizationId, organizationId),
+      where: and(
+        eq(tables.mailbox.organizationId, organizationId),
+        ne(tables.mailbox.status, "archived"),
+      ),
       orderBy: desc(tables.mailbox.createdAt),
     });
     return rows.map(toPublicMailbox);
@@ -323,16 +326,23 @@ export const deleteMailbox = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
-    const deleted = await db
-      .delete(tables.mailbox)
+    const archived = await db
+      .update(tables.mailbox)
+      .set({
+        status: "archived",
+        archivedAt: new Date(),
+        archivedByUserId: context.orgContext.userId,
+        archiveReason: "user_deleted",
+      })
       .where(
         and(
           eq(tables.mailbox.id, data.id),
           eq(tables.mailbox.organizationId, context.orgContext.organizationId),
+          ne(tables.mailbox.status, "archived"),
         ),
       )
       .returning({ id: tables.mailbox.id });
-    if (deleted.length === 0) throw new MailboxError("NOT_FOUND", "Mailbox not found");
+    if (archived.length === 0) throw new MailboxError("NOT_FOUND", "Mailbox not found");
     return { ok: true as const };
   });
 

@@ -113,6 +113,7 @@ function ComposePage() {
           mailboxId,
           prospectId,
           enrollmentId,
+          taskId,
           subject,
           bodyHtml,
           bodyText: bodyHtml.replace(/<[^>]+>/g, " ").trim(),

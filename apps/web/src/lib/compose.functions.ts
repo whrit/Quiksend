@@ -4,7 +4,7 @@ import { db, isSendSuppressed } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { sendAndRecord } from "./durable-send.ts";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { captureManualAnchorForEnrollment } from "./anchor.functions.ts";
 import { createServerFn } from "@tanstack/react-start";
@@ -22,6 +22,7 @@ const sendComposedMessageSchema = z.object({
   mailboxId: z.string().uuid(),
   prospectId: z.string().uuid(),
   enrollmentId: z.string().uuid().optional(),
+  taskId: z.string().uuid().optional(),
   subject: z.string().min(1).max(500),
   bodyHtml: z.string().min(1),
   bodyText: z.string().optional(),
@@ -40,6 +41,7 @@ async function loadProspect(prospectId: string, organizationId: string) {
     select id, organization_id, email, first_name, last_name, status
     from prospect
     where id = ${prospectId} and organization_id = ${organizationId}
+      and deleted_at is null
     limit 1
   `);
   const row = rows[0];
@@ -75,6 +77,7 @@ export const searchProspects = createServerFn({ method: "POST" })
       select id, email, first_name, last_name
       from prospect
       where organization_id = ${context.orgContext.organizationId}
+        and deleted_at is null
         and (
           email ilike ${pattern}
           or coalesce(first_name, '') ilike ${pattern}
@@ -105,6 +108,7 @@ export const sendComposedMessage = createServerFn({ method: "POST" })
       ),
     });
     if (!mailbox) throw new Error("Mailbox not found");
+    if (mailbox.status === "archived") throw new Error("Mailbox is archived");
 
     if (data.enrollmentId) {
       const enrollment = await db.query.enrollment.findFirst({
@@ -119,6 +123,22 @@ export const sendComposedMessage = createServerFn({ method: "POST" })
           "Mailbox must match the enrollment mailbox — follow-ups must continue on the same thread",
         );
       }
+    }
+
+    // Validate taskId belongs to this enrollment and organization
+    if (data.taskId) {
+      if (!data.enrollmentId) {
+        throw new Error("taskId requires enrollmentId");
+      }
+      const task = await db.query.task.findFirst({
+        where: and(
+          eq(tables.task.id, data.taskId),
+          eq(tables.task.organizationId, organizationId),
+          eq(tables.task.enrollmentId, data.enrollmentId),
+          eq(tables.task.type, "compose"),
+        ),
+      });
+      if (!task) throw new Error("Compose task not found for this enrollment");
     }
 
     const prospect = await loadProspect(data.prospectId, organizationId);
@@ -207,9 +227,23 @@ export const sendComposedMessage = createServerFn({ method: "POST" })
         organizationId,
         messageId: messageIdHeader,
         threadId: sendResult.providerThreadId ?? messageIdHeader,
-        providerMessageId: sendResult.providerMessageId,
+        providerMessageId: sendResult.providerMessageId ?? messageIdHeader,
         sentAt: sendResult.sentAt,
       });
+
+      // Mark compose task done — idempotent: only updates open/in_progress tasks
+      if (data.taskId) {
+        await db
+          .update(tables.task)
+          .set({ status: "done", completedAt: new Date() })
+          .where(
+            and(
+              eq(tables.task.id, data.taskId),
+              eq(tables.task.organizationId, organizationId),
+              inArray(tables.task.status, ["open", "in_progress"]),
+            ),
+          );
+      }
     }
 
     return {

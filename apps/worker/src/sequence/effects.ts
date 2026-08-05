@@ -10,10 +10,10 @@ import { emailDomain } from "@quiksend/core";
 import { env } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
-import { buildUnsubscribeUrl, mintUnsubscribeToken, sanitizeForSeg } from "@quiksend/mail";
+import { buildUnsubscribeUrl, mintUnsubscribeToken, resolvePostalAddress, sanitizeForSeg } from "@quiksend/mail";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import type { ComplianceInput, OutboundEmail } from "@quiksend/mail";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type * as schema from "@quiksend/db/schema";
 import { backoffUntil } from "./backoff.ts";
@@ -654,9 +654,13 @@ function sendGuardEvent(
       return { kind: "suppressed", at };
     case "reply_received":
       return { kind: "reply_received", at, stopOnReply: ctx.stopOnReply };
+    case "mailbox_archived":
+    case "prospect_deleted":
+    case "missing_postal_address":
+      return { kind: "stop", reason };
     case "enrollment_not_active":
       if (phase === "post_send" && providerMessageId !== undefined) {
-        return { kind: "auto_sent", providerMessageId, at };
+        return { kind: "auto_sent", providerMessageId: providerMessageId ?? "", at };
       }
       return null;
     case "enrollment_missing":
@@ -732,6 +736,41 @@ async function recheckSendAllowedInTx(
   });
   if (!enrollment) return { ok: false, reason: "enrollment_missing" };
   if (enrollment.state !== "active") return { ok: false, reason: "enrollment_not_active" };
+
+  // Fail-closed: archived mailbox must never dispatch
+  const mailbox = await tx.query.mailbox.findFirst({
+    where: and(
+      eq(tables.mailbox.id, ctx.mailbox.id),
+      eq(tables.mailbox.organizationId, ctx.organizationId),
+    ),
+    columns: { status: true },
+  });
+  if (!mailbox || mailbox.status === "archived") {
+    return { ok: false, reason: "mailbox_archived" };
+  }
+
+  // Fail-closed: deleted prospect must never receive mail
+  const prospect = await tx.query.prospect.findFirst({
+    where: and(
+      eq(tables.prospect.id, ctx.prospect.id),
+      eq(tables.prospect.organizationId, ctx.organizationId),
+    ),
+    columns: { deletedAt: true },
+  });
+  if (!prospect || prospect.deletedAt != null) {
+    return { ok: false, reason: "prospect_deleted" };
+  }
+
+  // Fail-closed: missing CAN-SPAM postal address
+  const org = await tx.query.organization.findFirst({
+    where: eq(tables.organization.id, ctx.organizationId),
+    columns: { metadata: true },
+  });
+  try {
+    resolvePostalAddress({ organizationId: ctx.organizationId, metadata: (org?.metadata as string) ?? null });
+  } catch {
+    return { ok: false, reason: "missing_postal_address" };
+  }
 
   if (isProspectStatusSuppressed(ctx.prospect.status)) return { ok: false, reason: "suppressed" };
   if (await isSuppressionListedInTx(tx, ctx.organizationId, ctx.prospect.email)) {
