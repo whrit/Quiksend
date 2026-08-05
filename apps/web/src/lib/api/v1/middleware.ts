@@ -5,7 +5,7 @@ import { env, logger } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { getRequestIP } from "@tanstack/react-start/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { recordApiKeyUsage } from "./helpers.ts";
 
 export const DEFAULT_API_RATE_LIMIT = 100;
@@ -67,36 +67,24 @@ function rateLimitIpKey(): string {
   return `ip:${clientIp() ?? "unknown"}`;
 }
 
-export function parseKeyMetadata(metadata: unknown): { organizationId?: string } {
-  if (!metadata) return {};
-  if (typeof metadata === "string") {
-    try {
-      return JSON.parse(metadata) as { organizationId?: string };
-    } catch {
-      return {};
-    }
-  }
-  if (typeof metadata === "object") return metadata as { organizationId?: string };
-  return {};
-}
-
-async function resolveOrganizationFromApiKey(keyRecord: {
-  id: string;
-  referenceId: string;
-  metadata: unknown;
-}): Promise<{ orgId: string; userId: string } | null> {
-  const orgId = parseKeyMetadata(keyRecord.metadata).organizationId;
-  if (!orgId) return null;
-
-  const membership = await db.query.member.findFirst({
-    where: and(
-      eq(tables.member.userId, keyRecord.referenceId),
-      eq(tables.member.organizationId, orgId),
-    ),
+/**
+ * Attributes API-key-authenticated writes that still require a user FK
+ * (e.g. `enrollment.createdByUserId`) to the organization's earliest owner.
+ * Org-owned keys (Better Auth `apiKey({ references: "organization" })`, see
+ * `packages/auth/src/auth.ts`) carry no individual creator identity — the
+ * `referenceId` on the key row *is* the organization id, full stop.
+ *
+ * ponytail: picks the oldest owner as a stand-in actor; add a per-org
+ * "system" user (or make the FK nullable) if per-request attribution for
+ * API-key-originated writes is ever needed.
+ */
+async function resolveOrgOwnerUserId(organizationId: string): Promise<string | null> {
+  const owner = await db.query.member.findFirst({
+    where: and(eq(tables.member.organizationId, organizationId), eq(tables.member.role, "owner")),
+    orderBy: [asc(tables.member.createdAt)],
+    columns: { userId: true },
   });
-  if (!membership) return null;
-
-  return { orgId, userId: keyRecord.referenceId };
+  return owner?.userId ?? null;
 }
 
 export async function resolveApiKey(request: Request): Promise<ApiAuthContext | null> {
@@ -108,20 +96,20 @@ export async function resolveApiKey(request: Request): Promise<ApiAuthContext | 
   });
   if (!result.valid || !result.key) return null;
 
-  const referenceId = result.key.referenceId;
-  if (!referenceId) return null;
+  // `referenceId` is authoritative: the plugin sets it to the organization
+  // id at creation time and re-validates org membership/role on every
+  // create/list/update/delete call. No metadata to parse, nothing to trust
+  // beyond what Better Auth itself already verified.
+  const organizationId = result.key.referenceId;
+  if (!organizationId) return null;
 
-  const scope = await resolveOrganizationFromApiKey({
-    id: result.key.id,
-    referenceId,
-    metadata: result.key.metadata ?? null,
-  });
-  if (!scope) return null;
+  const userId = await resolveOrgOwnerUserId(organizationId);
+  if (!userId) return null;
 
   return {
     apiKeyId: result.key.id,
-    orgId: scope.orgId,
-    userId: scope.userId,
+    orgId: organizationId,
+    userId,
   };
 }
 

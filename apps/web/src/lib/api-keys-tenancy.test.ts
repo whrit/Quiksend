@@ -1,111 +1,82 @@
-import { randomUUID } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { db } from "@quiksend/db";
-import { tables } from "@quiksend/db/tables";
+import { asOrganizationId, asUserId, type OrgContext } from "@quiksend/core";
 import { withTestOrgs } from "@quiksend/db/testing";
+import { createApiKeyForOrg, listApiKeysForOrg, revokeApiKeyForOrg } from "./api-keys.functions.ts";
+import { resolveApiKey } from "./api/v1/middleware.ts";
 
-function orgScopedKeyFilter(orgId: string) {
-  return sql`${tables.apikey.metadata}::jsonb->>'organizationId' = ${orgId}`;
+/**
+ * `withTestOrgs` seeds each org with a single "owner" member — Better Auth's
+ * default organization access-control statements only grant `apiKey`
+ * actions to the creator role (`owner`), so every scenario below runs as one.
+ */
+function ownerContext(org: { id: string; userId: string }): OrgContext {
+  return { userId: asUserId(org.userId), organizationId: asOrganizationId(org.id), role: "owner" };
 }
 
-async function insertOrgApiKey(input: {
-  userId: string;
-  organizationId: string;
-  name: string;
-}): Promise<string> {
-  const id = `key_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
-  const now = new Date();
-  await db.insert(tables.apikey).values({
-    id,
-    name: input.name,
-    referenceId: input.userId,
-    key: `hashed_${randomUUID()}`,
-    metadata: JSON.stringify({ organizationId: input.organizationId }),
-    createdAt: now,
-    updatedAt: now,
+function bearerRequest(key: string): Request {
+  return new Request("http://localhost/api/v1/probe", {
+    headers: { Authorization: `Bearer ${key}` },
   });
-  return id;
 }
 
 describe("api key tenancy", () => {
-  it("org B cannot read org A API keys when scoped by workspace metadata", async () => {
-    await withTestOrgs(async ({ orgA, orgB }) => {
-      const keyId = await insertOrgApiKey({
-        userId: orgA.userId,
-        organizationId: orgA.id,
-        name: "Org A key",
-      });
+  it("creates a key through the production server-function path — organizationId is the referenceId, not metadata", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const created = await createApiKeyForOrg(ownerContext(orgA), { name: "Org A key" });
 
-      const fromOrgB = await db.query.apikey.findFirst({
-        where: and(eq(tables.apikey.id, keyId), orgScopedKeyFilter(orgB.id)),
-      });
-
-      expect(fromOrgB).toBeUndefined();
+      expect(created.key).toBeTruthy();
+      const ctx = await resolveApiKey(bearerRequest(created.key));
+      expect(ctx).not.toBeNull();
+      expect(ctx!.orgId).toBe(orgA.id);
     });
   });
 
-  it("org B cannot update org A API keys via workspace metadata scope", async () => {
+  it("org B cannot list org A's API keys", async () => {
     await withTestOrgs(async ({ orgA, orgB }) => {
-      const keyId = await insertOrgApiKey({
-        userId: orgA.userId,
-        organizationId: orgA.id,
-        name: "Protected key",
-      });
+      const created = await createApiKeyForOrg(ownerContext(orgA), { name: "Org A key" });
 
-      const [updated] = await db
-        .update(tables.apikey)
-        .set({ name: "Hacked" })
-        .where(and(eq(tables.apikey.id, keyId), orgScopedKeyFilter(orgB.id)))
-        .returning();
+      const orgBKeys = await listApiKeysForOrg(ownerContext(orgB));
+      expect(orgBKeys.find((key) => key.id === created.id)).toBeUndefined();
 
-      expect(updated).toBeUndefined();
-
-      const unchanged = await db.query.apikey.findFirst({
-        where: eq(tables.apikey.id, keyId),
-      });
-      expect(unchanged?.name).toBe("Protected key");
+      const orgAKeys = await listApiKeysForOrg(ownerContext(orgA));
+      expect(orgAKeys.find((key) => key.id === created.id)).toBeDefined();
     });
   });
 
-  it("org B cannot delete org A API keys via workspace metadata scope", async () => {
+  it("org B cannot revoke org A's API key", async () => {
     await withTestOrgs(async ({ orgA, orgB }) => {
-      const keyId = await insertOrgApiKey({
-        userId: orgA.userId,
-        organizationId: orgA.id,
-        name: "Delete target",
-      });
+      const created = await createApiKeyForOrg(ownerContext(orgA), { name: "Protected key" });
 
-      const deleted = await db
-        .delete(tables.apikey)
-        .where(and(eq(tables.apikey.id, keyId), orgScopedKeyFilter(orgB.id)))
-        .returning();
+      await expect(revokeApiKeyForOrg(ownerContext(orgB), created.id)).rejects.toThrow(/not found/i);
 
-      expect(deleted).toHaveLength(0);
+      const stillListed = await listApiKeysForOrg(ownerContext(orgA));
+      expect(stillListed.find((key) => key.id === created.id)).toBeDefined();
+    });
+  });
 
-      const stillThere = await db.query.apikey.findFirst({
-        where: eq(tables.apikey.id, keyId),
-      });
-      expect(stillThere?.id).toBe(keyId);
+  it("revoking a key makes it unauthorized against the public API", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const created = await createApiKeyForOrg(ownerContext(orgA), { name: "REST key" });
+
+      const beforeRevoke = await resolveApiKey(bearerRequest(created.key));
+      expect(beforeRevoke).not.toBeNull();
+      expect(beforeRevoke!.orgId).toBe(orgA.id);
+
+      await revokeApiKeyForOrg(ownerContext(orgA), created.id);
+
+      const afterRevoke = await resolveApiKey(bearerRequest(created.key));
+      expect(afterRevoke).toBeNull();
     });
   });
 
   it("two orgs can each create API keys with the same display name", async () => {
     await withTestOrgs(async ({ orgA, orgB }) => {
-      const keyA = await insertOrgApiKey({
-        userId: orgA.userId,
-        organizationId: orgA.id,
-        name: "Integration key",
-      });
-      const keyB = await insertOrgApiKey({
-        userId: orgB.userId,
-        organizationId: orgB.id,
-        name: "Integration key",
-      });
+      const keyA = await createApiKeyForOrg(ownerContext(orgA), { name: "Integration key" });
+      const keyB = await createApiKeyForOrg(ownerContext(orgB), { name: "Integration key" });
 
-      expect(keyA).toBeDefined();
-      expect(keyB).toBeDefined();
-      expect(keyA).not.toBe(keyB);
+      expect(keyA.id).toBeDefined();
+      expect(keyB.id).toBeDefined();
+      expect(keyA.id).not.toBe(keyB.id);
     });
   });
 });
