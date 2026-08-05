@@ -98,16 +98,6 @@ export function transition(snapshot: EnrollmentSnapshot, event: Event): Transiti
       };
 
     case "manual_skipped":
-      if (snapshot.state !== "waiting_manual" && snapshot.state !== "waiting")
-        return same(snapshot);
-      return {
-        nextState: "active",
-        effects: [
-          { kind: "advance_step" },
-          { kind: "emit_event", type: "task.skipped" },
-        ],
-      };
-
     case "task_completed":
       if (snapshot.state !== "waiting_manual" && snapshot.state !== "waiting")
         return same(snapshot);
@@ -115,7 +105,7 @@ export function transition(snapshot: EnrollmentSnapshot, event: Event): Transiti
         nextState: "active",
         effects: [
           { kind: "advance_step" },
-          { kind: "emit_event", type: "task.completed" },
+          { kind: "emit_event", type: event.kind === "task_completed" ? "task.completed" : "task.skipped" },
         ],
       };
 

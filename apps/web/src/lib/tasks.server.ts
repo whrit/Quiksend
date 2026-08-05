@@ -3,20 +3,11 @@ import "@tanstack/react-start/server-only";
 import {
   transition,
   type EnrollmentSnapshot,
-  type Event,
 } from "@quiksend/core/state-machine";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { and, eq, inArray, asc } from "drizzle-orm";
-import { applyWebEffects } from "./effect-executor.ts";
-
-type SequenceSettings = {
-  timezone: string;
-  throttle_seconds: number;
-  mailbox_ids: string[];
-  stop_on_reply: boolean;
-  business_days_only: boolean;
-};
+import { applyWebEffects, type WebEffectAdvanceContext } from "./effect-executor.ts";
 
 export async function listTasksCore(organizationId: string) {
   return db.query.task.findMany({
@@ -99,15 +90,13 @@ async function resolveTaskAndTransition(
         attemptCount: enrollment.attemptCount,
       };
 
-      const event: Event =
-        targetStatus === "done"
-          ? { kind: "task_completed", at: new Date() }
-          : { kind: "manual_skipped", at: new Date() };
-
-      const result = transition(snapshot, event);
+      const result = transition(snapshot, {
+        kind: targetStatus === "done" ? "task_completed" : "manual_skipped",
+        at: new Date(),
+      });
 
       if (result.effects.length > 0) {
-        const settings = (sequence?.settings ?? {}) as SequenceSettings;
+        const settings = (sequence?.settings ?? {}) as WebEffectAdvanceContext["settings"];
         await applyWebEffects(tx, enrollment.id, organizationId, result.effects, {
           nextState: result.nextState,
           advanceContext: mailbox
