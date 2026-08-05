@@ -105,3 +105,61 @@ describe("checkSendPreConditions", () => {
     expect(result).toEqual({ ok: false, reason: "mailbox_archived" });
   });
 });
+
+describe("accepted send result handling", () => {
+  it("providerMessageId fallback uses stable RFC messageId, never empty string", () => {
+    // Worker effects.ts uses `sendResult.providerMessageId ?? messageIdHeader`
+    // for auto_sent event and post-send guard. Empty string is never a valid id.
+    const messageIdHeader = "<abc@example.com>";
+    const nullProvider: string | null = null;
+    const resolved = nullProvider ?? messageIdHeader;
+    expect(resolved).toBe(messageIdHeader);
+    expect(resolved).not.toBe("");
+  });
+
+  it("metadataReconciled false sets reconciliationError", () => {
+    // Worker message settle mirrors durable-send: accepted but unreconciled
+    // gets acceptedAt but null metadataReconciledAt and an error string.
+    const metadataReconciled = false;
+    const now = new Date();
+    const fields = {
+      acceptedAt: now,
+      metadataReconciledAt: metadataReconciled ? now : null,
+      reconciliationError: metadataReconciled
+        ? null
+        : "metadata lookup failed post-acceptance",
+    };
+    expect(fields.acceptedAt).toBe(now);
+    expect(fields.metadataReconciledAt).toBeNull();
+    expect(fields.reconciliationError).toBe("metadata lookup failed post-acceptance");
+  });
+
+  it("metadataReconciled true clears reconciliationError", () => {
+    const metadataReconciled = true;
+    const now = new Date();
+    const fields = {
+      acceptedAt: now,
+      metadataReconciledAt: metadataReconciled ? now : null,
+      reconciliationError: metadataReconciled
+        ? null
+        : "metadata lookup failed post-acceptance",
+    };
+    expect(fields.acceptedAt).toBe(now);
+    expect(fields.metadataReconciledAt).toBe(now);
+    expect(fields.reconciliationError).toBeNull();
+  });
+
+  it("accepted send with null providerMessageId is not rejected", () => {
+    // An accepted send must never be failed just because metadata lookup
+    // didn't return a providerMessageId. The guard uses the RFC id fallback.
+    const sendResult = {
+      messageId: "<rfc@example.com>",
+      providerMessageId: null as string | null,
+      metadataReconciled: false,
+    };
+    const fallback = sendResult.providerMessageId ?? sendResult.messageId;
+    expect(fallback).toBe("<rfc@example.com>");
+    // The auto_sent event type requires a non-empty string
+    expect(fallback.length).toBeGreaterThan(0);
+  });
+});

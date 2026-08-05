@@ -362,7 +362,7 @@ async function handleSendAuto(
       const snapshot = toSnapshot(working);
       const result = transition(snapshot, {
         kind: "auto_sent",
-        providerMessageId: existing.providerMessageId ?? "",
+        providerMessageId: existing.providerMessageId ?? existing.messageIdHeader ?? idempotencyKey,
         at,
       });
       const updated = await applyTransitionEffects(
@@ -519,6 +519,7 @@ async function handleSendAuto(
     return await db.transaction(async (tx) => {
       const guard = await recheckSendAllowedInTx(tx, prep.working);
       const messageIdHeader = normalizeMessageId(sendResult.messageId);
+      const now = new Date();
 
       await tx
         .update(tables.message)
@@ -527,7 +528,12 @@ async function handleSendAuto(
           providerMessageId: sendResult.providerMessageId,
           providerThreadId: sendResult.providerThreadId ?? prep.working.enrollment.anchorThreadId,
           status: "sent",
+          acceptedAt: now,
           sentAt: sendResult.sentAt,
+          metadataReconciledAt: sendResult.metadataReconciled ? now : null,
+          reconciliationError: sendResult.metadataReconciled
+            ? null
+            : "metadata lookup failed post-acceptance",
         })
         .where(
           and(
@@ -543,14 +549,14 @@ async function handleSendAuto(
           phase: "post_send",
           at: sendResult.sentAt,
           attempt: prep.attempt,
-          providerMessageId: sendResult.providerMessageId,
+          providerMessageId: sendResult.providerMessageId ?? messageIdHeader,
         });
       }
 
       const snapshot = toSnapshot(prep.working);
       const result = transition(snapshot, {
         kind: "auto_sent",
-        providerMessageId: sendResult.providerMessageId,
+        providerMessageId: sendResult.providerMessageId ?? messageIdHeader,
         at: sendResult.sentAt,
       });
       return applyTransitionEffects(
@@ -659,8 +665,8 @@ function sendGuardEvent(
     case "missing_postal_address":
       return { kind: "stop", reason };
     case "enrollment_not_active":
-      if (phase === "post_send" && providerMessageId !== undefined) {
-        return { kind: "auto_sent", providerMessageId: providerMessageId ?? "", at };
+      if (phase === "post_send" && providerMessageId) {
+        return { kind: "auto_sent", providerMessageId, at };
       }
       return null;
     case "enrollment_missing":
