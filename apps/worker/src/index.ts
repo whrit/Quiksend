@@ -25,6 +25,7 @@ import { registerSeedInboxVerifyHandler } from "./handlers/seed-inbox-verify.ts"
 import { registerSeedPoolHealthHandler } from "./handlers/seed-pool-health.ts";
 import { registerSeedPoolLegitMailHandler } from "./handlers/seed-pool-legit-mail.ts";
 import { registerMailTransactionalSendHandler } from "./handlers/mail-transactional-send.ts";
+import { registerHealthReconcileHandler } from "./handlers/health-reconcile.ts";
 
 /**
  * Worker entrypoint. Boots pg-boss, registers job handlers, and idles waiting
@@ -107,6 +108,7 @@ async function main(): Promise<void> {
   }, 30_000);
   
   // Write initial heartbeat file (all initialization complete)
+  await registerHealthReconcileHandler();
   try {
     writeFileSync("/tmp/worker-ready", "");
   } catch (err) {

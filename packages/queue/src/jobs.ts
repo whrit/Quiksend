@@ -207,6 +207,10 @@ export type MailboxPollTickPayload = Record<string, never>;
 // ── nango.webhook.sweep — cron cleanup of processed Nango webhook markers ──────
 export const nangoWebhookSweepSchema = z.object({});
 export type NangoWebhookSweepPayload = Record<string, never>;
+// ── health.reconcile — idempotent stale-state reconciliation (Operations) ──────
+export const healthReconcileSchema = z.object({});
+export type HealthReconcilePayload = Record<string, never>;
+
 
 // ── mail.send_transactional — durable transactional email delivery (auth) ──────
 // Payload carries only message content, never SMTP credentials — the worker
@@ -252,6 +256,7 @@ export interface JobPayloadMap {
   "nango.webhook.sweep": NangoWebhookSweepPayload;
   "mail.send_transactional": MailSendTransactionalPayload;
   "outbox.dispatch": OutboxDispatchPayload;
+  "health.reconcile": HealthReconcilePayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -281,6 +286,7 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "nango.webhook.sweep": nangoWebhookSweepSchema,
   "mail.send_transactional": mailSendTransactionalSchema,
   "outbox.dispatch": outboxDispatchSchema,
+  "health.reconcile": healthReconcileSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];
