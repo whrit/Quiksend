@@ -57,6 +57,7 @@ export async function loadContext(
     delayMinutes: row.delayMinutes,
     businessDaysOnly: row.businessDaysOnly,
     config: row.config as StepContext["config"],
+    variantB: row.variantB as StepContext["variantB"],
   }));
 
   const mailbox = await executor.query.mailbox.findFirst({

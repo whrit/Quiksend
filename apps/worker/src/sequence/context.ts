@@ -29,6 +29,17 @@ export interface StepContext {
   readonly delayMinutes: number;
   readonly businessDaysOnly: boolean;
   readonly config: EmailStepConfig | TaskStepConfig | { minutes: number };
+  readonly variantB: (EmailStepConfig | TaskStepConfig) | null;
+}
+
+export function effectiveStepConfig(
+  ctx: EnrollmentContext,
+  step: StepContext,
+): EmailStepConfig | TaskStepConfig | { minutes: number } {
+  if (ctx.enrollment.abBucket === "B" && step.variantB) {
+    return step.variantB;
+  }
+  return step.config;
 }
 
 export interface EnrollmentContext {
@@ -80,55 +91,46 @@ export function toMailboxSchedule(
   mailbox: { dailyCap: number; throttleSeconds: number },
   settings: SequenceSettings,
 ): MailboxSchedule {
-  const sw = (sendWindow ?? { window: {} }) as SendWindowJson;
-  const window: SendingWindow = {};
-  for (const [day, ranges] of Object.entries(sw.window ?? {})) {
-    window[day as Weekday] = ranges.map(([start, end]) => ({
-      startHour: start,
-      endHour: end,
-    }));
-  }
-  return {
-    timezone: settings.timezone || sw.timezone || "UTC",
-    window,
-    dailyCap: mailbox.dailyCap,
-    minGapSeconds: settings.throttle_seconds ?? mailbox.throttleSeconds,
+  const json = (sendWindow ?? {}) as SendWindowJson;
+  const merged = {
+    timezone: json.timezone ?? settings.timezone,
+    window: json.window,
   };
+  return computeSchedule(merged, { dailyCap: mailbox.dailyCap, throttleSeconds: mailbox.throttleSeconds });
 }
 
 export function toSnapshot(ctx: EnrollmentContext): EnrollmentSnapshot {
-  const nextStep = ctx.steps.find((s) => s.stepIndex === ctx.enrollment.currentStepIndex);
-  const hasNext = ctx.steps.some((s) => s.stepIndex > ctx.enrollment.currentStepIndex);
   return {
-    state: ctx.enrollment.state as EnrollmentSnapshot["state"],
+    id: ctx.enrollment.id,
+    createdAt: ctx.enrollment.createdAt,
+    organizationId: ctx.organizationId,
+    prospectId: ctx.enrollment.prospectId,
+    sequenceId: ctx.sequence.id,
     currentStepIndex: ctx.enrollment.currentStepIndex,
-    hasNextStep: hasNext,
-    nextStepKind: nextStep?.stepType ?? null,
-    anchorMessageId: ctx.enrollment.anchorMessageId,
-    attemptCount: ctx.enrollment.attemptCount,
+    status: ctx.enrollment.terminatedAt
+      ? ("terminated" as const)
+      : ctx.enrollment.pausedAt
+        ? ("paused" as const)
+        : ("active" as const),
+    abBucket: ctx.enrollment.abBucket,
   };
 }
 
 export function computeNextRunAt(ctx: EnrollmentContext, stepIndex: number): Date | null {
-  if (ctx.steps.length === 0) return null;
+  const step = ctx.steps.find((s) => s.stepIndex === stepIndex);
+  if (!step) return null;
+  
+  if (step.stepType === "manual_email" || step.stepType === "manual_task") return null;
+
+  const delayMs = step.delayMinutes * 60_000;
   const anchor = ctx.anchorMessage?.sentAt ?? ctx.enrollment.createdAt;
-  const specs = ctx.steps.map((s) => ({
-    index: s.stepIndex,
-    kind: s.stepType,
-    delayMinutes: s.delayMinutes,
-    businessDaysOnly: s.businessDaysOnly && ctx.settings.business_days_only,
-  }));
-  if (process.env.QUIKSEND_ENGINE_FAKE_MAIL === "1") {
-    const step = specs.find((s) => s.index === stepIndex);
-    return new Date(anchor.getTime() + (step?.delayMinutes ?? 0) * 60_000);
-  }
-  const schedule = computeSchedule(
-    specs,
-    toMailboxSchedule(ctx.mailbox.sendWindow, ctx.mailbox, ctx.settings),
-    anchor,
-  );
-  const entry = schedule.find((s) => s.index === stepIndex);
-  return entry?.scheduledAt ?? null;
+  
+  const scheduled = new Date(anchor.getTime() + delayMs);
+  const mailboxSchedule = toMailboxSchedule(ctx.sequence.settings, ctx.mailbox, ctx.settings);
+  
+  const allowed = mailboxSchedule.isAllowed(scheduled, step.businessDaysOnly);
+  
+  return allowed ? scheduled : mailboxSchedule.nextAllowed(scheduled, step.businessDaysOnly);
 }
 
 export function currentStep(ctx: EnrollmentContext): StepContext | null {

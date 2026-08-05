@@ -24,6 +24,7 @@ import type * as schema from "@quiksend/db/schema";
 import { backoffUntil } from "./backoff.ts";
 import {
   computeNextRunAt,
+  effectiveStepConfig,
   toSnapshot,
   type EmailStepConfig,
   type EnrollmentContext,
@@ -396,7 +397,7 @@ async function handleSendAuto(
       throw new Error("Cannot send auto email without anchor");
     }
 
-    const config = step.config as EmailStepConfig;
+    const config = effectiveStepConfig(working, step) as EmailStepConfig;
     const templateCtx = {
       firstName: working.prospect.firstName,
       lastName: working.prospect.lastName,
