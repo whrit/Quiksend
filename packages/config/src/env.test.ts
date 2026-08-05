@@ -102,7 +102,8 @@ describe("EnvSchema", () => {
   it("requires an aligned SMTP_FROM and TLS posture in production", () => {
     const result = EnvSchema.safeParse({
       NODE_ENV: "production",
-      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      DATABASE_URL: "postgres://app:secure@prod.db:5432/quiksend",
+      BETTER_AUTH_URL: "https://quiksend.example.com",
       BETTER_AUTH_SECRET: "a".repeat(32),
       BETTER_AUTH_URL: "https://app.quiksend.io",
       NANGO_WEBHOOK_SECRET: "nango-secret",
