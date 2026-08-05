@@ -1,14 +1,6 @@
 /**
- * `invitations.functions.ts`'s exported consts are `createServerFn(...)`
- * wrappers — like every other `*.functions.ts` in this repo (see
- * `mailboxes.functions.test.ts`, `compose.functions.test.ts`), they need the
- * TanStack Start server-fn request context to run and so aren't unit-tested
- * directly. What's tested here is `invitations.server.ts`, the plain module
- * those handlers delegate to for the admin/owner role gate and the
- * invitation shape/filtering the UI is allowed to see. The tenancy-scoped
- * `auth.api.*` calls themselves (create/list/cancel/accept an invitation)
- * are covered end-to-end in `packages/auth/src/auth.test.ts`, which
- * exercises the real Better Auth organization plugin against the test DB.
+ * Tests the pure helpers in invitations.server.ts (not the createServerFn
+ * wrappers). Auth.api integration tests live in auth.test.ts.
  */
 import { describe, expect, it } from "vitest";
 import { asOrganizationId, asUserId, type OrgContext } from "@quiksend/core";

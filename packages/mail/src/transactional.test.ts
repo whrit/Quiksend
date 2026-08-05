@@ -1,10 +1,4 @@
-/**
- * `sendTransactionalEmail` mocks nodemailer the same way `adapters/smtp.test.ts`
- * does — it's the same nodemailer contract, just without the MIME/compliance
- * pipeline. The interesting behaviors here are the *lazy* transport (never
- * connects until a send is attempted, throws instead of silently swallowing
- * a missing relay) and that it's a thin passthrough to `sendMail`.
- */
+/** Tests lazy transport creation and sendMail passthrough; mocks nodemailer like smtp.test.ts. */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { sendMail, createTransport } = vi.hoisted(() => ({

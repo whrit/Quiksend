@@ -1,12 +1,6 @@
 /**
- * Auth config tests. `resolveDefaultActiveOrganizationId` is the pre-existing
- * session-hook suite. The suites below exercise the invitation-only signup,
- * password-reset, and organization-creation hooks configured in `auth.ts`
- * directly through `auth.api.*` against the real test DB — matching the
- * tenancy-test convention used across this repo (see `org-fn.ts` callers).
- *
- * `SYSTEM_ADMIN_EMAIL` and `sendTransactionalEmail` are mocked so these tests
- * control the bootstrap gate per-case and never touch a real SMTP relay.
+ * Auth config tests against the real test DB. SYSTEM_ADMIN_EMAIL and
+ * sendTransactionalEmail are mocked per-case.
  */
 import { randomUUID } from "node:crypto";
 import { db } from "@quiksend/db";

@@ -33,12 +33,7 @@ function getTransport(): Transporter {
       secure: false,
       fromAddress: FROM_ADDRESS,
       fromName: FROM_NAME,
-      // `createSmtpTransport` only reads host/port/secure/auth; `compliance`
-      // is required by the shared `SmtpAdapterConfig` type but unused here —
-      // transactional mail never goes through the customer-mailbox
-      // MIME/compliance pipeline (no List-Unsubscribe, no per-workspace
-      // sender identity).
-      compliance: { unsubscribeUrl: "", senderPostalAddress: "", senderOrgName: FROM_NAME },
+      // compliance is required by SmtpAdapterConfig but unused for transactional mail.
     });
   }
   return transport;

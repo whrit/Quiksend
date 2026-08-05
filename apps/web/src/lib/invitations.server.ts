@@ -1,11 +1,6 @@
 import { isAdminOrOwner, type OrgContext } from "@quiksend/core";
 
-/**
- * Pure helpers `invitations.functions.ts`'s `createServerFn` handlers
- * delegate to. Kept in a plain module (no `@tanstack/react-start` import) so
- * they're directly unit-testable — matching `organization.server.ts` /
- * `mailboxes.server.ts`'s split between server-fn wiring and testable logic.
- */
+/** Pure helpers for invitations.functions.ts, split out for direct unit testability. */
 
 export interface InvitationSummary {
   readonly id: string;
@@ -30,13 +25,8 @@ export function toInvitationSummary(invitation: {
   status: string;
   expiresAt: Date;
 }): InvitationSummary {
-  return {
-    id: invitation.id,
-    email: invitation.email,
-    role: invitation.role,
-    status: invitation.status,
-    expiresAt: invitation.expiresAt,
-  };
+  const { id, email, role, status, expiresAt } = invitation;
+  return { id, email, role, status, expiresAt };
 }
 
 /**
