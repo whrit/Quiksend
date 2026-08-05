@@ -624,6 +624,7 @@ async function hasReplyOnThreadInTx(tx: DbTx, ctx: EnrollmentContext): Promise<b
         and(
           ...conditions,
           eq(tables.message.direction, "inbound"),
+          eq(tables.message.isAutoReply, false),
           eq(tables.message.providerThreadId, threadId),
         ),
       )
@@ -636,6 +637,7 @@ async function hasReplyOnThreadInTx(tx: DbTx, ctx: EnrollmentContext): Promise<b
       select id from message
       where organization_id = ${ctx.organizationId}
         and direction = 'inbound'
+        and is_auto_reply = false
         and (
           in_reply_to = ${anchorId}
           or references_header ilike ${`%${anchorId}%`}

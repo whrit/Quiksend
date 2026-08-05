@@ -4,7 +4,7 @@ import { tables } from "@quiksend/db/tables";
 import { sendAndRecord } from "./durable-send.ts";
 import { buildUnsubscribeUrl, mintUnsubscribeToken, resolvePostalAddress } from "@quiksend/mail";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
-import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
@@ -143,12 +143,14 @@ export const sendReply = createServerFn({ method: "POST" })
       ),
     });
     if (!mailbox) throw new Error("Mailbox not found");
+    if (mailbox.status === "archived") throw new Error("Mailbox is archived");
 
     const prospect = anchor.prospectId
       ? await db.query.prospect.findFirst({
           where: and(
             eq(tables.prospect.id, anchor.prospectId),
             eq(tables.prospect.organizationId, organizationId),
+            isNull(tables.prospect.deletedAt),
           ),
         })
       : null;
