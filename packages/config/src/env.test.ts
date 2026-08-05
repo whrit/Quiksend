@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { EnvSchema } from "./env.schema.ts";
 
-function errorMessages(result: { success: boolean; error?: { issues: Array<{ message?: string }> } }): string {
+function errorMessages(result: {
+  success: boolean;
+  error?: { issues: Array<{ message?: string }> };
+}): string {
   if (result.success) return "";
   return result.error?.issues.map(({ message }) => message ?? "").join(" ") ?? "";
 }
@@ -12,9 +15,7 @@ describe("EnvSchema", () => {
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
     });
     expect(parsed).toBeDefined();
-    expect(parsed.DATABASE_URL).toBe(
-      "postgres://quiksend:quiksend@localhost:5432/quiksend",
-    );
+    expect(parsed.DATABASE_URL).toBe("postgres://quiksend:quiksend@localhost:5432/quiksend");
   });
 
   it("rejects a missing DATABASE_URL", () => {
