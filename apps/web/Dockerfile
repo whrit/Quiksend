@@ -24,7 +24,7 @@ COPY tsconfig.base.json ./tsconfig.base.json
 RUN pnpm --filter @quiksend/web build
 
 # Runtime: Nitro's .output bundles its own deps. Non-root user, no source tree.
-FROM node:24-slim AS runner
+FROM node:24-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS runner
 ENV NODE_ENV=production \
     PORT=3000 \
     NODE_OPTIONS=--disable-warning=DISABLED_WARNING_MESSAGE

@@ -54,7 +54,7 @@ services:
       - quiksend-caddy-data:/data
       - quiksend-caddy-config:/config
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:2019/config"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:2019/config || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -111,7 +111,11 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - NET_BIND_SERVICE
+      - SETUID
+      - SETGID
+      - CHOWN
+      - FOWNER
+      - DAC_OVERRIDE
     read_only: true
     tmpfs:
       - /var/run/postgresql
