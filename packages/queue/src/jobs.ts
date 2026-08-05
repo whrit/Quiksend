@@ -87,10 +87,12 @@ export interface WebhookDeliverPayload {
 // ── ai.research — research a prospect (Phase 8) ─────────────────────────────
 export const aiResearchSchema = z.object({
   prospectId: z.string().uuid(),
+  organizationId: z.string(),
   forceRefresh: z.boolean().default(false),
 });
 export interface AiResearchPayload {
   prospectId: string;
+  organizationId: string;
   forceRefresh: boolean;
 }
 

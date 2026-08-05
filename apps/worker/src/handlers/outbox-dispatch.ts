@@ -45,7 +45,7 @@ export async function claimAndDispatchBatch(): Promise<number> {
     attempts: number;
   }>(sql`
     WITH claimable AS (
-      SELECT id
+      SELECT id, organization_id
       FROM event_outbox
       WHERE (
         -- Fresh or retried pending rows with backoff elapsed
@@ -70,7 +70,7 @@ export async function claimAndDispatchBatch(): Promise<number> {
         claimed_at = now(),
         updated_at = now()
     FROM claimable
-    WHERE event_outbox.id = claimable.id
+    WHERE event_outbox.id = claimable.id AND event_outbox.organization_id = claimable.organization_id
     RETURNING event_outbox.id,
               event_outbox.organization_id,
               event_outbox.event_type,

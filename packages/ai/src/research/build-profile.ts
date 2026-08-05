@@ -102,15 +102,17 @@ export type BuildProfileOptions = {
 
 export async function buildProfile(
   prospectId: string,
+  organizationId: string,
   options: BuildProfileOptions = {},
 ): Promise<void> {
   const prospect = await db.query.prospect.findFirst({
-    where: eq(tables.prospect.id, prospectId),
+    where: and(
+      eq(tables.prospect.id, prospectId),
+      eq(tables.prospect.organizationId, organizationId),
+    ),
     with: { company: true },
   });
-  if (!prospect) throw new Error(`Prospect not found: ${prospectId}`);
-
-  const organizationId = prospect.organizationId;
+  if (!prospect) throw new Error(`Prospect not found: ${prospectId} (org: ${organizationId})`);
   const existing = await db.query.researchProfile.findFirst({
     where: and(
       eq(tables.researchProfile.organizationId, organizationId),

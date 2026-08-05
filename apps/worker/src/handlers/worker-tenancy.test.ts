@@ -4,6 +4,7 @@ import { db, insertOutbox } from "@quiksend/db";
 import {
   eventOutbox,
   prospect,
+  researchProfile,
   seedInbox,
   webhookDelivery,
   webhookEndpoint,
@@ -13,7 +14,7 @@ import { truncateAppTables, withTestOrgs } from "@quiksend/db/testing";
 import { and, eq } from "drizzle-orm";
 import { claimAndDispatchBatch } from "./outbox-dispatch.ts";
 
-// Mock external deps that require pg-boss / network
+// Mock pg-boss / network deps
 const mockEnqueue = vi.fn().mockResolvedValue("mock-job-id");
 vi.mock("@quiksend/queue", () => ({
   enqueue: (...args: unknown[]) => mockEnqueue(...args),
@@ -40,12 +41,11 @@ describe("worker tenancy", () => {
     vi.clearAllMocks();
   });
 
-  // ── Outbox dispatch: org-scoped updates ──────────────────────────────────
+  // ── Outbox dispatch: org-scoped claim + updates ─────────────────────────
 
   describe("outbox dispatch org isolation", () => {
     it("org-A outbox row cannot mutate org-B rows during dispatch", async () => {
       await withTestOrgs(async ({ orgA, orgB }) => {
-        // Insert one outbox row per org
         await db.transaction(async (tx) => {
           await insertOutbox(tx, makeIntent(orgA.id));
           await insertOutbox(tx, makeIntent(orgB.id));
@@ -54,7 +54,6 @@ describe("worker tenancy", () => {
         const dispatched = await claimAndDispatchBatch();
         expect(dispatched).toBe(2);
 
-        // Each org's row keeps its own organization_id
         const rows = await db.select().from(eventOutbox);
         const orgARows = rows.filter((r) => r.organizationId === orgA.id);
         const orgBRows = rows.filter((r) => r.organizationId === orgB.id);
@@ -65,37 +64,6 @@ describe("worker tenancy", () => {
       });
     });
 
-    it("outbox dispatch updates include organization_id predicate (no cross-org write)", async () => {
-      await withTestOrgs(async ({ orgA, orgB }) => {
-        // Insert only for orgA
-        await db.transaction(async (tx) => {
-          await insertOutbox(tx, makeIntent(orgA.id));
-        });
-
-        // Manually tamper: set the organization_id of the claimed row to orgB
-        // after claim but before dispatch completes — the update with org predicate
-        // should be a no-op (row stays processing, not dispatched).
-        const [row] = await db.select().from(eventOutbox);
-        expect(row).toBeDefined();
-
-        // Dispatch should succeed (single row, orgA context)
-        const dispatched = await claimAndDispatchBatch();
-        expect(dispatched).toBe(1);
-
-        // Verify the row was updated with its correct org
-        const [updated] = await db
-          .select()
-          .from(eventOutbox)
-          .where(eq(eventOutbox.id, row!.id));
-        expect(updated!.status).toBe("dispatched");
-        expect(updated!.organizationId).toBe(orgA.id);
-      });
-    });
-  });
-
-  // ── Outbox dispatch: system sweep correctly bounded ──────────────────────
-
-  describe("outbox dispatch as system sweep", () => {
     it("sweep processes rows from multiple orgs without cross-contamination", async () => {
       await withTestOrgs(async ({ orgA, orgB }) => {
         await db.transaction(async (tx) => {
@@ -108,7 +76,6 @@ describe("worker tenancy", () => {
         expect(dispatched).toBe(3);
 
         const rows = await db.select().from(eventOutbox);
-        // All dispatched, each org owns its own rows
         expect(rows.every((r) => r.status === "dispatched")).toBe(true);
         expect(rows.filter((r) => r.organizationId === orgA.id)).toHaveLength(2);
         expect(rows.filter((r) => r.organizationId === orgB.id)).toHaveLength(1);
@@ -116,38 +83,98 @@ describe("worker tenancy", () => {
     });
   });
 
-  // ── Prospect org isolation ───────────────────────────────────────────────
+  // ── AI research: org mismatch at DB level ───────────────────────────────
 
-  describe("prospect org isolation", () => {
-    it("org-A prospect is invisible to org-B queries", async () => {
+  describe("ai research org isolation", () => {
+    it("prospect query with mismatched org returns nothing (fail closed)", async () => {
       await withTestOrgs(async ({ orgA, orgB }) => {
         const [prospectA] = await db
           .insert(prospect)
           .values({
             organizationId: orgA.id,
-            email: "alice@example.com",
+            email: "research-target@example.com",
             status: "new",
           })
           .returning();
 
-        // Query with orgB predicate returns nothing
+        // Handler pattern: prospect lookup scoped by payload organizationId
         const found = await db.query.prospect.findFirst({
+          columns: { id: true, organizationId: true },
           where: and(
             eq(tables.prospect.id, prospectA!.id),
             eq(tables.prospect.organizationId, orgB.id),
           ),
         });
+        // Mismatched org → not found → handler skips (fail closed)
         expect(found).toBeUndefined();
 
-        // Query with orgA predicate returns the row
-        const foundOwn = await db.query.prospect.findFirst({
+        // Same org → found
+        const correct = await db.query.prospect.findFirst({
+          columns: { id: true, organizationId: true },
           where: and(
             eq(tables.prospect.id, prospectA!.id),
             eq(tables.prospect.organizationId, orgA.id),
           ),
         });
-        expect(foundOwn).toBeDefined();
-        expect(foundOwn!.email).toBe("alice@example.com");
+        expect(correct).toBeDefined();
+        expect(correct!.organizationId).toBe(orgA.id);
+      });
+    });
+
+    it("research profile upsert/update scoped by organizationId (no cross-org leak)", async () => {
+      await withTestOrgs(async ({ orgA, orgB }) => {
+        const [prospectA] = await db
+          .insert(prospect)
+          .values({
+            organizationId: orgA.id,
+            email: "profile-test@example.com",
+            status: "new",
+          })
+          .returning();
+
+        // Create profile for orgA (as buildProfile does)
+        await db
+          .insert(researchProfile)
+          .values({
+            organizationId: orgA.id,
+            prospectId: prospectA!.id,
+            status: "ready",
+            facts: [],
+            sources: [],
+            summary: "test summary",
+          });
+
+        // Update with wrong org → 0 rows affected
+        const crossResult = await db
+          .update(researchProfile)
+          .set({ status: "error", error: "should not happen" })
+          .where(
+            and(
+              eq(researchProfile.organizationId, orgB.id),
+              eq(researchProfile.prospectId, prospectA!.id),
+            ),
+          )
+          .returning();
+        expect(crossResult).toHaveLength(0);
+
+        // Profile still "ready" (orgA owns it)
+        const profile = await db.query.researchProfile.findFirst({
+          where: and(
+            eq(tables.researchProfile.organizationId, orgA.id),
+            eq(tables.researchProfile.prospectId, prospectA!.id),
+          ),
+        });
+        expect(profile!.status).toBe("ready");
+        expect(profile!.error).toBeNull();
+
+        // orgB has no profile for this prospect
+        const crossProfile = await db.query.researchProfile.findFirst({
+          where: and(
+            eq(tables.researchProfile.organizationId, orgB.id),
+            eq(tables.researchProfile.prospectId, prospectA!.id),
+          ),
+        });
+        expect(crossProfile).toBeUndefined();
       });
     });
   });
@@ -157,7 +184,6 @@ describe("worker tenancy", () => {
   describe("webhook delivery org isolation", () => {
     it("webhook delivery update scoped to correct org (no cross-org mutation)", async () => {
       await withTestOrgs(async ({ orgA, orgB }) => {
-        // Create endpoints for both orgs
         const [epA] = await db
           .insert(webhookEndpoint)
           .values({
@@ -169,18 +195,6 @@ describe("worker tenancy", () => {
           })
           .returning();
 
-        const [epB] = await db
-          .insert(webhookEndpoint)
-          .values({
-            organizationId: orgB.id,
-            url: "https://b.example.com/hook",
-            events: ["message.sent"],
-            secret: "secret-b",
-            status: "active",
-          })
-          .returning();
-
-        // Create delivery rows for each
         const [delA] = await db
           .insert(webhookDelivery)
           .values({
@@ -194,20 +208,7 @@ describe("worker tenancy", () => {
           })
           .returning();
 
-        const [delB] = await db
-          .insert(webhookDelivery)
-          .values({
-            organizationId: orgB.id,
-            endpointId: epB!.id,
-            eventType: "message.sent",
-            payload: {},
-            status: "pending",
-            attempts: 0,
-            nextAttemptAt: new Date(),
-          })
-          .returning();
-
-        // Try updating delA with orgB's id — should affect 0 rows
+        // Cross-org update — 0 rows
         const crossOrgResult = await db
           .update(webhookDelivery)
           .set({ status: "succeeded", attempts: 1 })
@@ -242,7 +243,6 @@ describe("worker tenancy", () => {
   describe("seed inbox verify org isolation", () => {
     it("seed inbox lookup requires org predicate (fails closed on mismatch)", async () => {
       await withTestOrgs(async ({ orgA, orgB }) => {
-        // Insert a seed inbox for orgA
         const [seedA] = await db
           .insert(seedInbox)
           .values({
@@ -254,7 +254,7 @@ describe("worker tenancy", () => {
           })
           .returning();
 
-        // Lookup with orgB predicate: not found
+        // Cross-org: not found
         const crossOrg = await db.query.seedInbox.findFirst({
           where: and(
             eq(tables.seedInbox.id, seedA!.id),
@@ -263,7 +263,7 @@ describe("worker tenancy", () => {
         });
         expect(crossOrg).toBeUndefined();
 
-        // Lookup with orgA predicate: found
+        // Same-org: found
         const sameOrg = await db.query.seedInbox.findFirst({
           where: and(
             eq(tables.seedInbox.id, seedA!.id),
@@ -288,7 +288,7 @@ describe("worker tenancy", () => {
           })
           .returning();
 
-        // Update with orgB predicate — should affect nothing
+        // Cross-org update — no effect
         const result = await db
           .update(seedInbox)
           .set({ active: true, verifiedAt: new Date() })
@@ -301,7 +301,6 @@ describe("worker tenancy", () => {
           .returning();
         expect(result).toHaveLength(0);
 
-        // Verify seed is still inactive
         const unchanged = await db.query.seedInbox.findFirst({
           where: eq(tables.seedInbox.id, seedA!.id),
         });
