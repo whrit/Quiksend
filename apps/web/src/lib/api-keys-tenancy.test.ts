@@ -110,6 +110,28 @@ describe("api key tenancy", () => {
     expect(stillListed.find((key) => key.id === created.id)).toBeDefined();
   });
 
+  it("revoke never lists — a key beyond any list page boundary still revokes", async () => {
+    const owner = await createOrgWithRole("owner");
+    const created = await createApiKeyForOrg(owner.orgContext, { name: "Beyond page 1" }, owner.headers);
+
+    // The old implementation pre-listed the org's keys capped at
+    // `LIST_API_KEYS_LIMIT` (100) and searched the page client-side before
+    // deleting — a 101st (or later) key would silently "not be found" and
+    // the revoke would spuriously fail. Proving `listApiKeys` is never even
+    // called is a stronger, deterministic stand-in for provisioning 100+
+    // real keys to push this one past that boundary.
+    const listSpy = vi.spyOn(auth.api, "listApiKeys");
+    try {
+      await revokeApiKeyForOrg(owner.orgContext, created.id, owner.headers);
+      expect(listSpy).not.toHaveBeenCalled();
+    } finally {
+      listSpy.mockRestore();
+    }
+
+    const afterRevoke = await resolveApiKey(bearerRequest(created.key));
+    expect(afterRevoke).toBeNull();
+  });
+
   it("revoking a key makes it unauthorized against the public API", async () => {
     const owner = await createOrgWithRole("owner");
     const created = await createApiKeyForOrg(owner.orgContext, { name: "REST key" }, owner.headers);

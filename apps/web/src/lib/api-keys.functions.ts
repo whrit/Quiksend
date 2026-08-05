@@ -2,6 +2,7 @@ import { auth } from "@quiksend/auth";
 import { isAdminOrOwner, type OrgContext } from "@quiksend/core";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
+import { APIError } from "better-auth";
 import { and, eq, gte } from "drizzle-orm";
 import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
@@ -110,19 +111,28 @@ export async function revokeApiKeyForOrg(
     throw new Error("Admin or owner role required to manage API keys");
   }
 
-  const listed = await auth.api.listApiKeys({
-    query: { organizationId: orgContext.organizationId, limit: LIST_API_KEYS_LIMIT },
-    headers: authHeaders,
-  });
-  const existing = (listed.apiKeys ?? []).find((key) => key.id === keyId);
-  if (!existing) {
-    throw new Error("API key not found in this workspace");
+  try {
+    // Deletes by id directly — Better Auth's own `/api-key/delete` looks the
+    // key up by id (no pagination to fall through) and authorizes against
+    // the key's *actual* owning org via the explicit `apiKey` access-control
+    // statement (`packages/auth/src/auth.ts`), not whatever org this caller
+    // claims. A pre-`listApiKeys` page, capped at `LIST_API_KEYS_LIMIT`,
+    // would silently miss any key past the first page and reject a
+    // legitimate revoke — this never lists at all.
+    await auth.api.deleteApiKey({
+      body: { keyId },
+      headers: authHeaders,
+    });
+  } catch (err) {
+    // NOT_FOUND (no such key) and FORBIDDEN (key exists, but belongs to a
+    // different org) collapse to the same uniform message — fail closed
+    // without telling a caller whether a key id exists in someone else's
+    // workspace.
+    if (err instanceof APIError && (err.status === "NOT_FOUND" || err.status === "FORBIDDEN")) {
+      throw new Error("API key not found in this workspace");
+    }
+    throw err;
   }
-
-  await auth.api.deleteApiKey({
-    body: { keyId },
-    headers: authHeaders,
-  });
 
   return { ok: true as const };
 }
