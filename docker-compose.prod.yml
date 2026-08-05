@@ -2,7 +2,8 @@
 # Usage:
 #   cp .env.example .env
 #   # Set required production secrets in .env:
-#   #   POSTGRES_PASSWORD (strong password, not "quiksend")
+#   #   POSTGRES_PASSWORD (strong password for postgres superuser)
+#   #   POSTGRES_APP_PASSWORD (strong password for quiksend app user)
 #   #   BETTER_AUTH_SECRET (>= 32 bytes, base64)
 #   #   BETTER_AUTH_URL (https://yourdomain.com, not http://localhost)
 #   #   NANGO_WEBHOOK_SECRET (from Nango dashboard)
@@ -15,19 +16,18 @@
 #   #   SENTRY_DSN, POSTHOG_KEY
 #   #   QUIKSEND_IMAGE_TAG (defaults to latest)
 #
-#   docker compose -f docker-compose.prod.yml up -d
+# Build and run migrations:
+#   docker compose -f docker-compose.prod.yml build migrate
+#   docker compose -f docker-compose.prod.yml run --rm migrate
 #
-# Run migrations (before starting services):
-#   docker compose -f docker-compose.prod.yml run --rm -e DATABASE_URL="postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/quiksend" migrate pnpm db:migrate
+# Start services:
+#   docker compose -f docker-compose.prod.yml up -d
 
 version: "3.8"
 
 networks:
   db:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/24
 
 services:
   # Private Postgres — accessible only to web/worker/migrate via the private 'db' network.
@@ -39,11 +39,13 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required in production}
       POSTGRES_DB: quiksend
+      POSTGRES_INITDB_ARGS: >-
+        -c log_min_messages=WARNING
     networks:
-      db:
-        ipv4_address: 172.20.0.2
+      - db
     volumes:
       - quiksend-pgdata-prod:/var/lib/postgresql/data
+      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/10-init-app-user.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d quiksend"]
       interval: 5s
@@ -74,17 +76,19 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Database migration service — one-shot, waits for Postgres to be healthy.
-  # For pre-built images, run migrations manually before starting services:
-  #   docker compose -f docker-compose.prod.yml run --rm -e DATABASE_URL="postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/quiksend" migrate pnpm db:migrate
+  # Database migration service — builds from source, has pnpm and package.json.
+  # Run once before starting main services:
+  #   docker compose -f docker-compose.prod.yml run --rm migrate
   migrate:
-    image: ghcr.io/whrit/quiksend-web:${QUIKSEND_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
     container_name: quiksend-migrate
     networks:
       - db
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/quiksend
+      DATABASE_URL: postgres://quiksend:${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD required}@postgres:5432/quiksend
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,7 +113,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/quiksend
+      DATABASE_URL: postgres://quiksend:${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD required}@postgres:5432/quiksend
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL required in production}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET required}
       UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:?UNSUBSCRIBE_TOKEN_SECRET required}
@@ -182,7 +186,7 @@ services:
     environment:
       NODE_ENV: production
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/quiksend
+      DATABASE_URL: postgres://quiksend:${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD required}@postgres:5432/quiksend
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL required}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET required}
       UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:?UNSUBSCRIBE_TOKEN_SECRET required}
@@ -210,7 +214,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "test", "-f", "/tmp/worker-health"]
+      test: ["CMD-SHELL", "pgrep -f 'node apps/worker' || exit 1"]
       interval: 30s
       timeout: 3s
       retries: 3

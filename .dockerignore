@@ -16,7 +16,6 @@
 # Development dependencies and caches
 **/node_modules
 **/.pnpm-store
-**/pnpm-lock.yaml
 **/.npm
 
 # Test and coverage
@@ -31,7 +30,6 @@
 **/*.swp
 **/*.swo
 *~
-**/.vscode
 **/.nvmrc
 **/.eslintcache
 
