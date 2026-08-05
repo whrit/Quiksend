@@ -66,15 +66,6 @@ export function createSmtpAdapter(config: SmtpAdapterConfig): MailboxAdapter {
         to: input.to.map((t) => t.email),
       });
     },
-    async listInbound(): Promise<[]> {
-      // Intentional no-op. SMTP inbound polling is implemented in
-      // `apps/worker/src/handlers/mailbox-poll.ts:pollImap`, which connects
-      // to the mailbox's IMAP endpoint — bypassing this per-adapter method
-      // because it needs the workspace's poll cursor + threading writeback.
-      // Kept on the interface so a future in-process consumer (e.g. an SSR
-      // preview) has a symmetric read path.
-      return [];
-    },
     async verifyIdentity(): Promise<IdentityHealth> {
       const domain = config.fromAddress.split("@")[1] ?? config.fromAddress;
       const auth = await checkDomainAuth(domain);

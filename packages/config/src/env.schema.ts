@@ -55,8 +55,6 @@ export const EnvSchema = z
     NANGO_SECRET_KEY: z.string().optional(),
     // Verifies Nango's inbound webhook signatures (/api/nango/webhook).
     NANGO_WEBHOOK_SECRET: z.string().optional(),
-    // Optional public base URL Nango redirects back to on connect completion.
-    NANGO_PUBLIC_URL: z.string().url().optional(),
 
     // AI (Phase 8) — providers are model-agnostic behind an interface; either or both may be set.
     ANTHROPIC_API_KEY: z.string().optional(),

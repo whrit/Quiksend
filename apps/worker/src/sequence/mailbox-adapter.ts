@@ -11,9 +11,6 @@ function createPermanentFailureAdapter(): MailboxAdapter {
     async send() {
       throw new SendError("permanent", "Simulated permanent send failure (load test)");
     },
-    async listInbound() {
-      return [];
-    },
     async verifyIdentity() {
       return {
         domain: "loadtest.local",

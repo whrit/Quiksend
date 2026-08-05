@@ -179,16 +179,6 @@ describe("createMicrosoftAdapter", () => {
       (err: unknown) => err instanceof SendError && err.kind === "permanent",
     );
   });
-
-  it("listInbound returns empty array without throwing", async () => {
-    const adapter = createMicrosoftAdapter({
-      nangoConnectionId: "conn-ms",
-      fromAddress: "sender@example.com",
-      compliance,
-      nango: createMockNango({}),
-    });
-    await expect(adapter.listInbound(new Date())).resolves.toEqual([]);
-  });
 });
 
 async function sendMinimal(adapter: ReturnType<typeof createMicrosoftAdapter>): Promise<void> {
