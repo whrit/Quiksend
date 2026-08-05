@@ -12,11 +12,7 @@ describe("Backup/Restore Operations with Age Encryption", () => {
   });
 
   afterAll(() => {
-    try {
-      rmSync(testDir, { recursive: true, force: true });
-    } catch (e) {
-      // Ignore errors
-    }
+    rmSync(testDir, { recursive: true, force: true });
   });
 
   it("backup script fails when DATABASE_URL is not set", () => {

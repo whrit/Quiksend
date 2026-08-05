@@ -1,28 +1,11 @@
 #!/bin/bash
 # Restore PostgreSQL database from age-encrypted backup with verification.
 #
-# Security properties:
-# - Decrypts to temporary database (never exposes plaintext in files)
-# - Verifies migration marker and table counts — fails loudly if missing
-# - Cleans up plaintext immediately after restore
-# - Restrictive temp permissions (0600 for files, 0700 for dirs)
-# - Traps on every exit path
-# - Database dropped on failure
-# - Age identity file validated (0600 permissions required)
-# - Target database name validated against SQL injection
-#
 # Usage:
 #   scripts/restore-database.sh <backup.sql.enc> <identity-file> [target-db]
 #
-# Where identity-file is an age private key file (e.g., ~/.age/key.txt)
-# with permissions 0600 (rw-------). Must be the counterpart to the
-# recipient file used during backup.
-#
-# If target-db is omitted, creates a temporary database named
-# quiksend_restore_<timestamp> and leaves it for verification.
-# Plaintext dump is destroyed before exit (via trap).
-#
-# Returns 0 on successful restore + verification, 1 on error.
+# Identity file must have permissions 0600. If target-db is omitted, creates
+# quiksend_restore_<timestamp>. Plaintext is destroyed on exit via trap.
 
 set -euo pipefail
 
@@ -90,29 +73,12 @@ CREATED_DB=0
 # Trap on every exit: overwrite/remove plaintext and drop DB on failure
 cleanup() {
   local exit_code=$?
-  if [ -f "$PLAINTEXT_DUMP" ]; then
-    # Overwrite plaintext with 3 passes of zeros (best effort)
-    local size_mb
-    size_mb=$(du -m "$PLAINTEXT_DUMP" 2>/dev/null | cut -f1)
-    if [ -n "$size_mb" ] && [ "$size_mb" -gt 0 ]; then
-      dd if=/dev/zero of="$PLAINTEXT_DUMP" bs=1M count="$size_mb" 2>/dev/null || true
-    fi
-    rm -f "$PLAINTEXT_DUMP"
-  fi
-  
-  # Drop newly-created database if restore failed
+  rm -f "$PLAINTEXT_DUMP"
   if [ $exit_code -ne 0 ] && [ "$CREATED_DB" -eq 1 ] && [ -n "$TARGET_DB" ]; then
     echo "Cleaning up database $TARGET_DB due to restore failure..." >&2
-    parse_db_url "$DATABASE_URL"
-    if [ -z "${PGPASSWORD:-}" ]; then
-      psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" \
-        -c "DROP DATABASE IF EXISTS \"$TARGET_DB\";" > /dev/null 2>&1 || true
-    else
-      PGPASSWORD="$PGPASSWORD" psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" \
-        -c "DROP DATABASE IF EXISTS \"$TARGET_DB\";" > /dev/null 2>&1 || true
-    fi
+    psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" \
+      -c "DROP DATABASE IF EXISTS \"$TARGET_DB\";" > /dev/null 2>&1 || true
   fi
-  
   rmdir "$TMPDIR" 2>/dev/null || true
   exit $exit_code
 }
@@ -144,6 +110,7 @@ parse_db_url() {
 }
 
 parse_db_url "$DATABASE_URL"
+[ -n "$PGPASSWORD" ] && export PGPASSWORD
 
 # Determine target database name
 if [ -z "$TARGET_DB" ]; then
@@ -176,87 +143,49 @@ fi
 chmod 0400 "$PLAINTEXT_DUMP"
 
 # Create target database
-if [ -z "${PGPASSWORD:-}" ]; then
-  psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" \
-    -c "CREATE DATABASE \"$TARGET_DB\";" > /dev/null 2>&1 || {
-    echo "ERROR: Failed to create target database $TARGET_DB" >&2
-    exit 1
-  }
-else
-  PGPASSWORD="$PGPASSWORD" psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" \
-    -c "CREATE DATABASE \"$TARGET_DB\";" > /dev/null 2>&1 || {
-    echo "ERROR: Failed to create target database $TARGET_DB" >&2
-    exit 1
-  }
-fi
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" \
+  -c "CREATE DATABASE \"$TARGET_DB\";" > /dev/null 2>&1 || {
+  echo "ERROR: Failed to create target database $TARGET_DB" >&2
+  exit 1
+}
 CREATED_DB=1
 
-# Restore from plaintext dump to target database
-if [ -z "${PGPASSWORD:-}" ]; then
-  pg_restore -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$TARGET_DB" \
-    "$PLAINTEXT_DUMP" > /dev/null 2>&1 || {
-    echo "ERROR: pg_restore failed" >&2
-    exit 1
-  }
-else
-  PGPASSWORD="$PGPASSWORD" pg_restore -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$TARGET_DB" \
-    "$PLAINTEXT_DUMP" > /dev/null 2>&1 || {
-    echo "ERROR: pg_restore failed" >&2
-    exit 1
-  }
-fi
+# Restore from plaintext dump
+pg_restore -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$TARGET_DB" \
+  "$PLAINTEXT_DUMP" > /dev/null 2>&1 || {
+  echo "ERROR: pg_restore failed" >&2
+  exit 1
+}
 
 # Verify migration marker exists and table counts are nonzero
 verify_restore() {
   local target="$1"
-  local password="${2:-}"
-  
-  # Check migration marker from app_meta table — MUST exist
+
   local migration_check
-  if [ -z "$password" ]; then
-    migration_check=$(psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$target" \
-      -t -c "SELECT value->>'version' FROM app_meta WHERE key = 'migration_marker' LIMIT 1;" 2>/dev/null || echo "")
-  else
-    migration_check=$(PGPASSWORD="$password" psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$target" \
-      -t -c "SELECT value->>'version' FROM app_meta WHERE key = 'migration_marker' LIMIT 1;" 2>/dev/null || echo "")
-  fi
-  
+  migration_check=$(psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$target" \
+    -t -c "SELECT value->>'version' FROM app_meta WHERE key = 'migration_marker' LIMIT 1;" 2>/dev/null || echo "")
+
   if [ -z "$migration_check" ]; then
     echo "ERROR: Migration marker not found in app_meta — incomplete or corrupted backup" >&2
     return 1
   fi
-  
   echo "Migration marker: $migration_check"
-  
-  # Verify table counts are nonzero (indicates successful schema + data restoration)
-  local tables=("organization" "message" "enrollment")
-  
-  for table in "${tables[@]}"; do
+
+  for table in organization message enrollment; do
     local count
-    if [ -z "$password" ]; then
-      count=$(psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$target" \
-        -t -c "SELECT COUNT(*) FROM $table;" 2>/dev/null || echo "0")
-    else
-      count=$(PGPASSWORD="$password" psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$target" \
-        -t -c "SELECT COUNT(*) FROM $table;" 2>/dev/null || echo "0")
-    fi
-    count="${count## }"  # trim whitespace
+    count=$(psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$target" \
+      -t -c "SELECT COUNT(*) FROM $table;" 2>/dev/null || echo "0")
+    count="${count## }"
     echo "Table $table: $count rows"
-    
-    # At least one table should have data (e.g., organization should never be 0 in production)
     if [ "$table" = "organization" ] && [ "$count" -eq 0 ]; then
       echo "ERROR: organization table is empty — backup is incomplete or corrupted" >&2
       return 1
     fi
   done
-  
-  return 0
 }
 
-if ! verify_restore "$TARGET_DB" "$PGPASSWORD"; then
+if ! verify_restore "$TARGET_DB"; then
   exit 1
 fi
 
 echo "Restore completed successfully to database: $TARGET_DB"
-echo "WARNING: Plaintext dump will be destroyed on exit"
-exit 0
