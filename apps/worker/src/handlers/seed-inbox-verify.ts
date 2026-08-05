@@ -16,12 +16,10 @@ export async function registerSeedInboxVerifyHandler(): Promise<void> {
       logger.warn({ seedInboxId }, "seed_inbox.verify: missing organizationId, skipping");
       return;
     }
+    const seedScope = and(eq(tables.seedInbox.id, seedInboxId), eq(tables.seedInbox.organizationId, organizationId));
 
     const seed = await db.query.seedInbox.findFirst({
-      where: and(
-        eq(tables.seedInbox.id, seedInboxId),
-        eq(tables.seedInbox.organizationId, organizationId),
-      ),
+      where: seedScope,
     });
     if (!seed) {
       logger.warn({ seedInboxId, organizationId }, "seed_inbox.verify: seed not found or org mismatch");
@@ -39,14 +37,14 @@ export async function registerSeedInboxVerifyHandler(): Promise<void> {
       await db
         .update(tables.seedInbox)
         .set({ verifiedAt: new Date(), active: true })
-        .where(and(eq(tables.seedInbox.id, seedInboxId), eq(tables.seedInbox.organizationId, organizationId)));
+        .where(seedScope);
       logger.info({ seedInboxId, organizationId }, "seed_inbox.verify succeeded");
     } catch (err) {
       logger.error({ err, seedInboxId, organizationId }, "seed_inbox.verify failed");
       await db
         .update(tables.seedInbox)
         .set({ active: false })
-        .where(and(eq(tables.seedInbox.id, seedInboxId), eq(tables.seedInbox.organizationId, organizationId)));
+        .where(seedScope);
       throw err;
     }
   });
