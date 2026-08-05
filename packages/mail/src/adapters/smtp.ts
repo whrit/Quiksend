@@ -13,11 +13,17 @@ import { checkDomainAuth } from "../dns.ts";
 import { buildMime, type BuildMimeInput, type BuildMimeOutput } from "../mime.ts";
 import { normalizeMessageId, type ThreadingHeaders } from "../threading.ts";
 
-export interface SmtpAdapterConfig {
+/** Transport-only connection config — no MIME, compliance, or sender identity. */
+export interface SmtpTransportConfig {
   readonly host: string;
   readonly port: number;
   readonly auth?: { readonly user: string; readonly pass: string };
   readonly secure?: boolean;
+  /** Inject for tests. */
+  readonly transport?: Transporter;
+}
+
+export interface SmtpAdapterConfig extends SmtpTransportConfig {
   readonly fromAddress: string;
   readonly fromName?: string;
   /**
@@ -26,8 +32,6 @@ export interface SmtpAdapterConfig {
    * internally (e.g. test sends).
    */
   readonly compliance: ComplianceInput;
-  /** Inject for tests. */
-  readonly transport?: Transporter;
 }
 
 export function createSmtpAdapter(config: SmtpAdapterConfig): MailboxAdapter {
@@ -106,7 +110,7 @@ export async function sendMime(
   }
 }
 
-export function createSmtpTransport(config: SmtpAdapterConfig): Transporter {
+export function createSmtpTransport(config: SmtpTransportConfig): Transporter {
   return (
     config.transport ??
     nodemailer.createTransport({

@@ -139,13 +139,6 @@ async function notifyAdminHealthFailure(email: string, error: string): Promise<v
     host: env.SMTP_HOST!,
     port: env.SMTP_PORT ?? 1025,
     secure: false,
-    fromAddress: "alerts@quiksend.local",
-    fromName: "Quiksend Seed Pool",
-    compliance: {
-      unsubscribeUrl: env.BETTER_AUTH_URL ?? "http://localhost:3000",
-      senderPostalAddress: "Quiksend Systems",
-      senderOrgName: "Quiksend",
-    },
   });
   const mime = buildMime({
     from: { email: "alerts@quiksend.local", name: "Quiksend Seed Pool" },

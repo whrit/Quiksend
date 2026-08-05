@@ -203,9 +203,6 @@ export async function materializeCanarySend(canarySendId: string): Promise<void>
         host: env.SMTP_HOST,
         port: env.SMTP_PORT ?? 1025,
         secure: false,
-        fromAddress: mailbox.address,
-        fromName: mailbox.fromName ?? undefined,
-        compliance: complianceInput,
       });
       await sendMime(transport, mime, {
         from: mailbox.address,

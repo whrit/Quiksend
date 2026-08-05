@@ -198,13 +198,6 @@ async function notifyAdminsOfAutoRecover(
     host: env.SMTP_HOST,
     port: env.SMTP_PORT ?? 1025,
     secure: false,
-    fromAddress: "alerts@quiksend.local",
-    fromName: "Quiksend Deliverability",
-    compliance: {
-      unsubscribeUrl: reviewUrl,
-      senderPostalAddress: "Quiksend Systems",
-      senderOrgName: "Quiksend",
-    },
   });
 
   for (const admin of admins) {

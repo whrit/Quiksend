@@ -31,9 +31,6 @@ function getTransport(): Transporter {
       host: env.SMTP_HOST,
       port: env.SMTP_PORT ?? 1025,
       secure: false,
-      fromAddress: FROM_ADDRESS,
-      fromName: FROM_NAME,
-      // compliance is required by SmtpAdapterConfig but unused for transactional mail.
     });
   }
   return transport;
