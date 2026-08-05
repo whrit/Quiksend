@@ -188,7 +188,16 @@ function LoginPage() {
   });
 
   const social = (provider: "google" | "microsoft") =>
-    authClient.signIn.social({ provider, callbackURL: "/dashboard" });
+    authClient.signIn.social({
+      provider,
+      // Same-origin only: `window.location.href` is always the current
+      // page's own URL (never attacker-controlled), so this can't become an
+      // open redirect. Threads the invitation through OAuth exactly like the
+      // email sign-in/sign-up flows above — landing back on this same
+      // `/login?invitationId=...` URL with a session now active is what
+      // trips the auto-accept `useEffect`.
+      callbackURL: invitationId ? window.location.href : "/dashboard",
+    });
 
   if (invitationId && session && !error) {
     return (
