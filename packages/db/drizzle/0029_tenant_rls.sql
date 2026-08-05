@@ -47,179 +47,46 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE ON SEQUENCES TO quiksend_w
 -- Worker code runs as owner and bypasses naturally; quiksend_worker
 -- (BYPASSRLS) is available for explicit opt-in later.
 
-ALTER TABLE member ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE invitation ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE apikey ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE company ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE prospect ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE list ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE list_member ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE import_batch ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE import_error ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE crm_connection ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE sync_state ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE mailbox ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE message ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE sequence ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE sequence_step ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE enrollment ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE send_reservation ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE value_prop ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE research_profile ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE generation ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE task ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE api_key_usage ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE webhook_endpoint ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE webhook_delivery ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE event_outbox ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE crm_writeback_log ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE event ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE suppression ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE seed_inbox ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE canary_send ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE deliverability_snapshot ENABLE ROW LEVEL SECURITY;
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'member','invitation','apikey','company','prospect','list','list_member',
+    'import_batch','import_error','crm_connection','sync_state','mailbox',
+    'message','sequence','sequence_step','enrollment','send_reservation',
+    'value_prop','research_profile','generation','task','api_key_usage',
+    'webhook_endpoint','webhook_delivery','event_outbox','crm_writeback_log',
+    'event','suppression','seed_inbox','canary_send','deliverability_snapshot'
+  ] LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+  END LOOP;
+END $$;
 --> statement-breakpoint
 
 -- ── Direct organization_id policies ────────────────────────────────────────
 -- Tables with an organization_id column use a simple equality check.
 
-CREATE POLICY tenant_isolation ON member FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON invitation FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON company FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON prospect FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON list FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON import_batch FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON crm_connection FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON sync_state FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON mailbox FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON message FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON sequence FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON sequence_step FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON enrollment FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON task FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON value_prop FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON research_profile FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON generation FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON api_key_usage FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON webhook_endpoint FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON webhook_delivery FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON event_outbox FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON crm_writeback_log FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON event FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON suppression FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON seed_inbox FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON canary_send FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
---> statement-breakpoint
-CREATE POLICY tenant_isolation ON deliverability_snapshot FOR ALL TO quiksend_app
-  USING (organization_id = current_setting('app.organization_id', true))
-  WITH CHECK (organization_id = current_setting('app.organization_id', true));
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'member','invitation','company','prospect','list','import_batch',
+    'crm_connection','sync_state','mailbox','message','sequence',
+    'sequence_step','enrollment','task','value_prop','research_profile',
+    'generation','api_key_usage','webhook_endpoint','webhook_delivery',
+    'event_outbox','crm_writeback_log','event','suppression',
+    'seed_inbox','canary_send','deliverability_snapshot'
+  ] LOOP
+    EXECUTE format(
+      'CREATE POLICY tenant_isolation ON %I FOR ALL TO quiksend_app '
+      'USING (organization_id = current_setting(''app.organization_id'', true)) '
+      'WITH CHECK (organization_id = current_setting(''app.organization_id'', true))',
+      t
+    );
+  END LOOP;
+END $$;
 --> statement-breakpoint
 
 -- ── Membership-based policy for auth tables without organization_id ────────

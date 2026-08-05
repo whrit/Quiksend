@@ -1,13 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { client } from "./client.ts";
-import { withTenantTransaction, type DbTx } from "./tenant-context.ts";
 
 /**
- * Tenancy CI guard — structural assertions on the RLS policy layer and the
- * tenant transaction contract. Replaces the earlier regex-based organizationId
- * check with a database-level guarantee: every scoped table MUST have a
- * `tenant_isolation` policy for `quiksend_app`, and the
- * `withTenantTransaction` function satisfies the protected-function contract.
+ * Tenancy CI guard — catalog-level assertions on the RLS policy layer.
+ * Every scoped table MUST have a `tenant_isolation` policy for `quiksend_app`.
+ * Runtime behaviour is proved by tenant-context.test.ts.
  */
 
 /**
@@ -99,15 +96,5 @@ describe("tenancy guard", () => {
     const inventory = new Set(RLS_SCOPED_TABLES);
     const unlisted = [...rlsEnabled].filter((t) => !inventory.has(t));
     expect(unlisted).toEqual([]);
-  });
-
-  it("withTenantTransaction satisfies the protected-function contract", () => {
-    // Type-level check: (organizationId, fn) → Promise<T>.
-    const _check: (
-      orgId: string,
-      fn: (tx: DbTx) => Promise<void>,
-    ) => Promise<void> = withTenantTransaction;
-    expect(typeof _check).toBe("function");
-    expect(_check.length).toBe(2);
   });
 });
