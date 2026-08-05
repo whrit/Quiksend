@@ -103,3 +103,17 @@ curl -I https://api.quiksend.com/health
 - [backup-restore.md](./internal-runbooks/backup-restore.md) — Database restore runbook
 - `.github/workflows/release-please.yml` — Release automation
 - `.github/release-please-config.json` — Release config
+
+## CI Gate and Image Build Flow
+
+The `.github/workflows/ci.yml` `build-images` job acts as a CI gate for releases:
+
+1. **On every push to main:** CI builds both `quiksend-web` and `quiksend-worker` images and runs health smoke tests:
+   - **quiksend-web**: Verifies HTTP GET `/api/health` returns 200 (via Docker HEALTHCHECK)
+   - **quiksend-worker**: Verifies `/tmp/worker-ready` heartbeat file exists and is < 90s old
+
+2. **If CI passes:** Images are considered production-ready. Release workflow reuses the same Dockerfiles to build release images (identical SHA, no rebuild needed).
+
+3. **If CI fails:** Release workflow is blocked (no duplicate builds).
+
+This ensures release images are proven healthy before shipping. See `.github/workflows/ci.yml` `build-images` job for smoke test implementation.
