@@ -80,9 +80,8 @@ function ComplianceSettingsPage() {
                 Postal address
               </Label>
               {loading ? (
-                <div
+                <output
                   className="h-[80px] animate-pulse rounded-md bg-muted"
-                  role="output"
                   aria-label="Loading postal address"
                 />
               ) : (
