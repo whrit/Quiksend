@@ -124,7 +124,7 @@ export const updateValueProp = createServerFn({ method: "POST" })
 
     const [row] = await db
       .update(tables.valueProp)
-      .set({ ...data.patch, ...(embedding !== undefined ? { embedding } : {}) })
+      .set(needsReembed ? { ...data.patch, embedding } : data.patch)
       .where(
         and(
           eq(tables.valueProp.id, data.id),

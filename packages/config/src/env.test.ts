@@ -13,6 +13,20 @@ function errorMessages(result: {
   );
 }
 
+const validProductionBase = {
+  NODE_ENV: "production" as const,
+  DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+  BETTER_AUTH_SECRET: "a".repeat(32),
+  BETTER_AUTH_URL: "https://app.quiksend.io",
+  NANGO_WEBHOOK_SECRET: "nango-secret",
+  MAILBOX_ENCRYPTION_KEY: "7+v7Obw4LLnu6Caweg07W89jcuFWXkxo1R4kD8lKm4Y=",
+  UNSUBSCRIBE_TOKEN_SECRET: "+6gGXPHFvKZLSvt6bBbAPR28KrwZzFKh/71HkdcUY5A=",
+  SYSTEM_ADMIN_EMAIL: "admin@quiksend.example",
+  SMTP_HOST: "smtp.quiksend.example",
+  SMTP_FROM: "no-reply@quiksend.example",
+  SMTP_SECURE: "1",
+};
+
 describe("EnvSchema", () => {
   it("applies defaults and accepts a valid DATABASE_URL", () => {
     const parsed = EnvSchema.parse({
@@ -118,17 +132,7 @@ describe("EnvSchema", () => {
 
   it("accepts production env when all critical secrets, SYSTEM_ADMIN_EMAIL, and an aligned SMTP posture are present", () => {
     const result = EnvSchema.safeParse({
-      NODE_ENV: "production",
-      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
-      BETTER_AUTH_SECRET: "a".repeat(32),
-      BETTER_AUTH_URL: "https://app.quiksend.io",
-      NANGO_WEBHOOK_SECRET: "nango-secret",
-      MAILBOX_ENCRYPTION_KEY: "7+v7Obw4LLnu6Caweg07W89jcuFWXkxo1R4kD8lKm4Y=",
-      UNSUBSCRIBE_TOKEN_SECRET: "+6gGXPHFvKZLSvt6bBbAPR28KrwZzFKh/71HkdcUY5A=",
-      SYSTEM_ADMIN_EMAIL: "admin@quiksend.example",
-      SMTP_HOST: "smtp.quiksend.example",
-      SMTP_FROM: "no-reply@quiksend.example",
-      SMTP_SECURE: "1",
+      ...validProductionBase,
       SMTP_USER: "relay-user",
       SMTP_PASS: "relay-pass",
       OPENAI_API_KEY: "sk-test",
@@ -179,18 +183,9 @@ describe("EnvSchema", () => {
 
   it("forces engine test hooks off in production even when set", () => {
     const parsed = EnvSchema.parse({
-      NODE_ENV: "production",
+      ...validProductionBase,
       DATABASE_URL:
         "postgres://quiksend_prod:R4nd0m-Str0ng-Db-Passw0rd@db.internal.quiksend.example:5432/quiksend",
-      BETTER_AUTH_SECRET: "a".repeat(32),
-      BETTER_AUTH_URL: "https://app.quiksend.io",
-      NANGO_WEBHOOK_SECRET: "nango-secret",
-      MAILBOX_ENCRYPTION_KEY: "7+v7Obw4LLnu6Caweg07W89jcuFWXkxo1R4kD8lKm4Y=",
-      UNSUBSCRIBE_TOKEN_SECRET: "+6gGXPHFvKZLSvt6bBbAPR28KrwZzFKh/71HkdcUY5A=",
-      SYSTEM_ADMIN_EMAIL: "admin@quiksend.example",
-      SMTP_HOST: "smtp.quiksend.example",
-      SMTP_FROM: "no-reply@quiksend.example",
-      SMTP_SECURE: "1",
       OPENAI_API_KEY: "sk-test",
       BRAVE_API_KEY: "brave-token",
       QUIKSEND_ENGINE_FAKE_MAIL: "1",
@@ -278,48 +273,24 @@ describe("EnvSchema", () => {
   });
   it("rejects production without OPENAI_API_KEY", () => {
     const result = EnvSchema.safeParse({
-      NODE_ENV: "production",
-      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
-      BETTER_AUTH_SECRET: "a".repeat(32),
-      BETTER_AUTH_URL: "https://app.quiksend.io",
-      NANGO_WEBHOOK_SECRET: "nango-secret",
-      MAILBOX_ENCRYPTION_KEY: "7+v7Obw4LLnu6Caweg07W89jcuFWXkxo1R4kD8lKm4Y=",
-      UNSUBSCRIBE_TOKEN_SECRET: "+6gGXPHFvKZLSvt6bBbAPR28KrwZzFKh/71HkdcUY5A=",
-      SYSTEM_ADMIN_EMAIL: "admin@quiksend.example",
-      SMTP_HOST: "smtp.quiksend.example",
-      SMTP_FROM: "no-reply@quiksend.example",
-      SMTP_SECURE: "1",
+      ...validProductionBase,
       BRAVE_API_KEY: "brave-token",
     });
     expect(result.success).toBe(false);
-    if (!result.success) {
-      const messages = result.error.issues.map((i) => i.message);
-      expect(messages).toContain("OPENAI_API_KEY is required in production for embeddings");
-    }
+    const messages = result.success ? [] : result.error.issues.map((i) => i.message);
+    expect(messages).toContain("OPENAI_API_KEY is required in production for embeddings");
   });
 
   it("rejects production without any search provider key", () => {
     const result = EnvSchema.safeParse({
-      NODE_ENV: "production",
-      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
-      BETTER_AUTH_SECRET: "a".repeat(32),
-      BETTER_AUTH_URL: "https://app.quiksend.io",
-      NANGO_WEBHOOK_SECRET: "nango-secret",
-      MAILBOX_ENCRYPTION_KEY: "7+v7Obw4LLnu6Caweg07W89jcuFWXkxo1R4kD8lKm4Y=",
-      UNSUBSCRIBE_TOKEN_SECRET: "+6gGXPHFvKZLSvt6bBbAPR28KrwZzFKh/71HkdcUY5A=",
-      SYSTEM_ADMIN_EMAIL: "admin@quiksend.example",
-      SMTP_HOST: "smtp.quiksend.example",
-      SMTP_FROM: "no-reply@quiksend.example",
-      SMTP_SECURE: "1",
+      ...validProductionBase,
       OPENAI_API_KEY: "sk-test",
     });
     expect(result.success).toBe(false);
-    if (!result.success) {
-      const messages = result.error.issues.map((i) => i.message);
-      expect(messages).toContain(
-        "At least one search provider (BRAVE_API_KEY, EXA_API_KEY, or TAVILY_API_KEY) is required in production",
-      );
-    }
+    const messages = result.success ? [] : result.error.issues.map((i) => i.message);
+    expect(messages).toContain(
+      "At least one search provider (BRAVE_API_KEY, EXA_API_KEY, or TAVILY_API_KEY) is required in production",
+    );
   });
 
 });
