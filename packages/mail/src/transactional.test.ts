@@ -1,4 +1,14 @@
-/** Tests lazy transport creation and sendMail passthrough; mocks nodemailer like smtp.test.ts. */
+/**
+ * Tests lazy transport creation and sendMail passthrough; mocks nodemailer
+ * like smtp.test.ts. `sendTransactionalEmail` is re-imported fresh (via
+ * `vi.resetModules()` + dynamic `import()`) before every case in the
+ * `sendTransactionalEmail` describe block — production memoizes the
+ * transport on purpose (see transactional.ts), but that means each test here
+ * would otherwise inherit whatever transport a prior case already built,
+ * making `createTransport`-call assertions depend on run order. Resetting
+ * the module registry gives each case its own unmemoized module instance
+ * without touching the memoization behavior under test elsewhere.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { sendMail, createTransport } = vi.hoisted(() => ({
@@ -56,10 +66,10 @@ vi.mock("@quiksend/config", async (importOriginal) => {
   };
 });
 
-const { sendTransactionalEmail, escapeHtml } = await import("./transactional.ts");
-
 describe("sendTransactionalEmail", () => {
-  beforeEach(() => {
+  let sendTransactionalEmail: (typeof import("./transactional.ts"))["sendTransactionalEmail"];
+
+  beforeEach(async () => {
     mockEnv.SMTP_HOST = "localhost";
     mockEnv.SMTP_PORT = 1025;
     mockEnv.SMTP_FROM = undefined;
@@ -69,6 +79,11 @@ describe("sendTransactionalEmail", () => {
     mockEnv.SMTP_SECURE = false;
     mockEnv.SMTP_REQUIRE_TLS = false;
     sendMail.mockResolvedValue({ messageId: "<id@relay>" });
+    // Fresh module instance per test — see file header — so this test's
+    // `transport` memoization starts unset regardless of what earlier tests
+    // built.
+    vi.resetModules();
+    ({ sendTransactionalEmail } = await import("./transactional.ts"));
   });
 
   afterEach(() => {
@@ -146,13 +161,15 @@ describe("sendTransactionalEmail", () => {
 });
 
 describe("escapeHtml", () => {
-  it("escapes the five HTML-significant characters", () => {
+  it("escapes the five HTML-significant characters", async () => {
+    const { escapeHtml } = await import("./transactional.ts");
     expect(escapeHtml(`<script>alert('x')</script> & "quotes"`)).toBe(
       "&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt; &amp; &quot;quotes&quot;",
     );
   });
 
-  it("neutralizes a hostile organization name so it can't break out of an HTML attribute or inject a tag", () => {
+  it("neutralizes a hostile organization name so it can't break out of an HTML attribute or inject a tag", async () => {
+    const { escapeHtml } = await import("./transactional.ts");
     const hostileName = `Acme"><img src=x onerror=alert(1)>`;
     const escaped = escapeHtml(hostileName);
     expect(escaped).not.toContain("<img");
@@ -160,7 +177,8 @@ describe("escapeHtml", () => {
     expect(escaped).toBe("Acme&quot;&gt;&lt;img src=x onerror=alert(1)&gt;");
   });
 
-  it("leaves plain text untouched", () => {
+  it("leaves plain text untouched", async () => {
+    const { escapeHtml } = await import("./transactional.ts");
     expect(escapeHtml("Acme Corp")).toBe("Acme Corp");
   });
 });
