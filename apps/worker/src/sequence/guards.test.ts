@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { emailDomain } from "@quiksend/core";
 import { isProspectStatusSuppressed, checkSendPreConditions } from "./guards.ts";
 
-
 describe("isProspectStatusSuppressed", () => {
   it("returns false for active prospect with no suppression row", () => {
     expect(isProspectStatusSuppressed("active")).toBe(false);
@@ -164,4 +163,3 @@ describe("accepted send result handling", () => {
     expect(fallback.length).toBeGreaterThan(0);
   });
 });
-
