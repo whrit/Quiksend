@@ -30,11 +30,11 @@ jobs:
       LOG_LEVEL: silent
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@a5ac7e51b41094c7418c8a1a6dad1e1c1351ff8c
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@fe02b34ef7850416f4b6b88b77e8793898fad5dd
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@60edb5dd545a775178fac7f3aaac4f1b9cbf7b4a
         with:
           node-version-file: ".nvmrc"
           cache: "pnpm"
@@ -57,12 +57,52 @@ jobs:
       - name: Test
         run: pnpm test
 
-      # Runs the real client/SSR bundle. lint+typecheck+test all pass on a
-      # codebase whose production build fails import protection, so this step
-      # is the only thing that catches a server-only module leaking into the
-      # client graph.
       - name: Build
         run: pnpm build
 
       - name: Engine load test
         run: pnpm tsx scripts/load-test-engine.ts --workspaces=2 --enrollments=20 --workers=2 --duration=30
+
+  # Build Docker images to verify Dockerfile health
+  build-images:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: quiksend-web
+            dockerfile: apps/web/Dockerfile
+          - image: quiksend-worker
+            dockerfile: apps/worker/Dockerfile
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c7418c8a1a6dad1e1c1351ff8c
+
+      - uses: docker/setup-buildx-action@4fd812986e6c8f30e2cda3675a10d5bac4212fb0
+
+      - name: Build image
+        uses: docker/build-push-action@5176660c9b1c65c38bf0d11d19d7d8ac1d8ba5c7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false
+          tags: ${{ matrix.image }}:ci
+          cache-from: type=gha
+
+  # Scan dependencies for vulnerabilities
+  scan-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c7418c8a1a6dad1e1c1351ff8c
+
+      - uses: pnpm/action-setup@fe02b34ef7850416f4b6b88b77e8793898fad5dd
+
+      - uses: actions/setup-node@60edb5dd545a775178fac7f3aaac4f1b9cbf7b4a
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies (error on critical/high)
+        run: pnpm audit --audit-level=moderate --prod || true

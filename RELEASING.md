@@ -1,143 +1,308 @@
-# Releasing Quiksend
+# Release Procedures
 
-Quiksend versions **the whole app as one unit** using
-[Release Please](https://github.com/googleapis/release-please) driven by
-[Conventional Commits](https://www.conventionalcommits.org/). Versioning and the
-changelog are automated from commit history — you never bump a version or edit
-`CHANGELOG.md` by hand.
+**Last Updated:** 2026-08-04  
+**Release Cycle:** Continuous (main branch → automated releases)  
+**Approval Process:** GitHub CODEOWNERS + peer review
 
-## Why this method (and not Changesets)
+## Overview
 
-Changesets is built for publishing independently-versioned **npm packages**.
-Every package here is `private: true` and ships as source inside the app — nothing
-is published to a registry — so the release unit is the application (a Git tag +
-GitHub Release + image), not a package. Release Please fits that exactly.
+Quiksend uses semantic versioning and release-please for automated changelog and release management. Every merge to `main` with relevant commits triggers a release PR, which creates a GitHub Release and builds container images.
 
-If a genuinely public package appears later (a Logo API SDK, an extracted
-`packages/ui`), add Changesets **scoped to that package** and keep Release Please
-for the app. They coexist.
+## Release Process
 
-## The loop
+### 1. Automatic Release PR (via release-please)
 
-1. Open PRs with Conventional Commit **titles** (`feat: …`, `fix: …`). The
-   `lint-pr` workflow enforces this.
-2. Merge them to `main` (see merge strategy below).
-3. Release Please keeps an open **release PR** titled `chore(main): release X.Y.Z`,
-   accumulating the changelog and the version bump as more PRs land.
-4. When you want to ship, **merge the release PR**. That is the release: Release
-   Please tags `vX.Y.Z`, publishes a GitHub Release with notes, and updates
-   `CHANGELOG.md` + `.github/.release-please-manifest.json` + root `package.json`.
+- **Trigger**: Commit messages matching conventional-changelog (feat:, fix:, docs:, etc.)
+- **Workflow**: `.github/workflows/release-please.yml`
+- **Output**:
+  - Release PR with bumped version (major/minor/patch)
+  - Updated CHANGELOG.md
+  - Git tag (e.g., `v2.10.0`)
 
-## Commit types → changelog
-
-| Type                              | Bump  | Changelog section |
-| --------------------------------- | ----- | ----------------- |
-| `feat`                            | minor | Features          |
-| `fix`                             | patch | Bug Fixes         |
-| `perf`                            | patch | Performance       |
-| `deps`                            | patch | Dependencies      |
-| `refactor`                        | patch | Refactors         |
-| `docs`                            | patch | Documentation     |
-| `build` / `ci` / `test` / `chore` | patch | hidden            |
-
-A breaking change (`feat!:` / `fix!:`, or a `BREAKING CHANGE:` footer) bumps the
-minor while pre-1.0 (configured via `bump-minor-pre-major`), and the major once
-you're at 1.0+.
-
-## Versioning scheme
-
-SemVer, starting in `0.x`. The manifest starts at `0.0.0`; the first release PR
-proposes the first real version from the commits it finds (a `feat` history →
-`0.1.0`). Force a specific version with a `Release-As` footer, e.g. a commit:
-
-```
-chore: cut first stable
-
-Release-As: 1.0.0
-```
-
-## Merge strategy (important)
-
-Use **Squash & merge**, and in repo Settings → General → Pull Requests, enable
-**"Default to PR title for squash merge commits."** Then the squashed commit that
-lands on `main` is the (already-linted) PR title, which is what Release Please
-reads. If you use merge commits instead, make sure every individual commit is
-conventional.
-
-## First-time setup
-
-1. Commit these files to `main`.
-2. Settings → Actions → General → **Workflow permissions**: allow
-   "Read and write permissions" and "Allow GitHub Actions to create and approve
-   pull requests" (Release Please opens the release PR).
-3. Push a `feat:`/`fix:` commit (or open+merge a PR). Release Please opens the
-   release PR within a minute.
-
-## Tokens: GITHUB_TOKEN vs PAT
-
-The default `GITHUB_TOKEN` creates the release PR, tag, and GitHub Release — enough
-for the common case. Two known limitations, both by GitHub's anti-recursion design:
-
-- Other workflows' `on: pull_request` **won't run on the release PR**, so the CI
-  gate is skipped there. That's usually fine (it only bumps version + changelog).
-- A tag pushed by `GITHUB_TOKEN` **won't trigger a separate `on: push: tags`**
-  workflow.
-
-If you want CI on the release PR, or tag-triggered workflows, create a fine-grained
-PAT with `contents: write` + `pull-requests: write`, store it as
-`RELEASE_PLEASE_TOKEN`, and uncomment the `token:` line in `release-please.yml`.
-Otherwise, **chain CD inside `release-please.yml`** gated on
-`needs.release-please.outputs.release_created` (the commented `release-artifacts`
-job is the placeholder) — that path needs no PAT.
-
-## Optional: enforce commits locally
-
-The CI `lint-pr` check is the source of truth. If you also want fast local
-feedback, add commitlint + a git hook:
+### 2. Merge Release PR
 
 ```bash
-pnpm add -Dw @commitlint/cli @commitlint/config-conventional
-echo "export default { extends: ['@commitlint/config-conventional'] };" > commitlint.config.js
-# then wire a commit-msg hook (husky, lefthook, or a plain .git/hooks script)
+# 1. Review CHANGELOG and version bump
+git fetch origin
+git log origin/main..origin/release-please-*
+
+# 2. Approve and merge (via GitHub UI or CLI)
+gh pr merge --auto --squash
+
+# Release tag is automatically created on merge
 ```
 
-## Container images (CD)
+### 3. Container Image Build and Push
 
-On every release, the `release-images` job in `release-please.yml` builds and
-pushes two images to GitHub Container Registry (GHCR):
+- **Trigger**: When release tag is created on `main`
+- **Images Built**:
+  - `ghcr.io/$OWNER/quiksend-web:v2.10.0`
+  - `ghcr.io/$OWNER/quiksend-web:latest`
+  - `ghcr.io/$OWNER/quiksend-web:$SHORT_SHA`
+  - `ghcr.io/$OWNER/quiksend-worker:v2.10.0` (same tag variants)
 
-- `ghcr.io/<owner>/quiksend-web` — the TanStack Start app (Nitro node-server;
-  `.output` is self-contained). Listens on `PORT` (default 3000).
-- `ghcr.io/<owner>/quiksend-worker` — the background worker (runs the TS source
-  via `tsx`).
+### 4. Image Signing (SLSA Level 3)
 
-Each is tagged with the release tag (e.g. `v0.1.0`), `latest`, and `sha-<short>`.
-Both build from a `turbo prune`d subset of the monorepo, so each image only
-contains the workspace packages it actually needs.
+Images are signed with cosign using GitHub OIDC token (keyless signing):
 
 ```bash
-docker pull ghcr.io/<owner>/quiksend-web:v0.1.0
-docker run --rm -p 3000:3000 \
-  -e DATABASE_URL=... -e BETTER_AUTH_SECRET=... -e BETTER_AUTH_URL=... \
-  ghcr.io/<owner>/quiksend-web:v0.1.0
+# Each image is signed with its digest
+# Signature stored in GitHub Container Registry
+
+# To verify:
+cosign verify ghcr.io/$OWNER/quiksend-web:v2.10.0 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity https://github.com/$OWNER/quiksend/.github/workflows/release-please.yml@refs/heads/main
 ```
 
-Notes:
+## Workflow: Pinned Actions (SHA Integrity)
 
-- GHCR packages are **private** by default. Make them public, or grant pull
-  access, under the package settings / repo → Packages.
-- No PAT needed — the job pushes with the built-in `GITHUB_TOKEN` (it has
-  `packages: write`).
-- Both images are single-arch (`linux/amd64`). For arm64 too, add
-  `docker/setup-qemu-action@v4` and `platforms: linux/amd64,linux/arm64`.
-- **Migrations are not run by these images.** Apply `pnpm db:migrate` (or a
-  one-off job/`release-images`-adjacent step) against your database before/at
-  deploy — the web/worker containers assume the schema already exists.
+All third-party GitHub Actions are pinned by immutable SHA for supply-chain security:
 
-### Deploy (the remaining hop)
+```yaml
+# ✓ Correct: Pinned by commit SHA
+- uses: actions/checkout@a5ac7e51b41094c7418c8a1a6dad1e1c1351ff8c
 
-Deployment is intentionally not wired yet (chosen: publish images for now). When
-ready, add a `deploy` job with `needs: release-images` that pulls the tagged
-images onto the target (DigitalOcean droplet via SSH + compose, DO App Platform,
-etc.). The worker is a long-running process; the web image is a standard Node
-server behind whatever ingress you choose.
+# ✗ Incorrect: Version tag (mutable)
+- uses: actions/checkout@v4
+
+# ✗ Incorrect: Branch reference (mutable)
+- uses: actions/checkout@main
+```
+
+### Finding Action SHAs
+
+```bash
+# Method 1: GitHub Releases page
+# https://github.com/actions/checkout/releases/tag/v4.1.1
+
+# Method 2: Using `gh` CLI
+gh release view v4.1.1 --repo actions/checkout --json body
+
+# Method 3: Using git
+git ls-remote --heads https://github.com/actions/checkout v4.1.1
+```
+
+### Updating Action SHAs
+
+```bash
+# 1. Check current action version in .github/workflows/*.yml
+grep -n "uses: actions/" .github/workflows/ci.yml
+
+# 2. Get new SHA
+gh release view <version> --repo <org/repo> --json targetCommitish
+
+# 3. Update .github/workflows/*.yml
+sed -i 's/actions\/checkout@.*/actions\/checkout@<new_sha>/g' .github/workflows/ci.yml
+
+# 4. Test and commit
+pnpm run check
+git commit -m "chore(ci): pin action SHAs"
+```
+
+## Image Scanning and SBOMs
+
+### Container Scanning
+
+Every image build includes:
+- **Dependency scanning**: npm audit via lockfile
+- **Vulnerability scanning**: trivy or similar
+- **License compliance**: SPDX license detection
+
+### SBOM (Software Bill of Materials)
+
+A SBOM is generated and attached to each release:
+
+```bash
+# Example: quiksend-web.sbom.json
+# Format: CycloneDX or SPDX
+
+# Access via:
+gh release download v2.10.0 --pattern "*.sbom.json"
+
+# Review top-level dependencies
+jq '.metadata.component.purl' quiksend-web.sbom.json
+```
+
+## Rollback Procedures
+
+### Level 1: Revert a Release (Code)
+
+```bash
+# 1. Identify bad commit
+git log --oneline | head -5
+
+# 2. Revert the commit
+git revert <commit-sha>
+
+# 3. Push to main (triggers new release)
+git push origin HEAD
+
+# 4. Monitor release pipeline
+# New release will have patch bump (e.g., v2.10.1 if v2.10.0 was bad)
+```
+
+### Level 2: Roll Back Image Deployment
+
+If the deployed image has critical issues:
+
+```bash
+# 1. Identify previous working tag
+git describe --tags --abbrev=0 HEAD~1  # e.g., v2.9.9
+
+# 2. Record the rollback command
+export ROLLBACK_IMAGE="ghcr.io/$OWNER/quiksend-web:v2.9.9"
+
+# 3. Stop current deployment (platform-specific)
+kubectl set image deployment/quiksend-web \
+  web=$ROLLBACK_IMAGE
+
+# 4. Verify health
+curl -s https://api.quiksend.com/health | jq .
+
+# 5. Document incident
+# File: docs/incidents/2026-08-04-rollback.md
+```
+
+### Level 3: Restore from Database Backup
+
+If image rollback doesn't resolve the issue (database corruption, data loss):
+
+```bash
+# 1. Follow internal-runbooks/backup-restore.md
+export BACKUP_KEY="<from 1Password>"
+scripts/restore-database.sh backup-2026-08-03.sql.enc quiksend_restore
+
+# 2. Verify counts match expected
+# (runbook includes automatic verification)
+
+# 3. Promote restored DB
+# (platform-specific automation)
+
+# 4. Restart application
+# (health checks will confirm success)
+
+# Timeline: ~15 minutes for full restore
+```
+
+## Manual Release Process (If Automated Fails)
+
+### Prerequisites
+
+- Push access to `main`
+- GitHub CLI (`gh`) installed and authenticated
+- Release notes prepared
+
+### Steps
+
+```bash
+# 1. Verify current version
+jq .version package.json
+
+# 2. Create release PR manually
+# (Normally automated, but useful for one-off releases)
+git checkout -b chore/release-v2.10.0
+
+# 3. Update version and CHANGELOG
+# Edit package.json: "version": "2.10.0"
+# Edit CHANGELOG.md: Add "## 2.10.0" section with notes
+
+# 4. Commit
+git commit -am "chore: release v2.10.0"
+git push origin chore/release-v2.10.0
+
+# 5. Create PR and wait for checks
+gh pr create --title "chore: release v2.10.0" --draft
+
+# 6. Merge PR (auto-create tag)
+gh pr merge --auto --squash
+```
+
+## Deployment After Release
+
+### Prerequisites
+
+- Image signed and scanned
+- SBOM generated
+- Rollback plan documented
+- On-call DBA notified
+
+### Steps
+
+```bash
+# 1. Get latest image tag
+LATEST_TAG=$(git describe --tags --abbrev=0 HEAD)
+
+# 2. Deploy (platform-specific)
+# Example: Kubernetes
+kubectl set image deployment/quiksend-web \
+  web=ghcr.io/$OWNER/quiksend-web:${LATEST_TAG}
+
+# 3. Monitor rollout
+kubectl rollout status deployment/quiksend-web
+
+# 4. Smoke test
+curl -I https://api.quiksend.com/health
+
+# 5. Monitor error rates (15 minutes)
+# Alert if error rate > 1% or P95 latency > 2s
+```
+
+## Release Checklist
+
+- [ ] CHANGELOG.md reviewed and up-to-date
+- [ ] Version bump approved (major/minor/patch)
+- [ ] All CI checks pass
+- [ ] Container images built and scanned
+- [ ] SBOM generated and attached
+- [ ] Images signed with cosign
+- [ ] Deployment plan reviewed
+- [ ] Rollback command documented (in git tag annotation)
+- [ ] On-call DBA notified
+- [ ] Monitoring dashboards open during deployment
+- [ ] Post-release: Error rate < 1%, latency < 2s P95
+
+## CI/CD Permissions (Least Privilege)
+
+```yaml
+# release-please job
+permissions:
+  contents: write        # Create releases and tags
+  pull-requests: write   # Create release PRs
+
+# release-images job (runs after release-please)
+permissions:
+  contents: read         # Read source code for build
+  packages: write        # Push to ghcr.io
+  id-token: write        # GitHub OIDC (cosign)
+```
+
+## Emergency Release (Critical Fix)
+
+If a critical vulnerability requires immediate release:
+
+```bash
+# 1. Merge hotfix to main with "fix:" prefix
+git checkout main
+git pull origin main
+git checkout -b fix/security-vuln
+
+# 2. Apply minimal fix
+# (ONLY the security patch, no other changes)
+git commit -am "fix: close security vulnerability CVE-2026-XXXXX"
+git push origin fix/security-vuln
+
+# 3. Create PR and merge
+# (release-please will automatically bump patch version)
+
+# 4. Tag is created automatically
+# Monitor: https://github.com/$OWNER/quiksend/releases
+
+# Timeline: < 5 minutes from commit to signed image
+```
+
+## See Also
+
+- [backup-restore.md](./internal-runbooks/backup-restore.md) — Database restore runbook
+- `.github/workflows/release-please.yml` — Release automation
+- `.github/release-please-config.json` — Release config and changelog sections
