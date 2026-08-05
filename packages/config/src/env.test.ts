@@ -71,9 +71,21 @@ describe("EnvSchema", () => {
     if (result.success) throw new Error("expected failure");
     const messages = errorMessages(result);
     expect(messages).toContain("BETTER_AUTH_SECRET");
+    expect(messages).toContain("NANGO_WEBHOOK_SECRET");
+    expect(messages).toContain("MAILBOX_ENCRYPTION_KEY");
+    expect(messages).toContain("UNSUBSCRIBE_TOKEN_SECRET");
+    expect(messages).toContain("SYSTEM_ADMIN_EMAIL");
   });
 
-  it("accepts production env when all critical secrets are present", () => {
+  it("leaves SYSTEM_ADMIN_EMAIL optional outside production (self-host stays open)", () => {
+    const result = EnvSchema.safeParse({
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+    });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.SYSTEM_ADMIN_EMAIL).toBeUndefined();
+  });
+
+  it("requires an aligned SMTP_FROM and TLS posture in production", () => {
     const result = EnvSchema.safeParse({
       NODE_ENV: "production",
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
@@ -82,6 +94,40 @@ describe("EnvSchema", () => {
       NANGO_WEBHOOK_SECRET: "nango-secret",
       MAILBOX_ENCRYPTION_KEY: "mailbox-key",
       UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
+      SYSTEM_ADMIN_EMAIL: "admin@quiksend.example",
+      SMTP_HOST: "smtp.quiksend.example",
+      // SMTP_FROM and TLS deliberately omitted.
+    });
+    expect(result.success).toBe(false);
+    const message = result.success ? "" : (result.error.issues.find((i) => i.message.includes("SMTP"))?.message ?? "");
+    expect(message).toContain("SMTP_FROM");
+    expect(message).toContain("SMTP_SECURE");
+  });
+
+  it("rejects SMTP_USER without a paired SMTP_PASS in any environment", () => {
+    const result = EnvSchema.safeParse({
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      SMTP_USER: "relay-user",
+    });
+    expect(result.success).toBe(false);
+    const message = result.success ? "" : (result.error.issues[0]?.message ?? "");
+    expect(message).toContain("SMTP_USER and SMTP_PASS must be set together");
+  });
+
+  it("accepts production env when all critical secrets, SYSTEM_ADMIN_EMAIL, and an aligned SMTP posture are present", () => {
+    const result = EnvSchema.safeParse({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      BETTER_AUTH_SECRET: "a".repeat(32),
+      NANGO_WEBHOOK_SECRET: "nango-secret",
+      MAILBOX_ENCRYPTION_KEY: "mailbox-key",
+      UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
+      SYSTEM_ADMIN_EMAIL: "admin@quiksend.example",
+      SMTP_HOST: "smtp.quiksend.example",
+      SMTP_FROM: "no-reply@quiksend.example",
+      SMTP_SECURE: "1",
+      SMTP_USER: "relay-user",
+      SMTP_PASS: "relay-pass",
     });
     expect(result.success).toBe(true);
   });

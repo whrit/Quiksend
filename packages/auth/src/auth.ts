@@ -1,9 +1,10 @@
 import { apiKey } from "@better-auth/api-key";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { env } from "@quiksend/config";
+import { env, logger } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
-import { sendTransactionalEmail } from "@quiksend/mail";
+import { escapeHtml } from "@quiksend/mail";
+import { enqueueWithRetries } from "@quiksend/queue";
 import { APIError, betterAuth } from "better-auth";
 import { organization } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
@@ -50,10 +51,10 @@ export async function resolveDefaultActiveOrganizationId(userId: string): Promis
 
 /**
  * Case-insensitive match against the configured Quiksend Systems operator
- * bootstrap identity (`SYSTEM_ADMIN_EMAIL`). Unset in self-host deployments —
- * every bootstrap/invite gate below is a no-op in that case, matching the
- * documented self-host first-run flow (docs/self-host.md: sign up the first
- * admin, then create a workspace from onboarding).
+ * bootstrap identity (`SYSTEM_ADMIN_EMAIL`). Unset in local development —
+ * every bootstrap/invite gate below is a no-op in that case. `env.schema.ts`
+ * requires it in production (self-host included), so this only stays a no-op
+ * outside production.
  */
 function isSystemAdminEmail(email: string): boolean {
   return Boolean(env.SYSTEM_ADMIN_EMAIL) && email.toLowerCase() === env.SYSTEM_ADMIN_EMAIL?.toLowerCase();
@@ -77,6 +78,43 @@ function appBaseUrl(): string {
 }
 
 /**
+ * Durably enqueues a transactional email instead of sending it inline —
+ * `apps/worker`'s `mail.send_transactional` handler does the actual SMTP
+ * send, so account-flow response latency never depends on relay round-trip
+ * time. Never swallows a failure: a failed enqueue is logged *and* rethrown.
+ *
+ * Caveat callers should know: Better Auth wraps every `sendResetPassword` /
+ * `sendInvitationEmail` / `sendVerificationEmail` hook in its own
+ * `runInBackgroundOrAwait`, which — with no `advanced.backgroundTasks.handler`
+ * configured (we don't; see below) — awaits the hook inline but catches and
+ * only *logs* a thrown error rather than failing the HTTP response. That's
+ * intentional for `requestPasswordReset` (a hard failure there would leak
+ * account existence). Configuring a custom background handler would make
+ * every hook truly fire-and-forget instead, which is strictly worse for
+ * surfacing failures — so this stays as the honest boundary: our code never
+ * treats a failed enqueue as success, but Better Auth's password-reset route
+ * still returns its fixed, non-enumerating response either way.
+ */
+export async function enqueueTransactionalEmail(payload: {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+}): Promise<void> {
+  let jobId: string | null;
+  try {
+    jobId = await enqueueWithRetries("mail.send_transactional", payload);
+  } catch (err) {
+    logger.error({ err, to: payload.to, subject: payload.subject }, "Failed to enqueue transactional email");
+    throw err;
+  }
+  if (!jobId) {
+    logger.error({ to: payload.to, subject: payload.subject }, "Transactional email enqueue returned no job id");
+    throw new Error("Failed to enqueue transactional email");
+  }
+}
+
+/**
  * Better Auth server instance, shared by apps/web (handler + server fns) and, later,
  * the public API. Multi-tenancy comes from the `organization` plugin (org = workspace).
  *
@@ -93,22 +131,47 @@ export const auth = betterAuth({
   trustedOrigins: env.BETTER_AUTH_URL ? [env.BETTER_AUTH_URL] : [],
   emailAndPassword: {
     enabled: true,
+    // Credential accounts must verify their email before they can sign in —
+    // pairs with `emailVerification` below (invited users verify, then sign
+    // in and accept, per the invitation link's preserved callback state).
+    requireEmailVerification: true,
     // A leaked/expired reset link is a narrow window, and a successful reset
     // kills every other session for the account so a stolen password can't
     // ride an already-open session elsewhere.
     resetPasswordTokenExpiresIn: 3600,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
-      await sendTransactionalEmail({
+      await enqueueTransactionalEmail({
         to: user.email,
         subject: "Reset your Quiksend password",
         text: `Reset your Quiksend password:\n${url}\n\nThis link expires in 1 hour. If you didn't request this, you can ignore this email — your password hasn't changed.`,
         html:
-          `<p>Reset your Quiksend password by clicking the link below.</p>` +
+          `<p>Reset your Quiksend password by clicking the link below. This link expires in 1 hour.</p>` +
           `<p><a href="${url}">Reset password</a></p>` +
-          `<p>This link expires in 1 hour. If you didn't request this, you can ignore this email — your password hasn't changed.</p>`,
+          `<p>If you didn't request this, you can ignore this email — your password hasn't changed.</p>`,
       });
     },
+  },
+  emailVerification: {
+    sendVerificationEmail: async ({ user, url }) => {
+      await enqueueTransactionalEmail({
+        to: user.email,
+        subject: "Verify your Quiksend email",
+        text: `Verify your email to finish setting up your Quiksend account:\n${url}\n\nThis link expires in 1 hour.`,
+        html:
+          `<p>Verify your email to finish setting up your Quiksend account.</p>` +
+          `<p><a href="${url}">Verify email</a></p>` +
+          `<p>This link expires in 1 hour.</p>`,
+      });
+    },
+    sendOnSignUp: true,
+    // Re-sends the verification link (preserving the caller's `callbackURL`,
+    // e.g. back to an invitation) when an unverified user attempts sign-in.
+    sendOnSignIn: true,
+    // Clicking the verification link signs the user in immediately — no
+    // separate manual sign-in step between "verify" and "accept invitation".
+    autoSignInAfterVerification: true,
+    expiresIn: 3600,
   },
   socialProviders: {
     ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
@@ -164,18 +227,26 @@ export const auth = betterAuth({
         acceptUrl.searchParams.set("invitationId", id);
         acceptUrl.searchParams.set("invitedEmail", email);
         acceptUrl.searchParams.set("organizationName", invitedOrg.name);
-        await sendTransactionalEmail({
+        // `invitedOrg.name` is workspace-owner-controlled, not ours — escape
+        // it before interpolating into the HTML body so a hostile org name
+        // (e.g. `Acme"><img src=x onerror=...>`) can't inject markup into an
+        // invitee's inbox. The plain-text body needs no escaping.
+        const safeOrgName = escapeHtml(invitedOrg.name);
+        await enqueueTransactionalEmail({
           to: email,
           subject: `You're invited to join ${invitedOrg.name} on Quiksend`,
           text: `You've been invited to join ${invitedOrg.name} on Quiksend:\n${acceptUrl.toString()}\n\nThis invitation expires in 7 days.`,
           html:
-            `<p>You've been invited to join <strong>${invitedOrg.name}</strong> on Quiksend.</p>` +
+            `<p>You've been invited to join <strong>${safeOrgName}</strong> on Quiksend.</p>` +
             `<p><a href="${acceptUrl.toString()}">Accept invitation</a></p>` +
             `<p>This invitation expires in 7 days.</p>`,
         });
       },
     }),
     apiKey({
+      // API keys are owned by the organization, not the individual user who
+      // created them — membership changes and offboarding don't orphan keys.
+      references: "organization",
       defaultPrefix: "qs_",
       keyExpiration: {
         defaultExpiresIn: 365 * 24 * 60 * 60 * 1000,

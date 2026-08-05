@@ -63,13 +63,13 @@ function MembersPage() {
     setInviting(true);
     try {
       await inviteMember({ data: { email: email.trim(), role } });
-      toast.success(`Invitation sent to ${email.trim()}`);
+      toast.success(`Invitation created — delivery email queued for ${email.trim()}`);
       setEmail("");
       setRole("member");
       setInviteOpen(false);
       await reload();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send invitation");
+      toast.error(err instanceof Error ? err.message : "Failed to create invitation");
     } finally {
       setInviting(false);
     }
@@ -181,8 +181,7 @@ function MembersPage() {
           <DialogHeader>
             <DialogTitle>Invite member</DialogTitle>
             <DialogDescription>
-              They&apos;ll receive an email with a link to create an account and join this
-              workspace.
+              We&apos;ll queue an email with a link to create an account and join this workspace.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

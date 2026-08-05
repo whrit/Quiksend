@@ -19,6 +19,8 @@ export interface SmtpTransportConfig {
   readonly port: number;
   readonly auth?: { readonly user: string; readonly pass: string };
   readonly secure?: boolean;
+  /** Upgrade via STARTTLS and refuse to send in the clear when the server can't. */
+  readonly requireTLS?: boolean;
   /** Inject for tests. */
   readonly transport?: Transporter;
 }
@@ -41,6 +43,7 @@ export function createSmtpAdapter(config: SmtpAdapterConfig): MailboxAdapter {
       host: config.host,
       port: config.port,
       secure: config.secure ?? false,
+      requireTLS: config.requireTLS,
       auth: config.auth,
     });
 
@@ -117,6 +120,7 @@ export function createSmtpTransport(config: SmtpTransportConfig): Transporter {
       host: config.host,
       port: config.port,
       secure: config.secure ?? false,
+      requireTLS: config.requireTLS,
       auth: config.auth,
     })
   );

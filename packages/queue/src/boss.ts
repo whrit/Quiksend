@@ -48,6 +48,12 @@ const QUEUE_DEFAULTS: Partial<Record<JobName, UpdateQueueOptions>> = {
     retryBackoff: true,
     retryDelayMax: 3600,
   },
+  "mail.send_transactional": {
+    retryLimit: 5,
+    retryDelay: 60,
+    retryBackoff: true,
+    retryDelayMax: 3600,
+  },
 };
 
 const WORK_DEFAULTS: Partial<Record<JobName, WorkOptions>> = {

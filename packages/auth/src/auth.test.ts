@@ -1,6 +1,8 @@
 /**
- * Auth config tests against the real test DB. SYSTEM_ADMIN_EMAIL and
- * sendTransactionalEmail are mocked per-case.
+ * Auth config tests against the real test DB. `SYSTEM_ADMIN_EMAIL` is mocked
+ * per-case; `@quiksend/queue`'s `enqueueWithRetries` is mocked so transactional
+ * mail (reset/invitation/verification) never touches a real queue or SMTP relay
+ * — `auth.ts` durably enqueues rather than sending inline (see `mail.send_transactional`).
  */
 import { randomUUID } from "node:crypto";
 import { db } from "@quiksend/db";
@@ -26,16 +28,23 @@ vi.mock("@quiksend/config", async (importOriginal) => {
   };
 });
 
-const sendTransactionalEmailMock = vi.hoisted(() =>
-  vi.fn<(input: { to: string; subject: string; text: string; html: string }) => Promise<void>>(),
+interface TransactionalMailJobPayload {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+}
+
+const enqueueWithRetriesMock = vi.hoisted(() =>
+  vi.fn<(job: string, payload: TransactionalMailJobPayload) => Promise<string | null>>(),
 );
 
-vi.mock("@quiksend/mail", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@quiksend/mail")>();
-  return { ...actual, sendTransactionalEmail: sendTransactionalEmailMock };
+vi.mock("@quiksend/queue", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@quiksend/queue")>();
+  return { ...actual, enqueueWithRetries: enqueueWithRetriesMock };
 });
 
-import { auth, resolveDefaultActiveOrganizationId } from "./auth.ts";
+import { auth, enqueueTransactionalEmail, resolveDefaultActiveOrganizationId } from "./auth.ts";
 
 function makeId(prefix: string): string {
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
@@ -54,11 +63,11 @@ async function createUser(): Promise<string> {
   return id;
 }
 
-async function createOrgWithMember(userId: string, order = 0): Promise<string> {
+async function createOrgWithMember(userId: string, order = 0, name?: string): Promise<string> {
   const orgId = makeId("org");
   await db.insert(tables.organization).values({
     id: orgId,
-    name: `Org ${orgId}`,
+    name: name ?? `Org ${orgId}`,
     slug: orgId,
     createdAt: new Date(Date.now() + order * 1000),
   });
@@ -104,19 +113,28 @@ async function createInvitation(params: {
   return id;
 }
 
-/** Signs a fresh Better Auth user up and returns request headers carrying its session cookie. */
+async function headersFromSetCookie(setCookie: string | null): Promise<Headers> {
+  const headers = new Headers();
+  if (setCookie) applySetCookies(headers, [setCookie]);
+  return headers;
+}
+
+/**
+ * Signs a fresh Better Auth user up, then bypasses the real verification-link
+ * round trip (no `auth.api` surface exposes the internal JWT signer used to
+ * mint one) by flipping `emailVerified` directly and signing in for real.
+ * `requireEmailVerification: true` means `signUpEmail` itself never creates a
+ * session, so every test that needs an authenticated caller goes through this.
+ */
 async function signUpAndAuthenticate(
   email: string,
   password = "correct horse battery staple",
 ): Promise<{ userId: string; headers: Headers }> {
-  const result = await auth.api.signUpEmail({
-    body: { email, password, name: email },
-    returnHeaders: true,
-  });
-  const headers = new Headers();
-  const setCookie = result.headers.get("set-cookie");
-  if (setCookie) applySetCookies(headers, [setCookie]);
-  return { userId: result.response.user.id, headers };
+  const signedUp = await auth.api.signUpEmail({ body: { email, password, name: email } });
+  await db.update(tables.user).set({ emailVerified: true }).where(eq(tables.user.id, signedUp.user.id));
+  const signedIn = await auth.api.signInEmail({ body: { email, password }, returnHeaders: true });
+  const headers = await headersFromSetCookie(signedIn.headers.get("set-cookie"));
+  return { userId: signedUp.user.id, headers };
 }
 
 const createdUserIds: string[] = [];
@@ -146,7 +164,8 @@ afterEach(async () => {
   }
   createdUserIds.length = 0;
   mockEnv.SYSTEM_ADMIN_EMAIL = undefined;
-  sendTransactionalEmailMock.mockReset();
+  enqueueWithRetriesMock.mockReset();
+  enqueueWithRetriesMock.mockResolvedValue("job_1");
 });
 
 describe("resolveDefaultActiveOrganizationId", () => {
@@ -186,16 +205,53 @@ describe("resolveDefaultActiveOrganizationId", () => {
   });
 });
 
+describe("email verification", () => {
+  it("enqueues a verification email on signup", async () => {
+    const email = `${makeId("verify")}@test.local`;
+    const result = await auth.api.signUpEmail({
+      body: { email, password: "whatever password", name: email },
+    });
+    createdUserIds.push(result.user.id);
+
+    expect(result.token).toBeNull();
+    expect(enqueueWithRetriesMock).toHaveBeenCalledExactlyOnceWith(
+      "mail.send_transactional",
+      expect.objectContaining({
+        to: email,
+        text: expect.stringContaining("/verify-email"),
+        html: expect.stringContaining("/verify-email"),
+      }),
+    );
+  });
+
+  it("denies sign-in for an unverified account", async () => {
+    const email = `${makeId("unverified")}@test.local`;
+    const password = "whatever password";
+    const result = await auth.api.signUpEmail({ body: { email, password, name: email } });
+    createdUserIds.push(result.user.id);
+
+    await expect(auth.api.signInEmail({ body: { email, password } })).rejects.toThrow();
+  });
+
+  it("allows sign-in once the account is verified", async () => {
+    const { userId, headers } = await signUpAndAuthenticate(`${makeId("verified")}@test.local`);
+    createdUserIds.push(userId);
+    expect(await auth.api.getSession({ headers })).not.toBeNull();
+  });
+});
+
 describe("password reset", () => {
-  it("delivers the reset link via sendTransactionalEmail for an existing user", async () => {
+  it("delivers the reset link via the transactional mail queue for an existing user", async () => {
     const email = `${makeId("reset")}@test.local`;
     const { userId } = await signUpAndAuthenticate(email);
     createdUserIds.push(userId);
+    enqueueWithRetriesMock.mockClear();
 
     const res = await auth.api.requestPasswordReset({ body: { email } });
 
     expect(res.status).toBe(true);
-    expect(sendTransactionalEmailMock).toHaveBeenCalledExactlyOnceWith(
+    expect(enqueueWithRetriesMock).toHaveBeenCalledExactlyOnceWith(
+      "mail.send_transactional",
       expect.objectContaining({
         to: email,
         text: expect.stringContaining("/reset-password/"),
@@ -208,25 +264,26 @@ describe("password reset", () => {
     const email = `${makeId("reset")}@test.local`;
     const { userId } = await signUpAndAuthenticate(email);
     createdUserIds.push(userId);
+    enqueueWithRetriesMock.mockClear();
 
     const existing = await auth.api.requestPasswordReset({ body: { email } });
-    expect(sendTransactionalEmailMock).toHaveBeenCalledTimes(1);
+    expect(enqueueWithRetriesMock).toHaveBeenCalledTimes(1);
 
     const missing = await auth.api.requestPasswordReset({
       body: { email: `${makeId("ghost")}@test.local` },
     });
 
     // Timing-safe / non-enumerating: identical shape and message either way,
-    // and no second email was sent for the email that doesn't exist.
+    // and no second email was enqueued for the email that doesn't exist.
     expect(missing).toEqual(existing);
-    expect(sendTransactionalEmailMock).toHaveBeenCalledTimes(1);
+    expect(enqueueWithRetriesMock).toHaveBeenCalledTimes(1);
   });
 
   it("revokes every existing session once the password is actually reset", async () => {
     const email = `${makeId("reset")}@test.local`;
     const { userId, headers } = await signUpAndAuthenticate(email);
     createdUserIds.push(userId);
-    // signUpEmail already created one session; add a second to prove *all*
+    // sign-in already created one session; add a second to prove *all*
     // sessions are revoked, not just the one active during the flow.
     await createSession(userId, null);
     const beforeSessions = await db.query.session.findMany({ where: eq(tables.session.userId, userId) });
@@ -246,6 +303,46 @@ describe("password reset", () => {
     expect(afterSessions).toHaveLength(0);
     // The reset itself doesn't leave the caller signed in on this headers set.
     expect(await auth.api.getSession({ headers })).toBeNull();
+  });
+
+  it("routes the reset email through the transactional queue helper", async () => {
+    // Covered precisely (not through a swallowed HTTP round trip — see the
+    // `enqueueTransactionalEmail` describe block below for why) by asserting
+    // the enqueue call happened; failure-propagation itself is unit-tested
+    // directly against `enqueueTransactionalEmail`.
+    const email = `${makeId("reset")}@test.local`;
+    const { userId } = await signUpAndAuthenticate(email);
+    createdUserIds.push(userId);
+    enqueueWithRetriesMock.mockClear();
+
+    await auth.api.requestPasswordReset({ body: { email } });
+    expect(enqueueWithRetriesMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("enqueueTransactionalEmail", () => {
+  const payload = { to: "a@example.com", subject: "s", text: "t", html: "<p>t</p>" };
+
+  afterEach(() => {
+    enqueueWithRetriesMock.mockReset();
+  });
+
+  it("rethrows instead of swallowing a rejected enqueue — never treats a failure as sent", async () => {
+    enqueueWithRetriesMock.mockRejectedValueOnce(new Error("queue unavailable"));
+    await expect(enqueueTransactionalEmail(payload)).rejects.toThrow("queue unavailable");
+  });
+
+  it("throws when the queue accepts the call but returns no job id (pg-boss debounce/failure)", async () => {
+    enqueueWithRetriesMock.mockResolvedValueOnce(null);
+    await expect(enqueueTransactionalEmail(payload)).rejects.toThrow(
+      "Failed to enqueue transactional email",
+    );
+  });
+
+  it("resolves cleanly on a real job id", async () => {
+    enqueueWithRetriesMock.mockResolvedValueOnce("job_42");
+    await expect(enqueueTransactionalEmail(payload)).resolves.toBeUndefined();
+    expect(enqueueWithRetriesMock).toHaveBeenCalledExactlyOnceWith("mail.send_transactional", payload);
   });
 });
 
@@ -354,6 +451,7 @@ describe("member invitations", () => {
     createdUserIds.push(ownerId);
     const orgId = await createOrgWithMember(ownerId);
     const invitedEmail = `${makeId("invitee")}@test.local`;
+    enqueueWithRetriesMock.mockClear();
 
     const invitation = await auth.api.createInvitation({
       headers,
@@ -361,15 +459,37 @@ describe("member invitations", () => {
     });
 
     expect(invitation.id).toBeDefined();
-    expect(sendTransactionalEmailMock).toHaveBeenCalledExactlyOnceWith(
+    expect(enqueueWithRetriesMock).toHaveBeenCalledExactlyOnceWith(
+      "mail.send_transactional",
       expect.objectContaining({
         to: invitedEmail.toLowerCase(),
         text: expect.stringContaining(`invitationId=${invitation.id}`),
         html: expect.stringContaining(`invitationId=${invitation.id}`),
       }),
     );
-    const call = sendTransactionalEmailMock.mock.calls[0]![0];
+    const [, call] = enqueueWithRetriesMock.mock.calls[0]!;
     expect(call.text).toContain(`Org ${orgId}`);
+  });
+
+  it("escapes a hostile organization name before it reaches the HTML email body", async () => {
+    const ownerEmail = `${makeId("owner")}@test.local`;
+    const { userId: ownerId, headers } = await signUpAndAuthenticate(ownerEmail);
+    createdUserIds.push(ownerId);
+    const hostileName = `Acme"><img src=x onerror=alert(1)>`;
+    const orgId = await createOrgWithMember(ownerId, 0, hostileName);
+    const invitedEmail = `${makeId("invitee")}@test.local`;
+    enqueueWithRetriesMock.mockClear();
+
+    await auth.api.createInvitation({
+      headers,
+      body: { email: invitedEmail, role: "member", organizationId: orgId },
+    });
+
+    const [, call] = enqueueWithRetriesMock.mock.calls[0]!;
+    const html = call.html;
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain(hostileName);
+    expect(html).toContain("Acme&quot;&gt;&lt;img src=x onerror=alert(1)&gt;");
   });
 
   it("lets an org admin cancel a pending invitation", async () => {

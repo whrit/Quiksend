@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,8 @@ function LoginPage() {
   );
   const [error, setError] = useState<string | null>(resetError ?? null);
   const [info, setInfo] = useState<string | null>(null);
+  const [accepting, setAccepting] = useState(false);
+  const { data: session } = authClient.useSession();
   const {
     register,
     handleSubmit,
@@ -61,36 +64,83 @@ function LoginPage() {
   const forgotForm = useForm<ForgotValues>({ resolver: zodResolver(forgotSchema) });
   const resetForm = useForm<ResetValues>({ resolver: zodResolver(resetSchema) });
 
+  // Clicking the emailed verification link auto-signs the user in and
+  // redirects back here with the invitation context intact — finish joining
+  // instead of showing the sign-in/sign-up form again.
+  useEffect(() => {
+    if (!invitationId || !session || accepting) return;
+    setAccepting(true);
+    acceptInvitation({ data: { invitationId } })
+      .then(() => navigate({ to: "/dashboard" }))
+      .catch((err: unknown) => {
+        setAccepting(false);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "The invitation could not be accepted — it may have expired or already been used.",
+        );
+      });
+  }, [invitationId, session, accepting, navigate]);
+
   const onSubmit = handleSubmit(async (values) => {
     setError(null);
     setInfo(null);
-    const res =
-      mode === "signin"
-        ? await authClient.signIn.email({ email: values.email, password: values.password })
-        : await authClient.signUp.email({
-            email: values.email,
-            password: values.password,
-            name: values.name?.trim() || values.email,
-          });
+    // Threaded back through email verification so the invited user lands
+    // right back here (with the invitation still in the URL) once verified.
+    const callbackURL = invitationId ? window.location.href : undefined;
+
+    if (mode === "signin") {
+      const res = await authClient.signIn.email({
+        email: values.email,
+        password: values.password,
+        callbackURL,
+      });
+      if (res.error) {
+        const message = res.error.message ?? "";
+        setError(
+          /not verified/i.test(message)
+            ? "Check your email to verify your account — we've sent a new verification link."
+            : message || "Something went wrong. Please try again.",
+        );
+        return;
+      }
+      if (invitationId) {
+        try {
+          await acceptInvitation({ data: { invitationId } });
+        } catch (err) {
+          // Truthful failure: the account is signed in now, but never claim
+          // the workspace invite succeeded when the server rejected it.
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Signed in, but the invitation could not be accepted — ask an admin to resend it.",
+          );
+          return;
+        }
+      }
+      await navigate({ to: "/dashboard" });
+      return;
+    }
+
+    const res = await authClient.signUp.email({
+      email: values.email,
+      password: values.password,
+      name: values.name?.trim() || values.email,
+      callbackURL,
+    });
     if (res.error) {
       setError(res.error.message ?? "Something went wrong. Please try again.");
       return;
     }
-    if (invitationId) {
-      try {
-        await acceptInvitation({ data: { invitationId } });
-      } catch (err) {
-        // Truthful failure: the account exists now, but never claim the
-        // workspace invite succeeded when the server rejected it.
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Signed in, but the invitation could not be accepted — ask an admin to resend it.",
-        );
-        return;
-      }
-    }
-    await navigate({ to: "/dashboard" });
+    // Email verification is required, so signup never signs the user in —
+    // the account now exists, but nothing is joined yet. Truthful, not a
+    // premature "you're in" — the `useEffect` above finishes the join once
+    // the emailed link is clicked and auto-signs them in.
+    setInfo(
+      invitationId
+        ? `Check your email to verify your account. Once verified, you'll automatically join ${organizationName ?? "the workspace"}.`
+        : "Check your email to verify your account, then sign in.",
+    );
   });
 
   const onForgotSubmit = forgotForm.handleSubmit(async (values) => {
@@ -102,11 +152,12 @@ function LoginPage() {
       redirectTo,
     });
     if (res.error) {
-      setError(res.error.message ?? "Couldn't send reset email. Please try again.");
+      setError(res.error.message ?? "Couldn't queue a reset email. Please try again.");
       return;
     }
-    setInfo("If an account exists for that email, we sent a reset link.");
+    setInfo("If an account exists for that email, a reset link has been queued for delivery.");
   });
+
 
   const onResetSubmit = resetForm.handleSubmit(async (values) => {
     if (!token) {
@@ -135,6 +186,19 @@ function LoginPage() {
 
   const social = (provider: "google" | "microsoft") =>
     authClient.signIn.social({ provider, callbackURL: "/dashboard" });
+
+  if (invitationId && session && !error) {
+    return (
+      <AuthShell
+        title="Joining workspace…"
+        subtitle={`Finishing up — you'll land in ${organizationName ?? "your workspace"} shortly.`}
+      >
+        <div className="mt-6 flex justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      </AuthShell>
+    );
+  }
 
   if (mode === "forgot") {
     return (

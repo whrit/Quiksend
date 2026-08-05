@@ -22,6 +22,7 @@ import { registerDeliverabilitySnapshotHandler } from "./handlers/deliverability
 import { registerSeedInboxVerifyHandler } from "./handlers/seed-inbox-verify.ts";
 import { registerSeedPoolHealthHandler } from "./handlers/seed-pool-health.ts";
 import { registerSeedPoolLegitMailHandler } from "./handlers/seed-pool-legit-mail.ts";
+import { registerMailTransactionalSendHandler } from "./handlers/mail-transactional-send.ts";
 
 /**
  * Worker entrypoint. Boots pg-boss, registers job handlers, and idles waiting
@@ -77,6 +78,7 @@ async function main(): Promise<void> {
   await registerDeliverabilitySnapshotHandler();
   await registerMailboxPollTick();
   await registerNangoWebhookSweep();
+  await registerMailTransactionalSendHandler();
 
   if (env.NODE_ENV !== "production") {
     await enqueue("hello.ping", { message: "worker boot smoke test" });

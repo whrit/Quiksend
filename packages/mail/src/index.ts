@@ -48,5 +48,6 @@ export type { EmailGateway, GatewayEvidence } from "./gateway-detect.ts";
 export { detectEmailGateway } from "./gateway-detect.ts";
 export {
   sendTransactionalEmail,
+  escapeHtml,
   type TransactionalEmailInput,
 } from "./transactional.ts";

@@ -18,6 +18,7 @@
     "@quiksend/config": "workspace:*",
     "@quiksend/db": "workspace:*",
     "@quiksend/mail": "workspace:*",
+    "@quiksend/queue": "workspace:*",
     "better-auth": "1.6.23",
     "drizzle-orm": "0.45.2"
   },
