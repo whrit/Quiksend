@@ -25,23 +25,11 @@ export interface ApiKeySummary {
 }
 
 /**
- * Core logic behind every `*ApiKey*` server function below, factored out so
- * tests can drive it with a hand-built `OrgContext` (see
- * `api-keys-tenancy.test.ts`) instead of faking a request/session — the
- * `createServerFn(...).handler(...)` wrappers are thin adapters over these.
- *
- * Keys are organization-owned (Better Auth `apiKey({ references: "organization" })`,
- * see `packages/auth/src/auth.ts`): `apikey.referenceId` *is* the organization id,
- * the single source of tenancy truth. List/revoke query and mutate that column
- * directly — Better Auth's own list/delete endpoints require a live session
- * (`sessionMiddleware`) and only grant the org's `owner` role by default, which
- * is stricter than this app's admin-or-owner API-key policy; going straight to
- * the table keeps that policy uniform with every other org-scoped server
- * function here (all of which query `db` directly, never re-issue an
- * `auth.api.*` call). Create still goes through `auth.api.createApiKey` — key
- * generation and hashing genuinely live in the plugin.
+ * List/revoke go straight to the table: Better Auth's own endpoints only
+ * grant the `owner` role — this app's admin-or-owner policy needs direct DB.
+ * Create still uses `auth.api.createApiKey` for key generation and hashing.
  */
-export async function listApiKeysForOrg(orgContext: OrgContext): Promise<ApiKeySummary[] & { truncated: boolean }> {
+export async function listApiKeysForOrg(orgContext: OrgContext): Promise<ApiKeySummary[]> {
   if (!isAdminOrOwner(orgContext)) {
     throw new Error("Admin or owner role required to manage API keys");
   }
@@ -60,8 +48,7 @@ export async function listApiKeysForOrg(orgContext: OrgContext): Promise<ApiKeyS
       lastRequest: true,
     },
   });
-  const keys = rows.map((row) => ({ ...row, enabled: row.enabled ?? true }));
-  return Object.assign(keys, { truncated: keys.length >= LIST_API_KEYS_LIMIT });
+  return rows.map((row) => ({ ...row, enabled: row.enabled ?? true }));
 }
 
 export const listApiKeys = createServerFn({ method: "GET" })
@@ -82,9 +69,7 @@ export async function createApiKeyForOrg(
     body: {
       name: data.name,
       organizationId: orgContext.organizationId,
-      // Session/cookie-derived via `authHeaders` in production; passed explicitly
-      // too since the plugin's own org-permission check needs an acting user and
-      // tests don't carry a real session.
+      // Plugin org-permission check needs an acting user; tests have no session.
       userId: orgContext.userId,
       expiresIn: data.expiresIn,
       prefix: "qsk",

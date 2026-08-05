@@ -96,10 +96,7 @@ export async function resolveApiKey(request: Request): Promise<ApiAuthContext | 
   });
   if (!result.valid || !result.key) return null;
 
-  // `referenceId` is authoritative: the plugin sets it to the organization
-  // id at creation time and re-validates org membership/role on every
-  // create/list/update/delete call. No metadata to parse, nothing to trust
-  // beyond what Better Auth itself already verified.
+  // `referenceId` IS the organization id — set at creation, verified by the plugin.
   const organizationId = result.key.referenceId;
   if (!organizationId) return null;
 
