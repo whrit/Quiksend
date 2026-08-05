@@ -8,6 +8,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { organization } from "./auth.ts";
@@ -59,6 +60,10 @@ export const message = pgTable(
     inReplyTo: text("in_reply_to"),
     referencesHeader: text("references_header"),
     status: text("status").default("sent").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    metadataReconciledAt: timestamp("metadata_reconciled_at", { withTimezone: true }),
+    reconciliationError: text("reconciliation_error"),
+    ingestionAttempts: integer("ingestion_attempts"),
     sentiment: messageSentimentEnum("sentiment"),
     bounceType: text("bounce_type"),
     dsn: jsonb("dsn"),
@@ -97,6 +102,9 @@ export const message = pgTable(
     index("message_mailbox_throttle_idx")
       .on(table.mailboxId, table.sentAt.desc())
       .where(sql`${table.direction} = 'outbound' AND ${table.status} = 'sent'`),
+    uniqueIndex("message_mailbox_provider_msg_uidx")
+      .on(table.mailboxId, table.providerMessageId)
+      .where(sql`${table.direction} = 'inbound' AND ${table.providerMessageId} IS NOT NULL`),
     index("message_org_thread_at_idx").on(table.organizationId, table.threadAt.desc()),
     index("message_org_thread_auto_reply_idx").on(
       table.organizationId,
