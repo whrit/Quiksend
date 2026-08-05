@@ -1,6 +1,6 @@
 import { db, tables } from "@quiksend/db";
 import type { ResearchFact } from "@quiksend/db/schema";
-import { and, cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
+import { and, cosineDistance, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { embedText } from "../model/embed.ts";
 import {
   UNTRUSTED_SOURCE_SYSTEM_GUARD,
@@ -20,7 +20,10 @@ async function fallbackValueProps(
   limit: number,
 ): Promise<MatchedValueProp[]> {
   const rows = await db.query.valueProp.findMany({
-    where: eq(tables.valueProp.organizationId, organizationId),
+    where: and(
+      eq(tables.valueProp.organizationId, organizationId),
+      isNotNull(tables.valueProp.embedding),
+    ),
     orderBy: desc(tables.valueProp.createdAt),
     limit,
   });

@@ -7,6 +7,34 @@ import { fetchAndSummarize } from "./fetch-and-summarize.ts";
 import { searchWeb } from "./search-web.ts";
 import { wrapUntrustedSource } from "./untrusted-source.ts";
 
+/** Normalize a URL to protocol + host + path + search for citation comparison. */
+export function normalizeSourceUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    return `${u.protocol}//${u.host}${u.pathname}${u.search}`;
+  } catch {
+    return raw;
+  }
+}
+
+/**
+ * Reject generated facts whose source_url does not match any URL actually
+ * fetched in this run. Non-web sources (crm://) are exempt.
+ */
+export function validateCitations(
+  facts: ResearchFact[],
+  fetchedUrls: string[],
+): void {
+  const allowed = new Set(fetchedUrls.map(normalizeSourceUrl));
+  const fabricated = facts.filter(
+    (f) => !f.source_url.startsWith("crm://") && !allowed.has(normalizeSourceUrl(f.source_url)),
+  );
+  if (fabricated.length > 0) {
+    const urls = fabricated.map((f) => f.source_url).join(", ");
+    throw new Error(`Generated facts cite unfetched URLs: ${urls}`);
+  }
+}
+
 const FRESHNESS_DAYS = 14;
 
 function dedupeFacts(facts: ResearchFact[]): ResearchFact[] {
@@ -128,6 +156,7 @@ export async function buildProfile(
     ]);
 
     const webFacts = await fetchAndSummarize(searchResults);
+    validateCitations(webFacts, searchResults.map((r) => r.url));
     const crmFacts = crmContext ? factsFromCrm(crmContext) : [];
     const facts = dedupeFacts([...crmFacts, ...webFacts]);
 

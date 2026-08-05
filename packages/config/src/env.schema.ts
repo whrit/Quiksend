@@ -167,6 +167,12 @@ export const EnvSchema = z
     },
   )
   .refine(
+    (env) => env.NODE_ENV !== "production" || Boolean(env.OPENAI_API_KEY),
+    {
+      message: "OPENAI_API_KEY is required in production for embeddings",
+    },
+  )
+  .refine(
     (env) =>
       env.NODE_ENV !== "production" ||
       (Boolean(env.SMTP_HOST) &&
@@ -179,6 +185,15 @@ export const EnvSchema = z
   )
   .refine((env) => Boolean(env.SMTP_USER) === Boolean(env.SMTP_PASS), {
     message: "SMTP_USER and SMTP_PASS must be set together, or not at all",
-  });
+  })
+  .refine(
+    (env) =>
+      env.NODE_ENV !== "production" ||
+      Boolean(env.BRAVE_API_KEY || env.EXA_API_KEY || env.TAVILY_API_KEY),
+    {
+      message:
+        "At least one search provider (BRAVE_API_KEY, EXA_API_KEY, or TAVILY_API_KEY) is required in production",
+    },
+  );
 
 export type Env = z.infer<typeof EnvSchema>;

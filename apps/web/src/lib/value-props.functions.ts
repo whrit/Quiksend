@@ -1,3 +1,4 @@
+import { embedText } from "@quiksend/ai";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { and, desc, eq } from "drizzle-orm";
@@ -86,6 +87,7 @@ export const createValueProp = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((data: unknown) => createValuePropSchema.parse(data))
   .handler(async ({ data, context }) => {
+    const embedding = await embedText(`${data.title} ${data.body}`);
     const [row] = await db
       .insert(tables.valueProp)
       .values({
@@ -93,6 +95,7 @@ export const createValueProp = createServerFn({ method: "POST" })
         title: data.title,
         body: data.body,
         tags: data.tags ?? [],
+        embedding,
         createdByUserId: context.orgContext.userId,
       })
       .returning();
@@ -104,9 +107,24 @@ export const updateValueProp = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((data: unknown) => updateValuePropSchema.parse(data))
   .handler(async ({ data, context }) => {
+    const existing = await db.query.valueProp.findFirst({
+      where: and(
+        eq(tables.valueProp.id, data.id),
+        eq(tables.valueProp.organizationId, context.orgContext.organizationId),
+      ),
+    });
+    if (!existing) throw new ValuePropError("NOT_FOUND", "Value prop not found");
+
+    const needsReembed = data.patch.title !== undefined || data.patch.body !== undefined;
+    const embedding = needsReembed
+      ? await embedText(
+          `${data.patch.title ?? existing.title} ${data.patch.body ?? existing.body}`,
+        )
+      : undefined;
+
     const [row] = await db
       .update(tables.valueProp)
-      .set(data.patch)
+      .set({ ...data.patch, ...(embedding !== undefined ? { embedding } : {}) })
       .where(
         and(
           eq(tables.valueProp.id, data.id),

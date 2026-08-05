@@ -2,8 +2,8 @@ import { openai } from "@ai-sdk/openai";
 import { env } from "@quiksend/config";
 import { embed } from "ai";
 
-const EMBEDDING_MODEL = "text-embedding-3-small";
-const EMBEDDING_DIMENSIONS = 1536;
+export const EMBEDDING_MODEL = "text-embedding-3-small";
+export const EMBEDDING_DIMENSIONS = 1536;
 
 function requireOpenAiKey(): void {
   const key = process.env.OPENAI_API_KEY ?? env.OPENAI_API_KEY;
