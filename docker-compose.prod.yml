@@ -1,42 +1,133 @@
-# Production overlay — web + worker on top of docker-compose.yml (Postgres + Mailpit).
+# Standalone production Compose. Private Postgres, no Mailpit, no default credentials.
 # Usage:
-#   cp .env.example .env   # set production secrets
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-#   DATABASE_URL=postgres://quiksend:quiksend@localhost:5432/quiksend pnpm db:migrate
+#   cp .env.example .env
+#   # Set required production secrets in .env:
+#   #   POSTGRES_PASSWORD (strong password, not "quiksend")
+#   #   BETTER_AUTH_SECRET (>= 32 bytes, base64)
+#   #   BETTER_AUTH_URL (https://yourdomain.com, not http://localhost)
+#   #   NANGO_WEBHOOK_SECRET (from Nango dashboard)
+#   #   MAILBOX_ENCRYPTION_KEY (32-byte base64)
+#   #   UNSUBSCRIBE_TOKEN_SECRET (32-byte base64)
+#   #   SMTP_HOST (smtp.provider.com)
+#   #   SMTP_PORT (587 or 465)
+#   #   SMTP_FROM (noreply@yourdomain.com)
+#   # Optional:
+#   #   SENTRY_DSN, POSTHOG_KEY
+#   #   QUIKSEND_IMAGE_TAG (defaults to latest)
 #
-# Pin a release: QUIKSEND_IMAGE_TAG=v2.1.0
+#   docker compose -f docker-compose.prod.yml up -d
 #
-# Optional env (pass through from host .env — omit or leave blank to use app defaults / disable):
-#   AI: ANTHROPIC_API_KEY, OPENAI_API_KEY, BRAVE_API_KEY, EXA_API_KEY, TAVILY_API_KEY
-#   Phase 11 deliverability: SEG_DAILY_CAP_PER_MAILBOX, TRACKING_PIXEL_DOMAIN,
-#     SYSTEM_SEED_ENCRYPTION_KEY (Quiksend Systems provider seed pool only)
-#   Webhooks: WEBHOOK_DELIVER_CONCURRENCY
+# Run migrations (before starting services):
+#   docker compose -f docker-compose.prod.yml run --rm -e DATABASE_URL="postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/quiksend" migrate pnpm db:migrate
+
+version: "3.8"
+
+networks:
+  db:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
 
 services:
+  # Private Postgres — accessible only to web/worker/migrate via the private 'db' network.
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: quiksend-postgres-prod
+    restart: on-failure
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required in production}
+      POSTGRES_DB: quiksend
+    networks:
+      db:
+        ipv4_address: 172.20.0.2
+    volumes:
+      - quiksend-pgdata-prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d quiksend"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+        reservations:
+          cpus: "1"
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Database migration service — one-shot, waits for Postgres to be healthy.
+  # For pre-built images, run migrations manually before starting services:
+  #   docker compose -f docker-compose.prod.yml run --rm -e DATABASE_URL="postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/quiksend" migrate pnpm db:migrate
+  migrate:
+    image: ghcr.io/whrit/quiksend-web:${QUIKSEND_IMAGE_TAG:-latest}
+    container_name: quiksend-migrate
+    networks:
+      - db
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/quiksend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["pnpm", "db:migrate"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    profiles:
+      - migrate
+
+  # Web service — TanStack Start + Nitro.
   web:
     image: ghcr.io/whrit/quiksend-web:${QUIKSEND_IMAGE_TAG:-latest}
-    restart: unless-stopped
+    container_name: quiksend-web
+    restart: on-failure:3
+    networks:
+      - db
     environment:
       NODE_ENV: production
       PORT: "3000"
-      DATABASE_URL: postgres://quiksend:quiksend@postgres:5432/quiksend
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
-      UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:?Set UNSUBSCRIBE_TOKEN_SECRET in .env}
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/quiksend
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL required in production}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET required}
+      UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:?UNSUBSCRIBE_TOKEN_SECRET required}
       NANGO_SECRET_KEY: ${NANGO_SECRET_KEY:-}
-      NANGO_WEBHOOK_SECRET: ${NANGO_WEBHOOK_SECRET:?Set NANGO_WEBHOOK_SECRET in .env}
-      MAILBOX_ENCRYPTION_KEY: ${MAILBOX_ENCRYPTION_KEY:?Set MAILBOX_ENCRYPTION_KEY in .env}
-      SMTP_HOST: mailpit
-      SMTP_PORT: "1025"
+      NANGO_WEBHOOK_SECRET: ${NANGO_WEBHOOK_SECRET:?NANGO_WEBHOOK_SECRET required}
+      MAILBOX_ENCRYPTION_KEY: ${MAILBOX_ENCRYPTION_KEY:?MAILBOX_ENCRYPTION_KEY required}
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST required in production}
+      SMTP_PORT: ${SMTP_PORT:?SMTP_PORT required in production}
+      SMTP_FROM: ${SMTP_FROM:?SMTP_FROM required in production}
       SENTRY_DSN: ${SENTRY_DSN:-}
       POSTHOG_KEY: ${POSTHOG_KEY:-}
-      # Optional — AI generation (omit to disable personalized email / research)
+      # Optional — AI generation (omit to disable)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       BRAVE_API_KEY: ${BRAVE_API_KEY:-}
       EXA_API_KEY: ${EXA_API_KEY:-}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
-      # Optional — Phase 11 SEG routing / deliverability (defaults apply when unset)
+      # Optional — Phase 11 SEG routing / deliverability
       SEG_DAILY_CAP_PER_MAILBOX: ${SEG_DAILY_CAP_PER_MAILBOX:-50}
       TRACKING_PIXEL_DOMAIN: ${TRACKING_PIXEL_DOMAIN:-}
       SYSTEM_SEED_ENCRYPTION_KEY: ${SYSTEM_SEED_ENCRYPTION_KEY:-}
@@ -46,31 +137,71 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000/api/health', (r) => {if(r.statusCode!==200)throw new Error(r.statusCode)})",
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+        reservations:
+          cpus: "1"
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+  # Worker service — pg-boss job processor, cron jobs.
   worker:
     image: ghcr.io/whrit/quiksend-worker:${QUIKSEND_IMAGE_TAG:-latest}
-    restart: unless-stopped
+    container_name: quiksend-worker
+    restart: on-failure:3
+    networks:
+      - db
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://quiksend:quiksend@postgres:5432/quiksend
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://web:3000}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
-      UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:?Set UNSUBSCRIBE_TOKEN_SECRET in .env}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/quiksend
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL required}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET required}
+      UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:?UNSUBSCRIBE_TOKEN_SECRET required}
       NANGO_SECRET_KEY: ${NANGO_SECRET_KEY:-}
-      NANGO_WEBHOOK_SECRET: ${NANGO_WEBHOOK_SECRET:?Set NANGO_WEBHOOK_SECRET in .env}
-      MAILBOX_ENCRYPTION_KEY: ${MAILBOX_ENCRYPTION_KEY:?Set MAILBOX_ENCRYPTION_KEY in .env}
-      SMTP_HOST: mailpit
-      SMTP_PORT: "1025"
+      NANGO_WEBHOOK_SECRET: ${NANGO_WEBHOOK_SECRET:?NANGO_WEBHOOK_SECRET required}
+      MAILBOX_ENCRYPTION_KEY: ${MAILBOX_ENCRYPTION_KEY:?MAILBOX_ENCRYPTION_KEY required}
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST required in production}
+      SMTP_PORT: ${SMTP_PORT:?SMTP_PORT required in production}
+      SMTP_FROM: ${SMTP_FROM:?SMTP_FROM required in production}
       SENTRY_DSN: ${SENTRY_DSN:-}
       POSTHOG_KEY: ${POSTHOG_KEY:-}
       NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=2048}
-      # Optional — AI generation (omit to disable personalized email / research)
+      # Optional — AI generation
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       BRAVE_API_KEY: ${BRAVE_API_KEY:-}
       EXA_API_KEY: ${EXA_API_KEY:-}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
-      # Optional — Phase 11 SEG routing / deliverability (defaults apply when unset)
+      # Optional — Phase 11 SEG routing / deliverability
       SEG_DAILY_CAP_PER_MAILBOX: ${SEG_DAILY_CAP_PER_MAILBOX:-50}
       TRACKING_PIXEL_DOMAIN: ${TRACKING_PIXEL_DOMAIN:-}
       SYSTEM_SEED_ENCRYPTION_KEY: ${SYSTEM_SEED_ENCRYPTION_KEY:-}
@@ -78,3 +209,35 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/worker-health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+        reservations:
+          cpus: "1"
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  quiksend-pgdata-prod:
+    driver: local
