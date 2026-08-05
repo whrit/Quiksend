@@ -79,6 +79,7 @@ describe("resolveMailboxAdapter", () => {
         archivedByUserId: null,
         archiveReason: null,
         createdAt: new Date(),
+        updatedAt: new Date(),
       },
       {
         unsubscribeUrl: "https://app.example.com/u/test",

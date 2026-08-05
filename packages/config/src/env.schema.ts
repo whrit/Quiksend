@@ -129,23 +129,20 @@ export const EnvSchema = z
     (env) => {
       if (env.NODE_ENV !== "production") return true;
       if (!env.BETTER_AUTH_URL) return false;
-      let url: URL;
       try {
-        url = new URL(env.BETTER_AUTH_URL);
+        const url = new URL(env.BETTER_AUTH_URL);
+        const h = url.hostname;
+        return (
+          url.protocol === "https:" &&
+          h !== "localhost" &&
+          h !== "127.0.0.1" &&
+          h !== "::1" &&
+          h !== "0.0.0.0" &&
+          h !== "::"
+        );
       } catch {
         return false;
       }
-      if (url.protocol !== "https:") return false;
-      const host = url.hostname;
-      if (
-        host === "localhost" ||
-        host === "127.0.0.1" ||
-        host === "::1" ||
-        host === "0.0.0.0" ||
-        host === "::"
-      )
-        return false;
-      return true;
     },
     {
       message:

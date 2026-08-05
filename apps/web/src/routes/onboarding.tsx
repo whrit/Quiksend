@@ -33,7 +33,6 @@ function OnboardingPage() {
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
   const [postalAddress, setPostalAddress_] = useState("");
-  const [orgId, setOrgId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const removedFromWorkspace = routeContext.removedFromWorkspace || removed;
@@ -61,7 +60,6 @@ function OnboardingPage() {
         setCreating(false);
         return;
       }
-      setOrgId(result.data.id);
     }
     setCreating(false);
     setStep(2);
