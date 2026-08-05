@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.10.0](https://github.com/whrit/Quiksend/compare/v2.9.2...v2.10.0) (2026-08-04)
+
+
+### Features
+
+* **ui:** apply the design system across every screen ([368abfb](https://github.com/whrit/Quiksend/commit/368abfbb5b5b556f70aabe29190ffaf5c01bbf1e))
+* **ui:** colour contract, icon tiles, pills and hairline panels ([a52c940](https://github.com/whrit/Quiksend/commit/a52c940b6d7e3dc40003da4af8cde0c17825f084))
+
+
+### Bug Fixes
+
+* **ai:** route configured exa/tavily keys to their real search providers ([faa2122](https://github.com/whrit/Quiksend/commit/faa21225829060b7f10b5daa27dc85dd4a0cc67a))
+* **analytics:** attribute messages to the step they were sent for ([6d54bba](https://github.com/whrit/Quiksend/commit/6d54bba1deb6ae78ec745a062d744995899b7416))
+* **security:** enforce suppression on manual send paths; drop subprocess DNS in webhook guard ([a49e121](https://github.com/whrit/Quiksend/commit/a49e121daf7cbc0573b8aaf73855920a7c7a948b))
+* **send:** record outbound messages before dispatch; backfill step attribution ([cc76894](https://github.com/whrit/Quiksend/commit/cc768944bff2ae97370a0fd2df818eebdfe86fbc))
+* **test:** run the suite against a dedicated test database ([908c723](https://github.com/whrit/Quiksend/commit/908c723a2dedfe53d03a7498766805daa2f86f25))
+* **web:** repair production build and add it to the CI gate ([34bee96](https://github.com/whrit/Quiksend/commit/34bee96b3d362f055baf050e47035ef612028b87))
+* **web:** route manual enrollment stop through the state machine ([02bc489](https://github.com/whrit/Quiksend/commit/02bc489f11e43d0fea2a7870e62f73fb14412dc3))
+
 ## [2.9.2](https://github.com/whrit/Quiksend/compare/v2.9.1...v2.9.2) (2026-07-09)
 
 
