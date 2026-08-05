@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ function LoginPage() {
   );
   const [error, setError] = useState<string | null>(resetError ?? null);
   const [info, setInfo] = useState<string | null>(null);
-  const [accepting, setAccepting] = useState(false);
+  const acceptAttempted = useRef(false);
   const { data: session } = authClient.useSession();
   const {
     register,
@@ -66,21 +66,24 @@ function LoginPage() {
 
   // Clicking the emailed verification link auto-signs the user in and
   // redirects back here with the invitation context intact — finish joining
-  // instead of showing the sign-in/sign-up form again.
+  // instead of showing the sign-in/sign-up form again. One-shot via the ref
+  // guard: a failed accept must never auto-retry (that would loop, since
+  // `session`/`invitationId` stay truthy) — it sets `error`, which flips the
+  // render below to the normal form with the error shown, and any further
+  // attempt is a real user action (submitting the form), not automatic.
   useEffect(() => {
-    if (!invitationId || !session || accepting) return;
-    setAccepting(true);
+    if (!invitationId || !session || acceptAttempted.current) return;
+    acceptAttempted.current = true;
     acceptInvitation({ data: { invitationId } })
       .then(() => navigate({ to: "/dashboard" }))
       .catch((err: unknown) => {
-        setAccepting(false);
         setError(
           err instanceof Error
             ? err.message
             : "The invitation could not be accepted — it may have expired or already been used.",
         );
       });
-  }, [invitationId, session, accepting, navigate]);
+  }, [invitationId, session, navigate]);
 
   const onSubmit = handleSubmit(async (values) => {
     setError(null);
@@ -193,8 +196,9 @@ function LoginPage() {
         title="Joining workspace…"
         subtitle={`Finishing up — you'll land in ${organizationName ?? "your workspace"} shortly.`}
       >
-        <div className="mt-6 flex justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <div className="mt-6 flex justify-center" role="status" aria-live="polite">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />
+          <span className="sr-only">Joining workspace…</span>
         </div>
       </AuthShell>
     );
@@ -216,10 +220,14 @@ function LoginPage() {
               type="email"
               placeholder="you@company.com"
               autoComplete="email"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(forgotForm.formState.errors.email)}
+              aria-describedby={forgotForm.formState.errors.email ? "forgot-email-error" : undefined}
               {...forgotForm.register("email")}
             />
             {forgotForm.formState.errors.email && (
-              <p className="text-[0.6875rem] text-destructive">
+              <p id="forgot-email-error" role="alert" className="text-[0.6875rem] text-destructive">
                 {forgotForm.formState.errors.email.message}
               </p>
             )}
@@ -231,6 +239,7 @@ function LoginPage() {
             size="lg"
             className="mt-1 w-full"
             disabled={forgotForm.formState.isSubmitting}
+            aria-busy={forgotForm.formState.isSubmitting}
           >
             {forgotForm.formState.isSubmitting ? "Sending…" : "Send reset link"}
           </Button>
@@ -266,10 +275,14 @@ function LoginPage() {
               type="password"
               placeholder="8 characters or more"
               autoComplete="new-password"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(resetForm.formState.errors.password)}
+              aria-describedby={resetForm.formState.errors.password ? "new-password-error" : undefined}
               {...resetForm.register("password")}
             />
             {resetForm.formState.errors.password && (
-              <p className="text-[0.6875rem] text-destructive">
+              <p id="new-password-error" role="alert" className="text-[0.6875rem] text-destructive">
                 {resetForm.formState.errors.password.message}
               </p>
             )}
@@ -283,10 +296,16 @@ function LoginPage() {
               type="password"
               placeholder="Repeat your password"
               autoComplete="new-password"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(resetForm.formState.errors.confirmPassword)}
+              aria-describedby={
+                resetForm.formState.errors.confirmPassword ? "confirm-password-error" : undefined
+              }
               {...resetForm.register("confirmPassword")}
             />
             {resetForm.formState.errors.confirmPassword && (
-              <p className="text-[0.6875rem] text-destructive">
+              <p id="confirm-password-error" role="alert" className="text-[0.6875rem] text-destructive">
                 {resetForm.formState.errors.confirmPassword.message}
               </p>
             )}
@@ -298,6 +317,7 @@ function LoginPage() {
             size="lg"
             className="mt-1 w-full"
             disabled={resetForm.formState.isSubmitting || !token}
+            aria-busy={resetForm.formState.isSubmitting}
           >
             {resetForm.formState.isSubmitting ? "Updating…" : "Update password"}
           </Button>
@@ -336,10 +356,16 @@ function LoginPage() {
             placeholder="you@company.com"
             autoComplete="email"
             readOnly={Boolean(invitedEmail)}
+            required
+            aria-required="true"
+            aria-invalid={Boolean(errors.email)}
+            aria-describedby={errors.email ? "email-error" : undefined}
             {...register("email")}
           />
           {errors.email && (
-            <p className="text-[0.6875rem] text-destructive">{errors.email.message}</p>
+            <p id="email-error" role="alert" className="text-[0.6875rem] text-destructive">
+              {errors.email.message}
+            </p>
           )}
         </div>
         <div className="flex flex-col gap-1">
@@ -366,15 +392,27 @@ function LoginPage() {
             type="password"
             placeholder="8 characters or more"
             autoComplete={mode === "signin" ? "current-password" : "new-password"}
+            required
+            aria-required="true"
+            aria-invalid={Boolean(errors.password)}
+            aria-describedby={errors.password ? "password-error" : undefined}
             {...register("password")}
           />
           {errors.password && (
-            <p className="text-[0.6875rem] text-destructive">{errors.password.message}</p>
+            <p id="password-error" role="alert" className="text-[0.6875rem] text-destructive">
+              {errors.password.message}
+            </p>
           )}
         </div>
         {error && <AuthError message={error} />}
         {info && <AuthInfo message={info} />}
-        <Button type="submit" size="lg" className="mt-1 w-full" disabled={isSubmitting}>
+        <Button
+          type="submit"
+          size="lg"
+          className="mt-1 w-full"
+          disabled={isSubmitting}
+          aria-busy={isSubmitting}
+        >
           {isSubmitting
             ? mode === "signin"
               ? "Signing in…"
@@ -386,11 +424,11 @@ function LoginPage() {
       </form>
 
       <div className="relative my-5 flex items-center gap-3">
-        <div className="h-px flex-1 bg-border" />
+        <div className="h-px flex-1 bg-border" aria-hidden="true" />
         <span className="font-mono text-[0.625rem] font-medium uppercase tracking-[0.02em] text-muted-foreground">
           or
         </span>
-        <div className="h-px flex-1 bg-border" />
+        <div className="h-px flex-1 bg-border" aria-hidden="true" />
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -439,6 +477,15 @@ function AuthShell({
   subtitle: string;
   children: React.ReactNode;
 }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // Move focus to the heading whenever the screen changes (sign in <-> sign
+  // up <-> forgot <-> reset <-> joining-workspace) — each is a distinct
+  // "view" swapped in place, so nothing else naturally tells a screen reader
+  // user the content just changed.
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, [title]);
+
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background p-6">
       <div className="w-full max-w-[340px]">
@@ -453,7 +500,13 @@ function AuthShell({
           <span className="text-[0.9375rem] font-semibold tracking-[-0.015em]">Quiksend</span>
         </div>
 
-        <h1 className="text-[1.375rem] font-semibold leading-tight tracking-[-0.015em]">{title}</h1>
+        <h1
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-[1.375rem] font-semibold leading-tight tracking-[-0.015em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-[3px]"
+        >
+          {title}
+        </h1>
         <p className="mt-1.5 text-[0.75rem] text-muted-foreground">{subtitle}</p>
         {children}
       </div>
@@ -463,7 +516,10 @@ function AuthShell({
 
 function AuthError({ message }: { message: string }) {
   return (
-    <div className="rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-1.5 text-[0.6875rem] text-[color:var(--status-red-600)]">
+    <div
+      role="alert"
+      className="rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-1.5 text-[0.6875rem] text-[color:var(--status-red-600)]"
+    >
       {message}
     </div>
   );
@@ -471,7 +527,12 @@ function AuthError({ message }: { message: string }) {
 
 function AuthInfo({ message }: { message: string }) {
   return (
-    <div className="rounded-[4px] border border-border bg-[color:var(--paper-050)] px-2.5 py-1.5 text-[0.6875rem] text-muted-foreground">
+    <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className="rounded-[4px] border border-border bg-[color:var(--paper-050)] px-2.5 py-1.5 text-[0.6875rem] text-muted-foreground"
+    >
       {message}
     </div>
   );
