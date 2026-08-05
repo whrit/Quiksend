@@ -83,6 +83,6 @@ export async function handleHealthReconcile(): Promise<void> {
 export async function registerHealthReconcileHandler(): Promise<void> {
   await registerHandler('health.reconcile', handleHealthReconcile)
   const boss = await getBoss()
-  await boss.schedule('health.reconcile', '*/5 * * * *', {}, { key: 'health-reconcile' })
+  await boss.schedule('health.reconcile', '*/5 * * * *', {}, { key: 'health-reconcile', tz: 'UTC' })
   logger.info('Health reconciliation handler registered and scheduled')
 }
