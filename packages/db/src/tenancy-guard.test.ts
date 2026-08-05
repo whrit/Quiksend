@@ -1,124 +1,113 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { client } from "./client.ts";
+import { withTenantTransaction, type DbTx } from "./tenant-context.ts";
 
 /**
- * Tenancy CI guard — the invariant "no app-scoped table is queried without an
- * `organizationId` filter" enforced at test time so a missing filter fails CI
- * rather than leaking rows in production.
+ * Tenancy CI guard — structural assertions on the RLS policy layer and the
+ * tenant transaction contract. Replaces the earlier regex-based organizationId
+ * check with a database-level guarantee: every scoped table MUST have a
+ * `tenant_isolation` policy for `quiksend_app`, and the
+ * `withTenantTransaction` function satisfies the protected-function contract.
+ */
+
+/**
+ * Complete inventory of tenant-scoped tables. Every table here MUST have an
+ * RLS policy named `tenant_isolation` enforced for the `quiksend_app` role.
  *
- * Runs BEFORE any app-scoped tables exist, so the guard is a no-op at
- * foundations time; it activates automatically as Phase 2+ adds tables to
- * `APP_SCOPED_TABLES`. Adding a table to that list without an accompanying
- * scoped query is the same as saying "trust me" — do not.
+ * Categories:
+ *   Direct — has `organization_id` column, equality check.
+ *   Membership — auth table scoped via member.user_id (apikey).
+ *   Indirect — no org_id, scoped via parent FK (list_member, import_error,
+ *              send_reservation).
+ *
+ * Unscoped tables (no RLS): user, session, account, verification,
+ * organization, app_meta, auth_rate_bucket, nango_webhook_processed,
+ * gateway_classification, job_log.
  */
-
-const REPO_ROOT = join(import.meta.dirname, "..", "..", "..");
-
-/**
- * Tables without `organizationId` are intentionally omitted — they are scoped
- * indirectly: `listMember` via `list`, `importError` via `importBatch`,
- * `sendReservation` via `mailbox`/`enrollment`, `jobLog` is global worker telemetry.
- */
-const APP_SCOPED_TABLES: readonly string[] = [
-  // Auth (Better Auth org plugin):
+const RLS_SCOPED_TABLES: readonly string[] = [
+  // Auth (Better Auth org plugin)
   "member",
   "invitation",
-  // Phase 2:
+  "apikey",
+  // Prospects & companies
   "company",
   "prospect",
   "list",
-  "importBatch",
-  // Phase 3:
-  "crmConnection",
-  "syncState",
-  // Phase 4:
+  "list_member",
+  "import_batch",
+  "import_error",
+  // CRM
+  "crm_connection",
+  "sync_state",
+  // Mailbox & messages
   "mailbox",
   "message",
-  // Phase 5:
+  // Sequences
   "sequence",
-  "sequenceStep",
+  "sequence_step",
   "enrollment",
-  // Phase 8 prep:
-  "valueProp",
-  "researchProfile",
+  "send_reservation",
+  // AI
+  "value_prop",
+  "research_profile",
   "generation",
-  // Phase 6:
+  // Tasks
   "task",
-  // Phase 10:
-  "apiKeyUsage",
-  "webhookEndpoint",
-  "webhookDelivery",
-  // Phase 9:
-  "crmWritebackLog",
+  // API & webhooks
+  "api_key_usage",
+  "webhook_endpoint",
+  "webhook_delivery",
+  "event_outbox",
+  // Writeback & events
+  "crm_writeback_log",
   "event",
-  // Phase 7:
+  // Suppression
   "suppression",
-  // Phase 11C:
-  "seedInbox",
-  "canarySend",
-  "deliverabilitySnapshot",
-  // Task 3 — server-owned entitlements:
-  "organizationLimit",
-  "organizationUsage",
+  // Deliverability
+  "seed_inbox",
+  "canary_send",
+  "deliverability_snapshot",
 ];
 
-const SCAN_ROOTS = ["apps/web/src", "apps/worker/src", "packages"];
-const IGNORED_DIRS = new Set([
-  "node_modules",
-  ".output",
-  ".turbo",
-  "dist",
-  "build",
-  "drizzle",
-  ".tanstack",
-  "routeTree.gen.ts",
-]);
-
-const IGNORED_FILES = new Set([
-  // Tests exercise queries deliberately without scope.
-  "tenancy-guard.test.ts",
-  // Better Auth's generated schema is owned by the auth-generate loop.
-  "auth.ts",
-]);
-
-function walk(root: string, out: string[] = []): string[] {
-  let entries: string[];
-  try {
-    entries = readdirSync(root);
-  } catch {
-    return out;
-  }
-  for (const name of entries) {
-    if (IGNORED_DIRS.has(name)) continue;
-    if (IGNORED_FILES.has(name)) continue;
-    const path = join(root, name);
-    const s = statSync(path);
-    if (s.isDirectory()) walk(path, out);
-    else if (path.endsWith(".ts") || path.endsWith(".tsx")) out.push(path);
-  }
-  return out;
-}
-
 describe("tenancy guard", () => {
-  it("finds no query against an app-scoped table without an organizationId filter", () => {
-    // Guard is dormant while APP_SCOPED_TABLES is empty (the loop below scans
-    // zero tables and `violations` stays empty). Phase 2+ activates it by
-    // adding tables. Written this way instead of the earlier conditional-return
-    // form to satisfy vitest's no-conditional-expect rule.
-    const violations: string[] = [];
-    for (const dir of SCAN_ROOTS) {
-      const files = walk(join(REPO_ROOT, dir));
-      for (const file of files) {
-        const src = readFileSync(file, "utf8");
-        for (const table of APP_SCOPED_TABLES) {
-          const usesTable = new RegExp(`\\btables\\.${table}\\b`).test(src);
-          if (!usesTable) continue;
-          const hasScope = /organizationId/i.test(src);
-          if (!hasScope) violations.push(`${file}: references ${table} without organizationId`);
-        }
-      }
-    }
-    expect(violations).toEqual([]);
+  it("every scoped table has a tenant_isolation RLS policy", async () => {
+    const result = await client`
+      SELECT tablename
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND policyname = 'tenant_isolation'
+    `;
+    const tablesWithPolicy = new Set(
+      result.map((r) => r["tablename"] as string),
+    );
+
+    const missing = RLS_SCOPED_TABLES.filter((t) => !tablesWithPolicy.has(t));
+    expect(missing).toEqual([]);
+  });
+
+  it("no scoped table is missing from the inventory", async () => {
+    // Cross-check: every table with RLS enabled should appear in our list.
+    const result = await client`
+      SELECT relname
+      FROM pg_class
+      WHERE relrowsecurity = true
+        AND relnamespace = 'public'::regnamespace
+    `;
+    const rlsEnabled = new Set(
+      result.map((r) => r["relname"] as string),
+    );
+    const inventory = new Set(RLS_SCOPED_TABLES);
+    const unlisted = [...rlsEnabled].filter((t) => !inventory.has(t));
+    expect(unlisted).toEqual([]);
+  });
+
+  it("withTenantTransaction satisfies the protected-function contract", () => {
+    // Type-level check: (organizationId, fn) → Promise<T>.
+    const _check: (
+      orgId: string,
+      fn: (tx: DbTx) => Promise<void>,
+    ) => Promise<void> = withTenantTransaction;
+    expect(typeof _check).toBe("function");
+    expect(_check.length).toBe(2);
   });
 });
