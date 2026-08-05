@@ -267,4 +267,56 @@ describe("EnvSchema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("rejects default database credentials in production", () => {
+    const result = EnvSchema.safeParse({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      BETTER_AUTH_SECRET: "a".repeat(32),
+      BETTER_AUTH_URL: "https://app.quiksend.io",
+      NANGO_WEBHOOK_SECRET: "nango-secret",
+      MAILBOX_ENCRYPTION_KEY: "mailbox-key",
+      UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
+    });
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("expected failure");
+    const messages = errorMessages(result);
+    expect(messages).toContain("must not use default credentials");
+  });
+
+  it("rejects Mailpit SMTP_HOST in production", () => {
+    const result = EnvSchema.safeParse({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://user:pass@prod.example.com:5432/quiksend",
+      BETTER_AUTH_SECRET: "a".repeat(32),
+      BETTER_AUTH_URL: "https://app.quiksend.io",
+      NANGO_WEBHOOK_SECRET: "nango-secret",
+      MAILBOX_ENCRYPTION_KEY: "mailbox-key",
+      UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
+      SMTP_HOST: "mailpit",
+      SMTP_PORT: 1025,
+    });
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("expected failure");
+    const messages = errorMessages(result);
+    expect(messages).toContain('SMTP_HOST must not be "mailpit"');
+  });
+
+  it("allows localhost DATABASE_URL in development", () => {
+    const parsed = EnvSchema.parse({
+      NODE_ENV: "development",
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+    });
+    expect(parsed.DATABASE_URL).toContain("quiksend:quiksend@localhost");
+  });
+
+  it("allows Mailpit in development", () => {
+    const parsed = EnvSchema.parse({
+      NODE_ENV: "development",
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      SMTP_HOST: "mailpit",
+      SMTP_PORT: 1025,
+    });
+    expect(parsed.SMTP_HOST).toBe("mailpit");
+  });
 });

@@ -177,6 +177,19 @@ export const EnvSchema = z
   )
   .refine((env) => Boolean(env.SMTP_USER) === Boolean(env.SMTP_PASS), {
     message: "SMTP_USER and SMTP_PASS must be set together, or not at all",
-  });
+  })
+  .refine(
+    (env) =>
+      env.NODE_ENV !== "production" || !env.DATABASE_URL?.includes("quiksend:quiksend@"),
+    {
+      message: "DATABASE_URL must not use default credentials (quiksend:quiksend) in production",
+    },
+  )
+  .refine(
+    (env) => env.NODE_ENV !== "production" || env.SMTP_HOST !== "mailpit",
+    {
+      message: 'SMTP_HOST must not be "mailpit" in production; set to a real SMTP provider',
+    },
+  );
 
 export type Env = z.infer<typeof EnvSchema>;
