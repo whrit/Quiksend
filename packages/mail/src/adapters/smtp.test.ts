@@ -133,6 +133,94 @@ describe("createSmtpAdapter", () => {
       }),
     ).rejects.toSatisfy((err: unknown) => err instanceof SendError && err.kind === "transient");
   });
+
+  it.each([421, 450, 451])(
+    "classifies SMTP %i as transient SendError (RFC 5321 4xx)",
+    async (responseCode) => {
+      sendMail.mockRejectedValue(
+        Object.assign(new Error(`${responseCode} Try again later`), { responseCode }),
+      );
+
+      const adapter = createSmtpAdapter({
+        host: "localhost",
+        port: 1025,
+        fromAddress: "sender@example.com",
+        compliance,
+      });
+
+      await expect(
+        adapter.send({
+          from: { email: "sender@example.com" },
+          to: [{ email: "r@example.com" }],
+          subject: "x",
+          html: "x",
+          text: "x",
+        }),
+      ).rejects.toSatisfy(
+        (err: unknown) =>
+          err instanceof SendError &&
+          err.kind === "transient" &&
+          err.providerCode === String(responseCode),
+      );
+    },
+  );
+
+  it.each([550, 553])(
+    "classifies SMTP %i as permanent SendError (RFC 5321 5xx recipient failure)",
+    async (responseCode) => {
+      sendMail.mockRejectedValue(
+        Object.assign(new Error(`${responseCode} User unknown`), { responseCode }),
+      );
+
+      const adapter = createSmtpAdapter({
+        host: "localhost",
+        port: 1025,
+        fromAddress: "sender@example.com",
+        compliance,
+      });
+
+      await expect(
+        adapter.send({
+          from: { email: "sender@example.com" },
+          to: [{ email: "r@example.com" }],
+          subject: "x",
+          html: "x",
+          text: "x",
+        }),
+      ).rejects.toSatisfy(
+        (err: unknown) =>
+          err instanceof SendError &&
+          err.kind === "permanent" &&
+          err.providerCode === String(responseCode),
+      );
+    },
+  );
+
+  it("classifies SMTP 502 without recipient keywords as transient SendError", async () => {
+    sendMail.mockRejectedValue(
+      Object.assign(new Error("502 Command not implemented"), { responseCode: 502 }),
+    );
+
+    const adapter = createSmtpAdapter({
+      host: "localhost",
+      port: 1025,
+      fromAddress: "sender@example.com",
+      compliance,
+    });
+
+    await expect(
+      adapter.send({
+        from: { email: "sender@example.com" },
+        to: [{ email: "r@example.com" }],
+        subject: "x",
+        html: "x",
+        text: "x",
+      }),
+    ).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof SendError && err.kind === "transient" && err.providerCode === "502",
+    );
+  });
 });
 
 describe("sendMime", () => {

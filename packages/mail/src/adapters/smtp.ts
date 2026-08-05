@@ -170,7 +170,7 @@ function classifyNodemailerError(err: unknown): SendError {
       return new SendError(kind, message, String(responseCode));
     }
     if (responseCode !== null && responseCode >= 400) {
-      return new SendError("permanent", message, String(responseCode));
+      return new SendError("transient", message, String(responseCode));
     }
   }
   return new SendError("transient", err instanceof Error ? err.message : "Send failed", null);
