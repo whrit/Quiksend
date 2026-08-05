@@ -63,6 +63,7 @@ describe("EnvSchema", () => {
       NODE_ENV: "production",
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
       BETTER_AUTH_SECRET: "a".repeat(32),
+      BETTER_AUTH_URL: "https://app.quiksend.io",
       NANGO_WEBHOOK_SECRET: "nango-secret",
       MAILBOX_ENCRYPTION_KEY: "mailbox-key",
       UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
@@ -120,6 +121,7 @@ describe("EnvSchema", () => {
       NODE_ENV: "production",
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
       BETTER_AUTH_SECRET: "a".repeat(32),
+      BETTER_AUTH_URL: "https://app.quiksend.io",
       NANGO_WEBHOOK_SECRET: "nango-secret",
       MAILBOX_ENCRYPTION_KEY: "mailbox-key",
       UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
@@ -132,5 +134,72 @@ describe("EnvSchema", () => {
     expect(parsed.QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK).toBe(false);
     expect(parsed.QUIKSEND_ENGINE_TEST_MODE).toBeUndefined();
     expect(parsed.QUIKSEND_CANARY_IMAP_MOCK).toBeUndefined();
+  });
+
+  it("rejects http:// BETTER_AUTH_URL in production", () => {
+    const result = EnvSchema.safeParse({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      BETTER_AUTH_SECRET: "a".repeat(32),
+      BETTER_AUTH_URL: "http://app.quiksend.io",
+      NANGO_WEBHOOK_SECRET: "nango-secret",
+      MAILBOX_ENCRYPTION_KEY: "mailbox-key",
+      UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain("HTTPS");
+    }
+  });
+
+  it("rejects localhost BETTER_AUTH_URL in production", () => {
+    const result = EnvSchema.safeParse({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      BETTER_AUTH_SECRET: "a".repeat(32),
+      BETTER_AUTH_URL: "https://localhost:3000",
+      NANGO_WEBHOOK_SECRET: "nango-secret",
+      MAILBOX_ENCRYPTION_KEY: "mailbox-key",
+      UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain("BETTER_AUTH_URL");
+    }
+  });
+
+  it("rejects loopback BETTER_AUTH_URL in production", () => {
+    const result = EnvSchema.safeParse({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      BETTER_AUTH_SECRET: "a".repeat(32),
+      BETTER_AUTH_URL: "https://127.0.0.1:3000",
+      NANGO_WEBHOOK_SECRET: "nango-secret",
+      MAILBOX_ENCRYPTION_KEY: "mailbox-key",
+      UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unspecified (0.0.0.0) BETTER_AUTH_URL in production", () => {
+    const result = EnvSchema.safeParse({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      BETTER_AUTH_SECRET: "a".repeat(32),
+      BETTER_AUTH_URL: "https://0.0.0.0:3000",
+      NANGO_WEBHOOK_SECRET: "nango-secret",
+      MAILBOX_ENCRYPTION_KEY: "mailbox-key",
+      UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("allows localhost BETTER_AUTH_URL in development", () => {
+    const result = EnvSchema.safeParse({
+      NODE_ENV: "development",
+      DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+      BETTER_AUTH_URL: "http://localhost:3000",
+    });
+    expect(result.success).toBe(true);
   });
 });

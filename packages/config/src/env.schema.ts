@@ -124,6 +124,33 @@ export const EnvSchema = z
       message:
         "BETTER_AUTH_SECRET (>=32 bytes), NANGO_WEBHOOK_SECRET, MAILBOX_ENCRYPTION_KEY, UNSUBSCRIBE_TOKEN_SECRET are all required in production",
     },
+  )
+  .refine(
+    (env) => {
+      if (env.NODE_ENV !== "production") return true;
+      if (!env.BETTER_AUTH_URL) return false;
+      let url: URL;
+      try {
+        url = new URL(env.BETTER_AUTH_URL);
+      } catch {
+        return false;
+      }
+      if (url.protocol !== "https:") return false;
+      const host = url.hostname;
+      if (
+        host === "localhost" ||
+        host === "127.0.0.1" ||
+        host === "::1" ||
+        host === "0.0.0.0" ||
+        host === "::"
+      )
+        return false;
+      return true;
+    },
+    {
+      message:
+        "BETTER_AUTH_URL must be a public HTTPS URL in production (no localhost, loopback, or unspecified addresses)",
+    },
   );
 
 export type Env = z.infer<typeof EnvSchema>;
