@@ -98,6 +98,7 @@ export const webhookDelivery = pgTable(
     endpointId: uuid("endpoint_id")
       .notNull()
       .references(() => webhookEndpoint.id, { onDelete: "cascade" }),
+    outboxId: uuid("outbox_id").references(() => eventOutbox.id, { onDelete: "set null" }),
     eventType: text("event_type").notNull(),
     payload: jsonb("payload").notNull(),
     status: webhookDeliveryStatusEnum("status").default("pending").notNull(),
@@ -114,6 +115,7 @@ export const webhookDelivery = pgTable(
   (table) => [
     index("webhook_delivery_status_next_attempt_idx").on(table.status, table.nextAttemptAt),
     index("webhook_delivery_endpoint_created_idx").on(table.endpointId, table.createdAt.desc()),
+    // Partial unique index enforced via migration SQL (WHERE outbox_id IS NOT NULL)
   ],
 );
 
@@ -146,6 +148,7 @@ export const webhookDeliveryRelations = relations(webhookDelivery, ({ one }) => 
 
 export const outboxStatusEnum = pgEnum("outbox_status", [
   "pending",
+  "processing",
   "dispatched",
   "failed",
 ]);
@@ -165,6 +168,7 @@ export const eventOutbox = pgTable(
     status: outboxStatusEnum("status").default("pending").notNull(),
     attempts: integer("attempts").default(0).notNull(),
     lastError: text("last_error"),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
