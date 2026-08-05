@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, ClipboardList, Mail, SkipForward } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -20,6 +20,8 @@ function TaskInboxPage() {
   const initialTasks = Route.useLoaderData();
   const [tasks, setTasks] = useState(initialTasks);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   const resolveTask = async (
     taskId: string,
@@ -29,7 +31,27 @@ function TaskInboxPage() {
     setLoading((p) => ({ ...p, [taskId]: true }));
     try {
       await action({ data: { taskId } });
-      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      setTasks((prev) => {
+        const idx = prev.findIndex((t) => t.id === taskId);
+        const next = prev.filter((t) => t.id !== taskId);
+
+        // After removal, focus the primary action of the next task in list
+        // order, or the heading when the list empties.
+        requestAnimationFrame(() => {
+          if (next.length === 0) {
+            headingRef.current?.focus();
+            return;
+          }
+          // Focus the task that now occupies the same index (or last if at end)
+          const focusIdx = Math.min(idx, next.length - 1);
+          const buttons = listRef.current?.querySelectorAll<HTMLElement>(
+            "li:nth-child(" + (focusIdx + 1) + ") [data-task-action]",
+          );
+          buttons?.[0]?.focus();
+        });
+
+        return next;
+      });
       toast.success(`Task ${label}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : `Failed to ${label.toLowerCase()} task`);
@@ -52,12 +74,14 @@ function TaskInboxPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-6 fade-in w-full min-w-0">
-      <h1 className="text-lg font-semibold mb-4">Tasks</h1>
-      <div className="space-y-3">
+      <h1 ref={headingRef} className="text-lg font-semibold mb-4" tabIndex={-1}>
+        Tasks
+      </h1>
+      <ul ref={listRef} role="list" className="space-y-3">
         {tasks.map((task) => {
           const busy = loading[task.id] ?? false;
           return (
-            <div
+            <li
               key={task.id}
               className="flex items-center justify-between rounded-lg border p-4"
             >
@@ -80,6 +104,8 @@ function TaskInboxPage() {
                     to="/compose"
                     search={{ taskId: task.id, enrollmentId: task.enrollmentId }}
                     className={buttonVariants({ size: "sm" })}
+                    aria-label={`Compose: ${task.title}`}
+                    data-task-action
                   >
                     <Mail className="mr-1.5 h-3.5 w-3.5" />
                     Compose
@@ -90,6 +116,8 @@ function TaskInboxPage() {
                     variant="default"
                     onClick={() => resolveTask(task.id, completeGenericTask, "completed")}
                     disabled={busy}
+                    aria-label={`Complete: ${task.title}`}
+                    data-task-action
                   >
                     <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
                     Complete
@@ -100,15 +128,17 @@ function TaskInboxPage() {
                   variant="ghost"
                   onClick={() => resolveTask(task.id, skipTask, "skipped")}
                   disabled={busy}
+                  aria-label={`Skip: ${task.title}`}
+                  data-task-action
                 >
                   <SkipForward className="mr-1.5 h-3.5 w-3.5" />
                   Skip
                 </Button>
               </div>
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </div>
   );
 }
