@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { db } from "./client.ts";
 import * as tables from "./schema/index.ts";
-import { truncateAppTables, withTestOrgs } from "./testing.ts";
+import { withTestOrgs } from "./testing.ts";
 
 /**
  * Regression tests for message safety primitives: inbound idempotence,
@@ -13,7 +13,6 @@ import { truncateAppTables, withTestOrgs } from "./testing.ts";
 describe("message safety schema", () => {
   describe("inbound message uniqueness", () => {
     it("enforces unique (mailbox_id, provider_message_id) on inbound messages", async () => {
-      await truncateAppTables();
       await withTestOrgs(async ({ orgA }) => {
         const mailboxId = randomUUID();
         const providerMessageId = "gmail_abc123";
@@ -53,7 +52,6 @@ describe("message safety schema", () => {
     });
 
     it("allows multiple outbound messages without provider IDs", async () => {
-      await truncateAppTables();
       await withTestOrgs(async ({ orgA }) => {
         const mailboxId = randomUUID();
 
@@ -88,7 +86,6 @@ describe("message safety schema", () => {
     });
 
     it("allows inbound messages with different provider IDs in same mailbox", async () => {
-      await truncateAppTables();
       await withTestOrgs(async ({ orgA }) => {
         const mailboxId = randomUUID();
 
@@ -132,7 +129,6 @@ describe("message safety schema", () => {
 
   describe("mailbox archival", () => {
     it("does not cascade-delete messages when mailbox is archived", async () => {
-      await truncateAppTables();
       await withTestOrgs(async ({ orgA }) => {
         const mailboxId = randomUUID();
 
@@ -177,7 +173,6 @@ describe("message safety schema", () => {
 
   describe("new safety columns", () => {
     it("stores acceptedAt timestamp for sent messages", async () => {
-      await truncateAppTables();
       await withTestOrgs(async ({ orgA }) => {
         const mailboxId = randomUUID();
 
@@ -210,7 +205,6 @@ describe("message safety schema", () => {
     });
 
     it("tracks ingestion attempts for inbound messages", async () => {
-      await truncateAppTables();
       await withTestOrgs(async ({ orgA }) => {
         const mailboxId = randomUUID();
 
@@ -242,7 +236,6 @@ describe("message safety schema", () => {
     });
 
     it("stores archival metadata on mailbox", async () => {
-      await truncateAppTables();
       await withTestOrgs(async ({ orgA }) => {
         const mailboxId = randomUUID();
         const archiveDate = new Date();
