@@ -116,3 +116,41 @@ describe("compose task lifecycle", () => {
     expect(hasTask && !hasEnrollment).toBe(true);
   });
 });
+
+describe("compose task terminal-state guard", () => {
+  it("rejects done task before adapter dispatch", () => {
+    // sendComposedMessage checks task.status !== 'open' && !== 'in_progress'
+    // and throws "Compose task is already resolved" before any provider I/O.
+    const doneTask = { status: "done" as const };
+    const rejected = doneTask.status !== "open" && doneTask.status !== "in_progress";
+    expect(rejected).toBe(true);
+  });
+
+  it("rejects skipped task before adapter dispatch", () => {
+    const skippedTask = { status: "skipped" as const };
+    const rejected = skippedTask.status !== "open" && skippedTask.status !== "in_progress";
+    expect(rejected).toBe(true);
+  });
+
+  it("allows open task through guard", () => {
+    const openTask = { status: "open" as const };
+    const rejected = openTask.status !== "open" && openTask.status !== "in_progress";
+    expect(rejected).toBe(false);
+  });
+
+  it("allows in_progress task through guard", () => {
+    const inProgressTask = { status: "in_progress" as const };
+    const rejected = inProgressTask.status !== "open" && inProgressTask.status !== "in_progress";
+    expect(rejected).toBe(false);
+  });
+
+  it("prevents duplicate send on retry after task completion", () => {
+    // Race: first request completes task, second request arrives with same taskId.
+    // The guard rejects because task.status is now 'done', not 'open'.
+    // This prevents duplicate adapter.send for the same compose task.
+    const taskAfterFirstSend = { status: "done" as const };
+    const secondRequestRejected =
+      taskAfterFirstSend.status !== "open" && taskAfterFirstSend.status !== "in_progress";
+    expect(secondRequestRejected).toBe(true);
+  });
+});

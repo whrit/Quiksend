@@ -3,13 +3,19 @@ import { tables } from "@quiksend/db/tables";
 import { enqueue, enqueueWithRetries } from "@quiksend/queue";
 import type { EmailGateway } from "@quiksend/mail/gateway-detect";
 import { isAdminOrOwner } from "@quiksend/core";
-import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, not, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeDomain, normalizeEmail } from "./prospect-import.ts";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
 import { createProspectInputSchema, prospectStatusSchema } from "./schemas/prospect.ts";
 import { withAnalyticsTiming } from "./timing.ts";
+import {
+  transition,
+  type EnrollmentSnapshot,
+  type StepKind,
+} from "@quiksend/core/state-machine";
+import { applyWebEffects } from "./effect-executor.ts";
 
 type ProspectRow = typeof tables.prospect.$inferSelect;
 type CompanyRow = typeof tables.company.$inferSelect;
@@ -18,6 +24,52 @@ type ImportBatchRow = typeof tables.importBatch.$inferSelect;
 type ImportErrorRow = typeof tables.importError.$inferSelect;
 
 const NON_TERMINAL_ENROLLMENT_STATES = ["active", "waiting", "waiting_manual", "paused"];
+
+type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Stop nonterminal enrollments through core `stop` transition + web effect
+ * executor so events/effects/audit remain truthful. Called inside a transaction.
+ */
+async function stopEnrollmentsThroughTransition(
+  tx: DbTx,
+  enrollments: (typeof tables.enrollment.$inferSelect)[],
+  organizationId: string,
+  reason: string,
+): Promise<void> {
+  for (const enrollment of enrollments) {
+    const steps = await tx.query.sequenceStep.findMany({
+      where: and(
+        eq(tables.sequenceStep.sequenceId, enrollment.sequenceId),
+        eq(tables.sequenceStep.organizationId, organizationId),
+      ),
+      orderBy: asc(tables.sequenceStep.stepIndex),
+    });
+
+    const nextStep = steps.find((s) => s.stepIndex === enrollment.currentStepIndex);
+    const hasNext = steps.some((s) => s.stepIndex > enrollment.currentStepIndex);
+    const snapshot: EnrollmentSnapshot = {
+      state: enrollment.state as EnrollmentSnapshot["state"],
+      currentStepIndex: enrollment.currentStepIndex,
+      hasNextStep: hasNext,
+      nextStepKind: (nextStep?.stepType as StepKind) ?? null,
+      anchorMessageId: enrollment.anchorMessageId,
+      attemptCount: enrollment.attemptCount,
+    };
+
+    const result = transition(snapshot, { kind: "stop", reason });
+
+    if (result.effects.length > 0) {
+      await applyWebEffects(tx, enrollment.id, organizationId, result.effects, {
+        nextState: result.nextState,
+        emitContext: {
+          sequenceId: enrollment.sequenceId,
+          prospectId: enrollment.prospectId,
+        },
+      });
+    }
+  }
+}
 
 function serializeProspect(row: ProspectRow) {
   return {
@@ -472,10 +524,10 @@ export const deleteProspect = createServerFn({ method: "POST" })
 
       if (!deleted) notFound();
 
-      // Stop active enrollments — core stop transition sets state to "stopped"
-      await tx
-        .update(tables.enrollment)
-        .set({ state: "stopped", nextRunAt: null })
+      // Stop active enrollments through core transition + effects
+      const enrollments = await tx
+        .select()
+        .from(tables.enrollment)
         .where(
           and(
             eq(tables.enrollment.prospectId, data.id),
@@ -483,6 +535,8 @@ export const deleteProspect = createServerFn({ method: "POST" })
             inArray(tables.enrollment.state, NON_TERMINAL_ENROLLMENT_STATES),
           ),
         );
+
+      await stopEnrollmentsThroughTransition(tx, enrollments, organizationId, "prospect_deleted");
 
       return { ok: true as const };
     });
@@ -520,10 +574,10 @@ export const bulkDeleteProspects = createServerFn({ method: "POST" })
           ),
         );
 
-      // Stop active enrollments for all deleted prospects
-      await tx
-        .update(tables.enrollment)
-        .set({ state: "stopped", nextRunAt: null })
+      // Stop active enrollments through core transition + effects
+      const enrollments = await tx
+        .select()
+        .from(tables.enrollment)
         .where(
           and(
             inArray(tables.enrollment.prospectId, data.ids),
@@ -531,6 +585,8 @@ export const bulkDeleteProspects = createServerFn({ method: "POST" })
             inArray(tables.enrollment.state, NON_TERMINAL_ENROLLMENT_STATES),
           ),
         );
+
+      await stopEnrollmentsThroughTransition(tx, enrollments, organizationId, "prospect_deleted");
 
       return { deleted: data.ids.length };
     });

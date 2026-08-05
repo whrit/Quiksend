@@ -139,6 +139,10 @@ export const sendComposedMessage = createServerFn({ method: "POST" })
         ),
       });
       if (!task) throw new Error("Compose task not found for this enrollment");
+      // Fail-closed: terminal task must not trigger another send
+      if (task.status !== "open" && task.status !== "in_progress") {
+        throw new Error("Compose task is already resolved");
+      }
     }
 
     const prospect = await loadProspect(data.prospectId, organizationId);

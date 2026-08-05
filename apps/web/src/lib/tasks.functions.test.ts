@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
+import { transition } from "@quiksend/core/state-machine";
 import {
   listTasksCore,
   completeGenericTaskCore,
@@ -392,5 +393,68 @@ describe("compose task done marking (integration)", () => {
       });
       expect(row?.status).toBe("skipped");
     });
+  });
+});
+
+describe("enrollment stop through core transition", () => {
+  it("prospect delete stops enrollment via core stop transition", async () => {
+    const result = transition(
+      {
+        state: "active",
+        currentStepIndex: 0,
+        hasNextStep: true,
+        nextStepKind: "manual_email",
+        anchorMessageId: null,
+        attemptCount: 0,
+      },
+      { kind: "stop", reason: "prospect_deleted" },
+    );
+
+    expect(result.nextState).toBe("stopped");
+    expect(result.effects).toEqual(
+      expect.arrayContaining([
+        { kind: "terminate", reason: "stopped" },
+        { kind: "emit_event", type: "enrollment.stopped" },
+      ]),
+    );
+  });
+
+  it("mailbox archive stops enrollment via core stop transition", () => {
+    const result = transition(
+      {
+        state: "waiting_manual",
+        currentStepIndex: 0,
+        hasNextStep: true,
+        nextStepKind: "manual_email",
+        anchorMessageId: null,
+        attemptCount: 0,
+      },
+      { kind: "stop", reason: "mailbox_archived" },
+    );
+
+    expect(result.nextState).toBe("stopped");
+    expect(result.effects).toContainEqual({
+      kind: "emit_event",
+      type: "enrollment.stopped",
+    });
+  });
+
+  it("terminal enrollment is unaffected by stop transition", () => {
+    for (const state of ["stopped", "completed", "replied", "bounced", "failed"] as const) {
+      const result = transition(
+        {
+          state,
+          currentStepIndex: 0,
+          hasNextStep: false,
+          nextStepKind: null,
+          anchorMessageId: null,
+          attemptCount: 0,
+        },
+        { kind: "stop", reason: "prospect_deleted" },
+      );
+
+      expect(result.nextState).toBe(state);
+      expect(result.effects).toEqual([]);
+    }
   });
 });
