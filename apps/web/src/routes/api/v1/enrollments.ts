@@ -7,7 +7,12 @@ import { tables } from "@quiksend/db/tables";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { injectCanariesForEnrollment, parseWorkspaceCanaryConfig } from "@/lib/canary-injection.ts";
+import {
+  injectCanariesForEnrollment,
+  isDeliverabilityProEntitled,
+  parseWorkspaceCanaryConfig,
+} from "@/lib/canary-injection.ts";
+import { isEnrollmentDuplicate } from "@/lib/sequences.functions.ts";
 import { jsonData, jsonError, parseJsonBody, withApiAuth } from "@/lib/api/v1/middleware.ts";
 
 type SequenceSettings = {
@@ -192,11 +197,7 @@ export const Route = createFileRoute("/api/v1/enrollments")({
               }
             }
 
-            const mailbox = mailboxes[mailboxIndex % mailboxes.length];
-            if (!mailbox) {
-              skipProspect(prospectId, "no_mailbox");
-              continue;
-            }
+            const mailbox = mailboxes[mailboxIndex % mailboxes.length]!;
             mailboxIndex++;
 
             const nextRunAt = computeNextRunAt(steps, settings, mailbox, 0, anchor);
@@ -216,12 +217,11 @@ export const Route = createFileRoute("/api/v1/enrollments")({
               enrolled.push(prospectId);
               alreadyEnrolled.add(prospectId);
             } catch (err) {
-              const reason = isUniqueViolation(err) ? "conflict" : "insert_error";
-              logger.warn(
-                { err, prospectId, sequenceId: seq.id, organizationId: ctx.orgId },
-                "REST enrollment insert failed",
-              );
-              skipProspect(prospectId, reason);
+              if (isEnrollmentDuplicate(err)) {
+                skipProspect(prospectId, "conflict");
+                continue;
+              }
+              throw err;
             }
           }
 
@@ -255,22 +255,7 @@ export const Route = createFileRoute("/api/v1/enrollments")({
   },
 });
 
-type EnrollmentSkipReason =
-  | "not_found"
-  | "already_enrolled"
-  | "suppressed"
-  | "no_mailbox"
-  | "conflict"
-  | "insert_error";
-
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code: string }).code === "23505"
-  );
-}
+type EnrollmentSkipReason = "not_found" | "already_enrolled" | "suppressed" | "conflict";
 
 async function loadSuppressedEmailsForRest(
   organizationId: string,

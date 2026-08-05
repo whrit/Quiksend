@@ -55,9 +55,16 @@ export type EnrollmentExclusionReason =
   | "prospect_suppressed"
   | "sequence_archived";
 
-/** PostgreSQL unique-violation error code. Only this code maps to `already_enrolled`. */
-export function isUniqueViolation(err: unknown): boolean {
-  return typeof err === "object" && err !== null && "code" in err && err.code === "23505";
+/** True only for the enrollment uniqueness constraint; other 23505s propagate. */
+export function isEnrollmentDuplicate(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    err.code === "23505" &&
+    "constraint_name" in err &&
+    err.constraint_name === "enrollment_org_sequence_prospect_uidx"
+  );
 }
 
 export type EntryCondition = {
@@ -817,8 +824,6 @@ export const enrollProspects = createServerFn({ method: "POST" })
     if (seq.status === "archived") {
       return {
         enrolled: 0,
-        skipped: data.prospectIds.length,
-        skippedIds: data.prospectIds,
         exclusions: data.prospectIds.map((prospectId) => ({
           prospectId,
           reason: "sequence_archived" as const,
@@ -903,11 +908,7 @@ export const enrollProspects = createServerFn({ method: "POST" })
         }
       }
 
-      const mailbox = mailboxes[mailboxIndex % mailboxes.length];
-      if (!mailbox) {
-        exclusions.push({ prospectId, reason: "prospect_suppressed" });
-        continue;
-      }
+      const mailbox = mailboxes[mailboxIndex % mailboxes.length]!;
       mailboxIndex++;
 
       const nextRunAt = computeNextRunAt(steps, settings, mailbox, 0, anchor);
@@ -927,7 +928,7 @@ export const enrollProspects = createServerFn({ method: "POST" })
         enrolled.push(prospectId);
         alreadyEnrolled.add(prospectId);
       } catch (err) {
-        if (isUniqueViolation(err)) {
+        if (isEnrollmentDuplicate(err)) {
           exclusions.push({ prospectId, reason: "already_enrolled" });
           continue;
         }
@@ -951,8 +952,6 @@ export const enrollProspects = createServerFn({ method: "POST" })
 
     return {
       enrolled: enrolled.length,
-      skipped: exclusions.length,
-      skippedIds: exclusions.map((e) => e.prospectId),
       exclusions,
       canariesCreated,
     };
