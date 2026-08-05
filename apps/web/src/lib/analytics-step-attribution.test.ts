@@ -223,10 +223,14 @@ describe("per-step message attribution", () => {
         .orderBy(tables.message.subject);
 
       expect(messages).toHaveLength(2);
-      expect(messages[0].subject).toBe("Control Subject");
-      expect(messages[0].enrollmentId).toBe(enrollmentA!.id);
-      expect(messages[1].subject).toBe("Variant B Subject");
-      expect(messages[1].enrollmentId).toBe(enrollmentB!.id);
+      const msg0 = messages[0];
+      if (!msg0) throw new Error("Expected messages[0] to exist");
+      const msg1 = messages[1];
+      if (!msg1) throw new Error("Expected messages[1] to exist");
+      expect(msg0.subject).toBe("Control Subject");
+      expect(msg0.enrollmentId).toBe(enrollmentA!.id);
+      expect(msg1.subject).toBe("Variant B Subject");
+      expect(msg1.enrollmentId).toBe(enrollmentB!.id);
     });
   });
 
@@ -301,7 +305,9 @@ describe("per-step message attribution", () => {
         .where(eq(tables.message.organizationId, orgA.id));
 
       expect(messages).toHaveLength(1);
-      expect(messages[0].subject).toBe("Only Config Subject");
+      const msg = messages[0];
+      if (!msg) throw new Error("Expected messages[0] to exist");
+      expect(msg.subject).toBe("Only Config Subject");
     });
   });
 
@@ -381,7 +387,9 @@ describe("per-step message attribution", () => {
         .where(eq(tables.message.organizationId, orgA.id));
 
       expect(messages).toHaveLength(1);
-      expect(messages[0].subject).toBe("Config for Null Bucket");
+      const msg = messages[0];
+      if (!msg) throw new Error("Expected messages[0] to exist");
+      expect(msg.subject).toBe("Config for Null Bucket");
     });
   });
 });
