@@ -1,10 +1,11 @@
-import { db } from "@quiksend/db";
+import { randomUUID } from "node:crypto";
+import { db, insertOutbox } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { verifyUnsubscribeToken } from "@quiksend/mail";
 import { enqueue } from "@quiksend/queue";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
-import { insertDomainEventAndFanout } from "@/lib/api/v1/helpers.ts";
+import { tryDispatchOutbox } from "@/lib/api/v1/helpers.ts";
 import { checkAuthIpRateLimit } from "@/lib/api/v1/middleware.ts";
 
 async function enqueueCrmWriteback(organizationId: string, prospectId: string): Promise<void> {
@@ -87,34 +88,52 @@ async function processUnsubscribe(token: string): Promise<UnsubscribeOutcome> {
 
   if (existing) return { kind: "success", alreadySuppressed: true };
 
-  await db.insert(tables.suppression).values({
-    organizationId: payload.orgId,
-    value: prospect.email,
-    valueType: "email",
-    reason: "unsubscribe",
-    notes: "One-click unsubscribe link",
+  // Source mutations + domain event + outbox intent in one transaction
+  await db.transaction(async (tx) => {
+    await tx.insert(tables.suppression).values({
+      organizationId: payload.orgId,
+      value: prospect.email,
+      valueType: "email",
+      reason: "unsubscribe",
+      notes: "One-click unsubscribe link",
+    });
+
+    await tx
+      .update(tables.prospect)
+      .set({ status: "unsubscribed" })
+      .where(
+        and(
+          eq(tables.prospect.id, payload.prospectId),
+          eq(tables.prospect.organizationId, payload.orgId),
+        ),
+      );
+
+    await tx.insert(tables.event).values({
+      organizationId: payload.orgId,
+      type: "prospect.unsubscribed",
+      entityType: "prospect",
+      entityId: payload.prospectId,
+      payload: {
+        prospectId: payload.prospectId,
+        email: prospect.email,
+      },
+    });
+
+    await insertOutbox(tx, {
+      organizationId: payload.orgId,
+      eventType: "prospect.unsubscribed",
+      aggregateType: "prospect",
+      aggregateId: payload.prospectId,
+      payload: {
+        prospectId: payload.prospectId,
+        email: prospect.email,
+      },
+      idempotencyKey: `unsubscribe:${payload.prospectId}:${randomUUID()}`,
+    });
   });
 
-  await db
-    .update(tables.prospect)
-    .set({ status: "unsubscribed" })
-    .where(
-      and(
-        eq(tables.prospect.id, payload.prospectId),
-        eq(tables.prospect.organizationId, payload.orgId),
-      ),
-    );
-
+  await tryDispatchOutbox();
   await enqueueCrmWriteback(payload.orgId, payload.prospectId);
-
-  await insertDomainEventAndFanout({
-    organizationId: payload.orgId,
-    eventType: "prospect.unsubscribed",
-    payload: {
-      prospectId: payload.prospectId,
-      email: prospect.email,
-    },
-  });
 
   return { kind: "success", alreadySuppressed: false };
 }

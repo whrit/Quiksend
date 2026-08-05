@@ -8,6 +8,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth.ts";
@@ -140,3 +141,39 @@ export const webhookDeliveryRelations = relations(webhookDelivery, ({ one }) => 
     references: [webhookEndpoint.id],
   }),
 }));
+
+// ── Transactional event outbox ──────────────────────────────────────────────
+
+export const outboxStatusEnum = pgEnum("outbox_status", [
+  "pending",
+  "dispatched",
+  "failed",
+]);
+
+export const eventOutbox = pgTable(
+  "event_outbox",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(),
+    aggregateType: text("aggregate_type").notNull(),
+    aggregateId: text("aggregate_id").notNull(),
+    payload: jsonb("payload").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: outboxStatusEnum("status").default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+    dispatchedAt: timestamp("dispatched_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("event_outbox_type_idempotency_idx").on(table.eventType, table.idempotencyKey),
+    index("event_outbox_status_created_idx").on(table.status, table.createdAt),
+  ],
+);

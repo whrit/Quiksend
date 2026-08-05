@@ -1,12 +1,11 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { logger } from "@quiksend/config";
-import { db } from "@quiksend/db";
+import { db, insertOutbox } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { enqueue } from "@quiksend/queue";
 import { and, desc, eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type * as schema from "@quiksend/db/schema";
-import { fanoutWebhookEvent } from "../handlers/webhook-fanout.ts";
 import type { EnrollmentContext } from "./context.ts";
 
 type DbTx = PostgresJsDatabase<typeof schema>;
@@ -229,10 +228,13 @@ export async function handleEmitEvent(
     if (engineType === "enrollment.no_safe_mailbox_for_gateway") {
       payload.reason = "no_safe_mailbox_for_gateway";
     }
-    await fanoutWebhookEvent({
+    await insertOutbox(tx, {
       organizationId: ctx.organizationId,
       eventType: engineType,
+      aggregateType: entityType,
+      aggregateId: entityId,
       payload,
+      idempotencyKey: `${engineType}:${ctx.enrollmentId}:${entityId}:${randomUUID()}`,
     });
   }
 

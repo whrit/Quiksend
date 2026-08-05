@@ -25,6 +25,7 @@ export interface TestOrgs {
 export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
   "auth_rate_bucket",
   "nango_webhook_processed",
+  "event_outbox",
   "apikey",
   "webhook_delivery",
   "webhook_endpoint",

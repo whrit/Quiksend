@@ -1,13 +1,15 @@
 import "@tanstack/react-start/server-only";
 
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { env } from "@quiksend/config";
-import { db } from "@quiksend/db";
+import { db, insertOutbox } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import type { WebhookEventType } from "@quiksend/db/schema";
 import { enqueue } from "@quiksend/queue";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type * as schema from "@quiksend/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 
 export function generateWebhookSecret(): string {
@@ -143,44 +145,66 @@ export function isAllowedWebhookUrl(url: string): boolean {
   return !isBlockedWebhookLiteralHost(normalizeWebhookHost(parsed.hostname));
 }
 
-export async function fanoutWebhookEvent(input: {
-  organizationId: string;
-  eventType: WebhookEventType | string;
-  payload: Record<string, unknown>;
-}): Promise<string[]> {
-  const endpoints = await db.query.webhookEndpoint.findMany({
-    where: and(
-      eq(tables.webhookEndpoint.organizationId, input.organizationId),
-      eq(tables.webhookEndpoint.status, "active"),
-    ),
+type DbTx = PostgresJsDatabase<typeof schema>;
+
+/**
+ * Insert a domain event + outbox intent inside the caller's transaction.
+ * The outbox dispatcher handles webhook fanout after commit.
+ */
+export async function insertDomainEventAndOutbox(
+  tx: DbTx,
+  input: {
+    organizationId: string;
+    eventType: WebhookEventType | string;
+    entityType?: string;
+    entityId?: string;
+    payload: Record<string, unknown>;
+    idempotencyKey: string;
+  },
+): Promise<string> {
+  const entityId = input.entityId ?? "00000000-0000-0000-0000-000000000000";
+  const entityType = input.entityType ?? "webhook";
+
+  const [row] = await tx
+    .insert(tables.event)
+    .values({
+      organizationId: input.organizationId,
+      type: input.eventType,
+      entityType,
+      entityId,
+      payload: input.payload,
+    })
+    .returning({ id: tables.event.id });
+
+  await insertOutbox(tx, {
+    organizationId: input.organizationId,
+    eventType: input.eventType,
+    aggregateType: entityType,
+    aggregateId: entityId,
+    payload: input.payload,
+    idempotencyKey: input.idempotencyKey,
   });
 
-  const matching = endpoints.filter((ep) => ep.events.includes(input.eventType));
-  const deliveryIds: string[] = [];
-
-  for (const endpoint of matching) {
-    const [delivery] = await db
-      .insert(tables.webhookDelivery)
-      .values({
-        organizationId: input.organizationId,
-        endpointId: endpoint.id,
-        eventType: input.eventType,
-        payload: input.payload,
-        status: "pending",
-        attempts: 0,
-        nextAttemptAt: new Date(),
-      })
-      .returning({ id: tables.webhookDelivery.id });
-
-    if (delivery) {
-      deliveryIds.push(delivery.id);
-      await enqueue("webhook.deliver", { deliveryId: delivery.id });
-    }
-  }
-
-  return deliveryIds;
+  return row?.id ?? "";
 }
 
+/**
+ * Best-effort trigger of the outbox dispatcher after a commit.
+ * If this fails, the periodic sweep picks it up.
+ */
+export async function tryDispatchOutbox(): Promise<void> {
+  try {
+    await enqueue("outbox.dispatch", {});
+  } catch {
+    // ponytail: sweep recovers; no-op on enqueue failure
+  }
+}
+
+/**
+ * Backward-compat wrapper: inserts domain event + outbox in a self-contained tx.
+ * Existing callers that don't have their own tx keep working; the outbox
+ * dispatcher handles the actual webhook fanout.
+ */
 export async function insertDomainEventAndFanout(input: {
   organizationId: string;
   eventType: WebhookEventType | string;
@@ -188,19 +212,14 @@ export async function insertDomainEventAndFanout(input: {
   entityId?: string;
   payload: Record<string, unknown>;
 }): Promise<{ eventId: string; deliveryIds: string[] }> {
-  const [row] = await db
-    .insert(tables.event)
-    .values({
-      organizationId: input.organizationId,
-      type: input.eventType,
-      entityType: input.entityType ?? "webhook",
-      entityId: input.entityId ?? "00000000-0000-0000-0000-000000000000",
-      payload: input.payload,
-    })
-    .returning({ id: tables.event.id });
-
-  const deliveryIds = await fanoutWebhookEvent(input);
-  return { eventId: row?.id ?? "", deliveryIds };
+  const eventId = await db.transaction(async (tx) =>
+    insertDomainEventAndOutbox(tx, {
+      ...input,
+      idempotencyKey: `${input.eventType}:${randomUUID()}`,
+    }),
+  );
+  await tryDispatchOutbox();
+  return { eventId, deliveryIds: [] };
 }
 
 export async function countRecentApiKeyUsage(apiKeyId: string, windowMs: number): Promise<number> {
