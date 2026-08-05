@@ -3,7 +3,7 @@
 # build the Nitro output, then ship only .output (self-contained — no node_modules,
 # no source tree, no package manager).
 
-FROM node:24-slim AS base
+FROM node:24-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS base
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0
@@ -13,7 +13,7 @@ WORKDIR /app
 # Prune to just @quiksend/web and the workspace packages it depends on.
 FROM base AS pruner
 COPY . .
-RUN pnpm dlx turbo@2.10.2 prune @quiksend/web --docker
+RUN pnpm install --frozen-lockfile && pnpm exec turbo prune @quiksend/web --docker
 
 # Install (cached on the pruned lockfile), then build.
 FROM base AS builder

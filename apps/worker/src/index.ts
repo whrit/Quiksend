@@ -3,6 +3,7 @@ import { client, db } from "@quiksend/db";
 import { initSentry, Sentry, shutdownPostHog } from "@quiksend/observability";
 import { enqueue, getBoss, registerHandler, stopBoss } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
+import { writeFileSync, unlinkSync } from "fs";
 import { registerAiResearchHandler } from "./handlers/ai-research.ts";
 import {
   registerGatewayDetectHandlers,
@@ -32,8 +33,21 @@ import { registerMailTransactionalSendHandler } from "./handlers/mail-transactio
  *
  * Sentry is best-effort — no-op when SENTRY_DSN is unset.
  */
+let heartbeatInterval: NodeJS.Timeout | undefined;
+
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, "Worker shutting down");
+  
+  // Clear heartbeat timer
+  clearInterval(heartbeatInterval);
+  
+  // Remove heartbeat file
+  try {
+    unlinkSync("/tmp/worker-ready");
+  } catch {
+    // File may not exist, ignore error
+  }
+  
   try {
     await stopBoss();
     await shutdownPostHog();
@@ -82,11 +96,22 @@ async function main(): Promise<void> {
   await registerMailTransactionalSendHandler();
   await registerOutboxDispatchHandler();
 
-  if (env.NODE_ENV !== "production") {
-    await enqueue("hello.ping", { message: "worker boot smoke test" });
+  // Initialize production heartbeat: write /tmp/worker-ready mtime every 30s
+  // Healthcheck uses stat to detect stale heartbeat (>90s)
+  heartbeatInterval = setInterval(() => {
+    try {
+      writeFileSync("/tmp/worker-ready", "");
+    } catch (err) {
+      logger.error({ err }, "Failed to write heartbeat file");
+    }
+  }, 30_000);
+  
+  // Write initial heartbeat file (all initialization complete)
+  try {
+    writeFileSync("/tmp/worker-ready", "");
+  } catch (err) {
+    logger.error({ err }, "Failed to write initial heartbeat file");
   }
-
-  logger.info("Worker ready — waiting for jobs");
 
   process.on("SIGINT", () => void shutdown("SIGINT"));
   process.on("SIGTERM", () => void shutdown("SIGTERM"));

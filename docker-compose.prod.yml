@@ -1,20 +1,22 @@
-# Standalone production Compose. Private Postgres, no Mailpit, no default credentials.
+# Standalone production Compose. Private Postgres, Caddy TLS ingress, no defaults.
 # Usage:
 #   cp .env.example .env
 #   # Set required production secrets in .env:
+#   #   QUIKSEND_DOMAIN (your domain, e.g., example.com — MUST match BETTER_AUTH_URL origin)
 #   #   POSTGRES_PASSWORD (strong password for postgres superuser)
-#   #   POSTGRES_APP_PASSWORD (strong password for quiksend app user)
-#   #   BETTER_AUTH_SECRET (>= 32 bytes, base64)
-#   #   BETTER_AUTH_URL (https://yourdomain.com, not http://localhost)
+#   #   POSTGRES_MIGRATOR_PASSWORD (strong password for schema migrations, >= 32 chars, [A-Za-z0-9._~-])
+#   #   POSTGRES_APP_PASSWORD (strong password for app runtime, >= 32 chars, [A-Za-z0-9._~-])
+#   #   BETTER_AUTH_SECRET (>= 32 bytes)
+#   #   BETTER_AUTH_URL (https://your-domain.com, MUST match QUIKSEND_DOMAIN)
 #   #   NANGO_WEBHOOK_SECRET (from Nango dashboard)
 #   #   MAILBOX_ENCRYPTION_KEY (32-byte base64)
-#   #   UNSUBSCRIBE_TOKEN_SECRET (32-byte base64)
+#   #   UNSUBSCRIBE_TOKEN_SECRET (>= 32 bytes)
 #   #   SMTP_HOST (smtp.provider.com)
 #   #   SMTP_PORT (587 or 465)
-#   #   SMTP_FROM (noreply@yourdomain.com)
 #   # Optional:
 #   #   SENTRY_DSN, POSTHOG_KEY
 #   #   QUIKSEND_IMAGE_TAG (defaults to latest)
+#   #   LOG_LEVEL (info, debug; defaults to info)
 #
 # Build and run migrations:
 #   docker compose -f docker-compose.prod.yml build migrate
@@ -23,27 +25,83 @@
 # Start services:
 #   docker compose -f docker-compose.prod.yml up -d
 
+version: "3.8"
+
 networks:
+  # Private network for database — internal only, no external access
   db:
+    driver: bridge
+    internal: true
+  
+  # Public network — Caddy TLS ingress, reverse proxy to internal services
+  public:
     driver: bridge
 
 services:
+  # Caddy TLS reverse proxy — automatic HTTPS via Let's Encrypt ACME
+  caddy:
+    image: caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    container_name: quiksend-caddy
+    restart: on-failure:3
+    networks:
+      - public
+    environment:
+      QUIKSEND_DOMAIN: ${QUIKSEND_DOMAIN:?QUIKSEND_DOMAIN required in production}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3 QUIC
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - quiksend-caddy-data:/data
+      - quiksend-caddy-config:/config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2019/config"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256M
+        reservations:
+          cpus: "0.5"
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # Private Postgres — accessible only to web/worker/migrate via the private 'db' network.
   postgres:
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:pg17@sha256:dd467f03ca5c5581222490e5217e48a262864ccb659be559f8491bbafdc97da0
     container_name: quiksend-postgres-prod
     restart: on-failure
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required in production}
       POSTGRES_DB: quiksend
+      POSTGRES_MIGRATOR_PASSWORD: ${POSTGRES_MIGRATOR_PASSWORD:?POSTGRES_MIGRATOR_PASSWORD required in production}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD required in production}
       POSTGRES_INITDB_ARGS: >-
         -c log_min_messages=WARNING
     networks:
       - db
     volumes:
       - quiksend-pgdata-prod:/var/lib/postgresql/data
-      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/10-init-app-user.sql:ro
+      - ./scripts/init-postgres.sh:/docker-entrypoint-initdb.d/10-init-app-user.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d quiksend"]
       interval: 5s
@@ -74,7 +132,7 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Database migration service — runs bundled migrate.js against production database.
+  # Database migration service — runs bundled migrate.js with schema owner role.
   migrate:
     build:
       context: .
@@ -84,7 +142,7 @@ services:
       - db
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://quiksend:${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD required}@postgres:5432/quiksend
+      DATABASE_URL: postgres://quiksend_migrator:${POSTGRES_MIGRATOR_PASSWORD:?POSTGRES_MIGRATOR_PASSWORD required}@postgres:5432/quiksend
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,17 +156,18 @@ services:
     profiles:
       - migrate
 
-  # Web service — TanStack Start + Nitro.
+  # Web service — TanStack Start + Nitro (internal network, reverse proxied by Caddy).
   web:
     image: ghcr.io/whrit/quiksend-web:${QUIKSEND_IMAGE_TAG:-latest}
     container_name: quiksend-web
     restart: on-failure:3
     networks:
       - db
+      - public
     environment:
       NODE_ENV: production
       PORT: "3000"
-      DATABASE_URL: postgres://quiksend:${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD required}@postgres:5432/quiksend
+      DATABASE_URL: postgres://quiksend_app:${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD required}@postgres:5432/quiksend
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL required in production}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET required}
       UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:?UNSUBSCRIBE_TOKEN_SECRET required}
@@ -117,7 +176,6 @@ services:
       MAILBOX_ENCRYPTION_KEY: ${MAILBOX_ENCRYPTION_KEY:?MAILBOX_ENCRYPTION_KEY required}
       SMTP_HOST: ${SMTP_HOST:?SMTP_HOST required in production}
       SMTP_PORT: ${SMTP_PORT:?SMTP_PORT required in production}
-      SMTP_FROM: ${SMTP_FROM:?SMTP_FROM required in production}
       SENTRY_DSN: ${SENTRY_DSN:-}
       POSTHOG_KEY: ${POSTHOG_KEY:-}
       # Optional — AI generation (omit to disable)
@@ -131,8 +189,9 @@ services:
       TRACKING_PIXEL_DOMAIN: ${TRACKING_PIXEL_DOMAIN:-}
       SYSTEM_SEED_ENCRYPTION_KEY: ${SYSTEM_SEED_ENCRYPTION_KEY:-}
       WEBHOOK_DELIVER_CONCURRENCY: ${WEBHOOK_DELIVER_CONCURRENCY:-5}
-    ports:
-      - "3000:3000"
+    # Expose only on internal network (no external ports)
+    expose:
+      - "3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -171,7 +230,7 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Worker service — pg-boss job processor, cron jobs.
+  # Worker service — pg-boss job processor, cron jobs (internal network only).
   worker:
     image: ghcr.io/whrit/quiksend-worker:${QUIKSEND_IMAGE_TAG:-latest}
     container_name: quiksend-worker
@@ -181,7 +240,7 @@ services:
     environment:
       NODE_ENV: production
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: postgres://quiksend:${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD required}@postgres:5432/quiksend
+      DATABASE_URL: postgres://quiksend_app:${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD required}@postgres:5432/quiksend
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL required}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET required}
       UNSUBSCRIBE_TOKEN_SECRET: ${UNSUBSCRIBE_TOKEN_SECRET:?UNSUBSCRIBE_TOKEN_SECRET required}
@@ -190,7 +249,6 @@ services:
       MAILBOX_ENCRYPTION_KEY: ${MAILBOX_ENCRYPTION_KEY:?MAILBOX_ENCRYPTION_KEY required}
       SMTP_HOST: ${SMTP_HOST:?SMTP_HOST required in production}
       SMTP_PORT: ${SMTP_PORT:?SMTP_PORT required in production}
-      SMTP_FROM: ${SMTP_FROM:?SMTP_FROM required in production}
       SENTRY_DSN: ${SENTRY_DSN:-}
       POSTHOG_KEY: ${POSTHOG_KEY:-}
       NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=2048}
@@ -208,18 +266,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "process.kill(1, 0)"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    cap_add:
-      - NET_BIND_SERVICE
     read_only: true
     tmpfs:
       - /tmp
@@ -239,4 +289,8 @@ services:
 
 volumes:
   quiksend-pgdata-prod:
+    driver: local
+  quiksend-caddy-data:
+    driver: local
+  quiksend-caddy-config:
     driver: local

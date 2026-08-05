@@ -3,7 +3,7 @@
 # Bundles packages/db/src/migrate.ts into a standalone JS artifact; no source tree,
 # no dev dependencies at runtime.
 
-FROM node:24-slim AS base
+FROM node:24-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS base
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0
@@ -13,7 +13,7 @@ WORKDIR /app
 # Prune to include @quiksend/db and dependencies (needed for migrations).
 FROM base AS pruner
 COPY . .
-RUN pnpm dlx turbo@2.10.2 prune @quiksend/db --docker
+RUN pnpm install --frozen-lockfile && pnpm exec turbo prune @quiksend/db --docker
 
 # Build stage: bundle migration TypeScript to JavaScript.
 FROM base AS builder
