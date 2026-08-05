@@ -4,9 +4,13 @@ import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { getPostHog } from "@quiksend/observability";
 import { and, eq } from "drizzle-orm";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type * as schema from "@quiksend/db/schema";
 import { applyTransitionEffects } from "./effects.ts";
 import { loadContext } from "./load-context.ts";
 import { type EnrollmentContext, toSnapshot } from "./context.ts";
+
+type DbTx = PostgresJsDatabase<typeof schema>;
 
 export interface InboundEmail {
   readonly id: string;
@@ -29,6 +33,7 @@ export interface InboundEmail {
 export async function handleInboundReply(
   inbound: InboundEmail,
   enrollmentId: string,
+  outerTx?: DbTx,
 ): Promise<void> {
   const ctx = await loadContext(enrollmentId, inbound.organizationId);
   const snapshot = toSnapshot(ctx);
@@ -38,9 +43,15 @@ export async function handleInboundReply(
     stopOnReply: ctx.stopOnReply,
   });
 
-  await db.transaction(async (tx) => {
+  const applyEffects = async (tx: DbTx) => {
     await applyTransitionEffects(tx, ctx, effects, 0, nextState);
-  });
+  };
+
+  if (outerTx) {
+    await applyEffects(outerTx);
+  } else {
+    await db.transaction(applyEffects);
+  }
 
   await emitProductEvents(ctx, effects);
   logger.info(
@@ -57,6 +68,7 @@ export async function handleInboundReply(
 export async function handleInboundBounce(
   inbound: InboundEmail,
   enrollmentId: string,
+  outerTx?: DbTx,
 ): Promise<void> {
   const bounceType = inbound.bounceType ?? "hard";
   const ctx = await loadContext(enrollmentId, inbound.organizationId);
@@ -67,7 +79,7 @@ export async function handleInboundBounce(
     at: inbound.receivedAt,
   });
 
-  await db.transaction(async (tx) => {
+  const applyEffects = async (tx: DbTx) => {
     await applyTransitionEffects(tx, ctx, effects, 0, nextState);
 
     if (bounceType === "hard") {
@@ -93,7 +105,13 @@ export async function handleInboundBounce(
           ),
         );
     }
-  });
+  };
+
+  if (outerTx) {
+    await applyEffects(outerTx);
+  } else {
+    await db.transaction(applyEffects);
+  }
 
   await emitProductEvents(ctx, effects);
   logger.info(

@@ -13,7 +13,9 @@ import {
 import { decryptSmtpConfig } from "@quiksend/mail";
 import { normalizeMessageId } from "@quiksend/mail/threading";
 import { enqueue, getBoss, registerHandler } from "@quiksend/queue";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type * as schema from "@quiksend/db/schema";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import {
@@ -40,7 +42,7 @@ interface PollCursor {
   lastPolledAt?: string;
 }
 
-interface ParsedInbound {
+export interface ParsedInbound {
   providerMessageId: string;
   providerThreadId: string | null;
   messageIdHeader: string | null;
@@ -59,6 +61,10 @@ interface ParsedInbound {
 interface OrgInboxSettings {
   stop_on_ooo: boolean;
 }
+
+type DbTx = PostgresJsDatabase<typeof schema>;
+
+const QUARANTINE_THRESHOLD = 3;
 
 export async function registerMailboxPollHandler(): Promise<void> {
   await registerHandler("mailbox.poll", async ({ mailboxId, since }) => {
@@ -100,93 +106,90 @@ export async function registerMailboxPollTick(): Promise<void> {
 }
 
 async function pollMailbox(mailboxId: string, since: Date): Promise<void> {
-  const mailbox = await db.query.mailbox.findFirst({
-    where: eq(tables.mailbox.id, mailboxId),
-  });
-  if (!mailbox || mailbox.status !== "active") return;
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${mailboxId}))`);
 
-  const cursor = parsePollCursor(mailbox.pollCursor);
-  let inboundMessages: ParsedInbound[] = [];
-  let nextCursor = cursor;
+    const mailbox = await tx.query.mailbox.findFirst({
+      where: eq(tables.mailbox.id, mailboxId),
+    });
+    if (!mailbox || mailbox.status !== "active") return;
 
-  try {
-    switch (mailbox.provider) {
-      case "gmail":
-        ({ messages: inboundMessages, cursor: nextCursor } = await pollGmail(
-          mailbox,
-          cursor,
-          since,
-        ));
-        break;
-      case "microsoft":
-        ({ messages: inboundMessages, cursor: nextCursor } = await pollMicrosoft(
-          mailbox,
-          cursor,
-          since,
-        ));
-        break;
-      case "smtp":
-        ({ messages: inboundMessages, cursor: nextCursor } = await pollImap(
-          mailbox,
-          cursor,
-          since,
-        ));
-        break;
-      default:
-        logger.warn({ mailboxId, provider: mailbox.provider }, "unknown mailbox provider");
-        return;
-    }
-  } catch (err) {
-    logger.error({ err, mailboxId }, "mailbox poll failed");
-    throw err;
-  }
+    const cursor = parsePollCursor(mailbox.pollCursor);
+    let inboundMessages: ParsedInbound[] = [];
+    let nextCursor = cursor;
 
-  const orgSettings = await loadOrgInboxSettings(mailbox.organizationId);
-
-  for (const inbound of inboundMessages) {
     try {
-      await processInboundMessage(mailbox, inbound, orgSettings);
+      switch (mailbox.provider) {
+        case "gmail":
+          ({ messages: inboundMessages, cursor: nextCursor } = await pollGmail(
+            mailbox,
+            cursor,
+            since,
+          ));
+          break;
+        case "microsoft":
+          ({ messages: inboundMessages, cursor: nextCursor } = await pollMicrosoft(
+            mailbox,
+            cursor,
+            since,
+          ));
+          break;
+        case "smtp":
+          ({ messages: inboundMessages, cursor: nextCursor } = await pollImap(
+            mailbox,
+            cursor,
+            since,
+          ));
+          break;
+        default:
+          logger.warn({ mailboxId, provider: mailbox.provider }, "unknown mailbox provider");
+          return;
+      }
     } catch (err) {
-      logger.error(
-        { err, mailboxId, providerMessageId: inbound.providerMessageId },
-        "inbound process failed",
-      );
+      logger.error({ err, mailboxId }, "mailbox poll failed");
+      throw err;
     }
-  }
 
-  nextCursor = { ...nextCursor, lastPolledAt: new Date().toISOString() };
-  await db
-    .update(tables.mailbox)
-    .set({ pollCursor: nextCursor })
-    .where(
-      and(
-        eq(tables.mailbox.id, mailboxId),
-        eq(tables.mailbox.organizationId, mailbox.organizationId),
-      ),
-    );
+    const orgSettings = await loadOrgInboxSettings(mailbox.organizationId);
+
+    let cursorBlocked = false;
+    for (const inbound of inboundMessages) {
+      const result = await processInboundMessage(tx, mailbox, inbound, orgSettings);
+      if (result === "blocked") cursorBlocked = true;
+    }
+
+    if (!cursorBlocked) {
+      nextCursor = { ...nextCursor, lastPolledAt: new Date().toISOString() };
+      await tx
+        .update(tables.mailbox)
+        .set({ pollCursor: nextCursor })
+        .where(
+          and(
+            eq(tables.mailbox.id, mailboxId),
+            eq(tables.mailbox.organizationId, mailbox.organizationId),
+          ),
+        );
+    }
+  });
 }
 
-async function processInboundMessage(
+export async function processInboundMessage(
+  tx: DbTx,
   mailbox: typeof tables.mailbox.$inferSelect,
   inbound: ParsedInbound,
   orgSettings: OrgInboxSettings,
-): Promise<void> {
-  const existing = await db.query.message.findFirst({
-    where: and(
-      eq(tables.message.organizationId, mailbox.organizationId),
-      eq(tables.message.providerMessageId, inbound.providerMessageId),
-      eq(tables.message.mailboxId, mailbox.id),
-    ),
-  });
-  if (existing) return;
-
+): Promise<"ok" | "blocked"> {
   const bounce = parseBounce(inbound.rawMime);
   const isBounce = bounce !== null;
   const autoReply = isBounce
     ? { isAutoReply: false, reason: null }
     : detectAutoReply(inbound.headers, inbound.bodyText);
 
-  const outboundRows = await findMatchingOutboundMessages(mailbox.organizationId, inbound);
+  const outboundRows = await findMatchingOutboundMessages(
+    tx,
+    mailbox.organizationId,
+    inbound,
+  );
 
   const anchors: OutboundAnchor[] = outboundRows
     .filter((row) => row.messageIdHeader)
@@ -235,7 +238,8 @@ async function processInboundMessage(
     }
   }
 
-  const [inserted] = await db
+  // Upsert: insert new message OR atomically increment ingestionAttempts on duplicate
+  const [row] = await tx
     .insert(tables.message)
     .values({
       organizationId: mailbox.organizationId,
@@ -256,25 +260,29 @@ async function processInboundMessage(
       dsn: isBounce ? bounce : null,
       isAutoReply: autoReply.isAutoReply,
       receivedAt: inbound.receivedAt,
+      ingestionAttempts: 1,
+    })
+    .onConflictDoUpdate({
+      target: [tables.message.mailboxId, tables.message.providerMessageId],
+      targetWhere: sql`${tables.message.direction} = 'inbound' AND ${tables.message.providerMessageId} IS NOT NULL`,
+      set: {
+        ingestionAttempts: sql`COALESCE(${tables.message.ingestionAttempts}, 0) + 1`,
+      },
     })
     .returning();
 
-  if (!inserted) return;
+  if (!row) return "ok";
 
-  if (!isBounce) {
-    await storeInboundSentiment(mailbox.organizationId, inserted.id, {
-      subject: inbound.subject,
-      bodyText: inbound.bodyText,
-      bodyHtml: inbound.bodyHtml,
-    });
-  }
+  // Already quarantined from a prior cycle — skip, allow cursor progress
+  if (row.status === "quarantined") return "ok";
 
+  // Build the InboundEmail payload (uses the stored row id)
   const inboundEmail: InboundEmail = {
-    id: inserted.id,
+    id: row.id,
     organizationId: mailbox.organizationId,
     mailboxId: mailbox.id,
     providerMessageId: inbound.providerMessageId,
-    providerThreadId: inserted.providerThreadId,
+    providerThreadId: row.providerThreadId,
     messageIdHeader,
     inReplyTo,
     references: inbound.references,
@@ -287,34 +295,77 @@ async function processInboundMessage(
     enrollmentId: matchedOutbound?.enrollmentId ?? null,
   };
 
-  if (isBounce && matchedOutbound?.enrollmentId) {
-    await handleInboundBounce(
+  // Wrap effects in a savepoint so failures don't lose the upsert
+  try {
+    await tx.transaction(async (sp) => {
+      if (!isBounce) {
+        await storeInboundSentiment(sp, mailbox.organizationId, row.id, {
+          subject: inbound.subject,
+          bodyText: inbound.bodyText,
+          bodyHtml: inbound.bodyHtml,
+        });
+      }
+
+      if (isBounce && matchedOutbound?.enrollmentId) {
+        await handleInboundBounce(
+          {
+            ...inboundEmail,
+            fromEmail: bounce?.recipient ?? null,
+            bounceType: bounce?.type ?? "hard",
+          },
+          matchedOutbound.enrollmentId,
+          sp,
+        );
+        return;
+      }
+
+      if (isBounce) return;
+
+      if (autoReply.isAutoReply && !orgSettings.stop_on_ooo) {
+        logger.info(
+          { messageId: row.id, reason: autoReply.reason },
+          "auto-reply detected; not stopping enrollment",
+        );
+        return;
+      }
+
+      if (matchedOutbound?.enrollmentId) {
+        await handleInboundReply(inboundEmail, matchedOutbound.enrollmentId, sp);
+      }
+    });
+    return "ok";
+  } catch (err) {
+    if (row.ingestionAttempts >= QUARANTINE_THRESHOLD) {
+      await tx
+        .update(tables.message)
+        .set({ status: "quarantined" })
+        .where(eq(tables.message.id, row.id));
+      logger.error(
+        {
+          mailboxId: mailbox.id,
+          messageId: row.id,
+          providerMessageId: inbound.providerMessageId,
+          ingestionAttempts: row.ingestionAttempts,
+        },
+        "inbound message quarantined after repeated ingestion failures",
+      );
+      return "ok";
+    }
+    logger.error(
       {
-        ...inboundEmail,
-        fromEmail: bounce?.recipient ?? null,
-        bounceType: bounce?.type ?? "hard",
+        err,
+        mailboxId: mailbox.id,
+        providerMessageId: inbound.providerMessageId,
+        ingestionAttempts: row.ingestionAttempts,
       },
-      matchedOutbound.enrollmentId,
+      "inbound process failed; cursor held for retry",
     );
-    return;
-  }
-
-  if (isBounce) return;
-
-  if (autoReply.isAutoReply && !orgSettings.stop_on_ooo) {
-    logger.info(
-      { messageId: inserted.id, reason: autoReply.reason },
-      "auto-reply detected; not stopping enrollment",
-    );
-    return;
-  }
-
-  if (matchedOutbound?.enrollmentId) {
-    await handleInboundReply(inboundEmail, matchedOutbound.enrollmentId);
+    return "blocked";
   }
 }
 
 async function findMatchingOutboundMessages(
+  tx: DbTx,
   organizationId: string,
   inbound: ParsedInbound,
 ): Promise<(typeof tables.message.$inferSelect)[]> {
@@ -341,7 +392,7 @@ async function findMatchingOutboundMessages(
   };
 
   if (headerIds.size > 0) {
-    const headerRows = await db.query.message.findMany({
+    const headerRows = await tx.query.message.findMany({
       where: and(
         eq(tables.message.organizationId, organizationId),
         eq(tables.message.direction, "outbound"),
@@ -353,7 +404,7 @@ async function findMatchingOutboundMessages(
   }
 
   if (candidates.providerThreadId) {
-    const threadRows = await db.query.message.findMany({
+    const threadRows = await tx.query.message.findMany({
       where: and(
         eq(tables.message.organizationId, organizationId),
         eq(tables.message.direction, "outbound"),
@@ -367,13 +418,14 @@ async function findMatchingOutboundMessages(
 }
 
 async function storeInboundSentiment(
+  tx: DbTx,
   organizationId: string,
   messageId: string,
   inbound: { subject: string | null; bodyText: string | null; bodyHtml: string | null },
 ): Promise<void> {
   const sentiment = await classifyInboundSentiment(inbound);
   if (!sentiment) return;
-  await db
+  await tx
     .update(tables.message)
     .set({ sentiment })
     .where(
