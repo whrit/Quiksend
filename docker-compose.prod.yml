@@ -76,8 +76,9 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Database migration service — builds from source, has pnpm and package.json.
-  # Run once before starting main services:
+  # Database migration service — runs bundled migrate.js against production database.
+  # Build and run once before starting main services:
+  #   docker compose -f docker-compose.prod.yml build migrate
   #   docker compose -f docker-compose.prod.yml run --rm migrate
   migrate:
     build:
@@ -92,7 +93,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    entrypoint: ["pnpm", "db:migrate"]
     security_opt:
       - no-new-privileges:true
     cap_drop:
