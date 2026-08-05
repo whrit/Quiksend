@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { db, insertOutbox } from "@quiksend/db";
+import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { verifyUnsubscribeToken } from "@quiksend/mail";
 import { enqueue } from "@quiksend/queue";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
-import { tryDispatchOutbox } from "@/lib/api/v1/helpers.ts";
+import { insertDomainEventAndOutbox, tryDispatchOutbox } from "@/lib/api/v1/helpers.ts";
 import { checkAuthIpRateLimit } from "@/lib/api/v1/middleware.ts";
 
 async function enqueueCrmWriteback(organizationId: string, prospectId: string): Promise<void> {
@@ -108,22 +108,11 @@ async function processUnsubscribe(token: string): Promise<UnsubscribeOutcome> {
         ),
       );
 
-    await tx.insert(tables.event).values({
-      organizationId: payload.orgId,
-      type: "prospect.unsubscribed",
-      entityType: "prospect",
-      entityId: payload.prospectId,
-      payload: {
-        prospectId: payload.prospectId,
-        email: prospect.email,
-      },
-    });
-
-    await insertOutbox(tx, {
+    await insertDomainEventAndOutbox(tx, {
       organizationId: payload.orgId,
       eventType: "prospect.unsubscribed",
-      aggregateType: "prospect",
-      aggregateId: payload.prospectId,
+      entityType: "prospect",
+      entityId: payload.prospectId,
       payload: {
         prospectId: payload.prospectId,
         email: prospect.email,

@@ -109,37 +109,6 @@ function resolveNangoEventId(input: {
   return createHash("sha256").update(key).digest("hex");
 }
 
-/**
- * Claim + source mutation in one tx. The claim only becomes terminal
- * when the tx commits, so a crash before commit leaves no orphaned claim.
- */
-async function claimNangoInTx(
-  eventId: string,
-  connectionId: string,
-): Promise<boolean> {
-  return db.transaction(async (tx) => {
-    const [row] = await tx
-      .insert(tables.nangoWebhookProcessed)
-      .values({ eventId, connectionId })
-      .onConflictDoNothing()
-      .returning({ eventId: tables.nangoWebhookProcessed.eventId });
-    return row !== undefined;
-  });
-}
-
-async function claimOrRejectDuplicate(
-  eventId: string,
-  connectionId: string,
-  kind: "sync" | "auth",
-): Promise<Response | null> {
-  const claimed = await claimNangoInTx(eventId, connectionId);
-  if (!claimed) {
-    logger.info({ eventId, connectionId }, `duplicate Nango ${kind} webhook`);
-    return Response.json({ duplicate: true });
-  }
-  return null;
-}
-
 export const Route = createFileRoute("/api/nango/webhook")({
   server: {
     handlers: {
@@ -185,8 +154,15 @@ export const Route = createFileRoute("/api/nango/webhook")({
 
           if (!connection) {
             // No connection — still claim to prevent retries, but no outbox
-            const duplicate = await claimOrRejectDuplicate(eventId, payload.connectionId, "sync");
-            if (duplicate) return duplicate;
+            const [claimed] = await db
+              .insert(tables.nangoWebhookProcessed)
+              .values({ eventId, connectionId: payload.connectionId })
+              .onConflictDoNothing()
+              .returning({ eventId: tables.nangoWebhookProcessed.eventId });
+            if (!claimed) {
+              logger.info({ eventId, connectionId: payload.connectionId }, "duplicate Nango sync webhook");
+              return Response.json({ duplicate: true });
+            }
             logger.info(
               { connectionId: payload.connectionId },
               "Nango sync webhook for unknown connection",
