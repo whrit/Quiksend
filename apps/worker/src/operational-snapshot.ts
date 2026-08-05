@@ -36,16 +36,6 @@ export interface OperationalSnapshot {
   reconciliationFailureCount: number;
 }
 
-export const SNAPSHOT_KEYS: readonly (keyof OperationalSnapshot)[] = [
-  "queueAgeMinutes",
-  "stuckSendingCount",
-  "staleEnrollmentCount",
-  "mailboxPollLagMinutes",
-  "webhookBacklogCount",
-  "inboundFailureCount",
-  "reconciliationFailureCount",
-] as const;
-
 // ── Beta thresholds ─────────────────────────────────────────────────────────
 
 export const THRESHOLDS: Readonly<Record<keyof OperationalSnapshot, number>> = {
@@ -57,6 +47,9 @@ export const THRESHOLDS: Readonly<Record<keyof OperationalSnapshot, number>> = {
   inboundFailureCount: 10,
   reconciliationFailureCount: 3,
 };
+
+export const SNAPSHOT_KEYS: readonly (keyof OperationalSnapshot)[] =
+  Object.keys(THRESHOLDS) as (keyof OperationalSnapshot)[];
 
 // ── Alert state (in-memory, resets on restart) ──────────────────────────────
 
@@ -76,99 +69,60 @@ export function sanitize(v: unknown): number {
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 export async function collectSnapshot(): Promise<OperationalSnapshot> {
-  // Run all queries concurrently — each is a bounded aggregate
-  const [
-    queueAge,
-    stuckSending,
-    staleEnrollment,
-    pollLag,
-    webhookBacklog,
-    inboundFailure,
-    reconFailure,
-  ] = await Promise.all([
-    // Oldest pending/queued message age (minutes)
-    db.execute<{ v: string | null }>(sql`
-      SELECT EXTRACT(EPOCH FROM (now() - MIN(created_at))) / 60 AS v
-      FROM message
-      WHERE status IN ('pending', 'queued')
-      LIMIT 1
-    `),
-
-    // Messages stuck in 'sending' for >30 min
-    db.execute<{ v: string | null }>(sql`
-      SELECT COUNT(*)::int AS v
-      FROM (
+  // Single bounded-aggregate query — scalar subqueries share one now() snapshot
+  const r = await db.execute(sql`
+    SELECT
+      EXTRACT(EPOCH FROM (now() - (
+        SELECT MIN(created_at) FROM message
+        WHERE status IN ('pending', 'queued')
+      ))) / 60 AS queue_age_minutes,
+      (SELECT COUNT(*)::int FROM (
         SELECT 1 FROM message
         WHERE status = 'sending'
           AND updated_at < now() - interval '30 minutes'
         LIMIT 1000
-      ) bounded
-    `),
-
-    // Active enrollments with no update in >2 hours
-    db.execute<{ v: string | null }>(sql`
-      SELECT COUNT(*)::int AS v
-      FROM (
+      ) b) AS stuck_sending_count,
+      (SELECT COUNT(*)::int FROM (
         SELECT 1 FROM enrollment
         WHERE state = 'active'
           AND updated_at < now() - interval '2 hours'
         LIMIT 1000
-      ) bounded
-    `),
-
-    // Minutes since newest mailbox poll (poll_cursor updated_at proxy via mailbox.updated_at)
-    db.execute<{ v: string | null }>(sql`
-      SELECT EXTRACT(EPOCH FROM (now() - MAX(updated_at))) / 60 AS v
-      FROM mailbox
-      WHERE status = 'active'
-        AND poll_cursor IS NOT NULL
-      LIMIT 1
-    `),
-
-    // Pending webhook deliveries older than 10 min
-    db.execute<{ v: string | null }>(sql`
-      SELECT COUNT(*)::int AS v
-      FROM (
+      ) b) AS stale_enrollment_count,
+      EXTRACT(EPOCH FROM (now() - (
+        SELECT MAX(updated_at) FROM mailbox
+        WHERE status = 'active' AND poll_cursor IS NOT NULL
+      ))) / 60 AS mailbox_poll_lag_minutes,
+      (SELECT COUNT(*)::int FROM (
         SELECT 1 FROM webhook_delivery
         WHERE status = 'pending'
           AND created_at < now() - interval '10 minutes'
         LIMIT 1000
-      ) bounded
-    `),
-
-    // Inbound messages failed or quarantine-like
-    db.execute<{ v: string | null }>(sql`
-      SELECT COUNT(*)::int AS v
-      FROM (
+      ) b) AS webhook_backlog_count,
+      (SELECT COUNT(*)::int FROM (
         SELECT 1 FROM message
         WHERE direction = 'inbound'
           AND status IN ('failed', 'bounced')
           AND created_at > now() - interval '1 hour'
         LIMIT 1000
-      ) bounded
-    `),
-
-    // Failed reconciliation jobs in last hour (job_log with status='failed')
-    db.execute<{ v: string | null }>(sql`
-      SELECT COUNT(*)::int AS v
-      FROM (
+      ) b) AS inbound_failure_count,
+      (SELECT COUNT(*)::int FROM (
         SELECT 1 FROM job_log
         WHERE job_name = 'health.reconcile'
           AND status = 'failed'
           AND created_at > now() - interval '1 hour'
         LIMIT 1000
-      ) bounded
-    `),
-  ]);
+      ) b) AS reconciliation_failure_count
+  `);
 
+  const row = r.rows?.[0] ?? r[0];
   return {
-    queueAgeMinutes: sanitize(queueAge.rows?.[0]?.v ?? queueAge[0]?.v),
-    stuckSendingCount: sanitize(stuckSending.rows?.[0]?.v ?? stuckSending[0]?.v),
-    staleEnrollmentCount: sanitize(staleEnrollment.rows?.[0]?.v ?? staleEnrollment[0]?.v),
-    mailboxPollLagMinutes: sanitize(pollLag.rows?.[0]?.v ?? pollLag[0]?.v),
-    webhookBacklogCount: sanitize(webhookBacklog.rows?.[0]?.v ?? webhookBacklog[0]?.v),
-    inboundFailureCount: sanitize(inboundFailure.rows?.[0]?.v ?? inboundFailure[0]?.v),
-    reconciliationFailureCount: sanitize(reconFailure.rows?.[0]?.v ?? reconFailure[0]?.v),
+    queueAgeMinutes: sanitize(row?.queue_age_minutes),
+    stuckSendingCount: sanitize(row?.stuck_sending_count),
+    staleEnrollmentCount: sanitize(row?.stale_enrollment_count),
+    mailboxPollLagMinutes: sanitize(row?.mailbox_poll_lag_minutes),
+    webhookBacklogCount: sanitize(row?.webhook_backlog_count),
+    inboundFailureCount: sanitize(row?.inbound_failure_count),
+    reconciliationFailureCount: sanitize(row?.reconciliation_failure_count),
   };
 }
 
@@ -217,21 +171,17 @@ export async function handleOperationalSnapshot(): Promise<void> {
 
 // ── Registration + cleanup ──────────────────────────────────────────────────
 
-let registered = false;
-
 export async function registerOperationalSnapshotHandler(): Promise<void> {
   await registerHandler("ops.snapshot", handleOperationalSnapshot);
 
   const boss = await getBoss();
   await boss.schedule("ops.snapshot", "*/2 * * * *", {}, { tz: "UTC" });
 
-  registered = true;
   logger.info({ job: "ops.snapshot" }, "Operational snapshot handler registered");
 }
 
 export function shutdownOperationalSnapshot(): void {
   alertFired.clear();
-  registered = false;
 }
 
 /** Visible for tests */
