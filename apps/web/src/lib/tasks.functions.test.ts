@@ -8,7 +8,7 @@ import {
   completeGenericTaskCore,
   skipTaskCore,
   getTaskContextCore,
-} from "./tasks.functions.ts";
+} from "./tasks.server.ts";
 
 const WIDE_WINDOW = {
   timezone: "UTC",

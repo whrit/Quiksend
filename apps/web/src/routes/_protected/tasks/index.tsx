@@ -3,7 +3,7 @@ import { CheckCircle2, ClipboardList, Mail, SkipForward } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/primitives.tsx";
 import {
   listTasks,
@@ -85,15 +85,14 @@ function TaskInboxPage() {
               </div>
               <div className="flex items-center gap-2 ml-4 shrink-0">
                 {task.type === "compose" ? (
-                  <Button asChild size="sm" variant="default">
-                    <Link
-                      to="/compose"
-                      search={{ taskId: task.id, enrollmentId: task.enrollmentId }}
-                    >
-                      <Mail className="mr-1.5 h-3.5 w-3.5" />
-                      Compose
-                    </Link>
-                  </Button>
+                  <Link
+                    to="/compose"
+                    search={{ taskId: task.id, enrollmentId: task.enrollmentId }}
+                    className={buttonVariants({ size: "sm" })}
+                  >
+                    <Mail className="mr-1.5 h-3.5 w-3.5" />
+                    Compose
+                  </Link>
                 ) : (
                   <Button
                     size="sm"
