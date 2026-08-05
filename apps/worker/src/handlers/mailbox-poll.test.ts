@@ -74,7 +74,7 @@ async function setupEnrollment(orgId: string, userId: string, mailboxId: string)
 }
 
 describe("processInboundMessage", () => {
-  it("marks processed on success and returns enrichment", async () => {
+  it("completes ingestion on success, keeps status received, and returns enrichment", async () => {
     await withTestOrgs(async ({ orgA }) => {
       const [mailbox] = await db
         .insert(tables.mailbox)
@@ -103,7 +103,8 @@ describe("processInboundMessage", () => {
         where: eq(tables.message.providerMessageId, providerMsgId),
       });
       expect(msg!.ingestionAttempts).toBe(1);
-      expect(msg!.status).toBe("processed");
+      expect(msg!.status).toBe("received");
+      expect(msg!.ingestionComplete).toBe(true);
     });
   });
 
@@ -182,7 +183,8 @@ describe("processInboundMessage", () => {
         where: eq(tables.message.providerMessageId, providerMsgId),
       });
       expect(msgAfter!.ingestionAttempts).toBe(2);
-      expect(msgAfter!.status).toBe("processed");
+      expect(msgAfter!.status).toBe("received");
+      expect(msgAfter!.ingestionComplete).toBe(true);
     });
   });
 
@@ -243,10 +245,11 @@ describe("processInboundMessage", () => {
       });
       expect(msgs).toHaveLength(1);
 
-      // First poller processed, second saw "processed" and skipped:
-      // ingestionAttempts stays at 1 (processed rows don't increment)
+      // First poller completed ingestion, second saw ingestionComplete and skipped:
+      // ingestionAttempts stays at 1 (completed rows don't increment)
       expect(msgs[0]!.ingestionAttempts).toBe(1);
-      expect(msgs[0]!.status).toBe("processed");
+      expect(msgs[0]!.status).toBe("received");
+      expect(msgs[0]!.ingestionComplete).toBe(true);
 
       // Enrollment transitioned exactly once (active → replied)
       const updatedEnrollment = await db.query.enrollment.findFirst({
@@ -298,7 +301,8 @@ describe("processInboundMessage", () => {
         where: eq(tables.message.providerMessageId, providerMsgId),
       });
       expect(msg!.ingestionAttempts).toBe(2);
-      expect(msg!.status).toBe("processed");
+      expect(msg!.status).toBe("received");
+      expect(msg!.ingestionComplete).toBe(true);
     });
   });
 
@@ -411,11 +415,12 @@ describe("processInboundMessage", () => {
       });
       expect(cursorBlocked).toBe(true);
 
-      // Verify A is processed, B is received
+      // Verify A has ingestion complete (status stays received), B is received
       const msgA1 = await db.query.message.findFirst({
         where: eq(tables.message.providerMessageId, providerMsgA),
       });
-      expect(msgA1!.status).toBe("processed");
+      expect(msgA1!.status).toBe("received");
+      expect(msgA1!.ingestionComplete).toBe(true);
       expect(msgA1!.ingestionAttempts).toBe(1);
 
       const msgB1 = await db.query.message.findFirst({
@@ -433,11 +438,12 @@ describe("processInboundMessage", () => {
         expect(rB.status).toBe("blocked"); // still fails
       });
 
-      // A: still processed, ingestionAttempts unchanged (no increment for processed)
+      // A: still ingestion-complete, ingestionAttempts unchanged (no increment for completed)
       const msgA2 = await db.query.message.findFirst({
         where: eq(tables.message.providerMessageId, providerMsgA),
       });
-      expect(msgA2!.status).toBe("processed");
+      expect(msgA2!.status).toBe("received");
+      expect(msgA2!.ingestionComplete).toBe(true);
       expect(msgA2!.ingestionAttempts).toBe(1);
 
       // B: ingestionAttempts incremented to 2

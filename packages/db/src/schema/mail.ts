@@ -64,6 +64,7 @@ export const message = pgTable(
     metadataReconciledAt: timestamp("metadata_reconciled_at", { withTimezone: true }),
     reconciliationError: text("reconciliation_error"),
     ingestionAttempts: integer("ingestion_attempts"),
+    ingestionComplete: boolean("ingestion_complete").default(false).notNull(),
     sentiment: messageSentimentEnum("sentiment"),
     bounceType: text("bounce_type"),
     dsn: jsonb("dsn"),

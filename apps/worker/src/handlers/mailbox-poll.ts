@@ -293,7 +293,7 @@ export async function processInboundMessage(
       target: [tables.message.mailboxId, tables.message.providerMessageId],
       targetWhere: sql`${tables.message.direction} = 'inbound' AND ${tables.message.providerMessageId} IS NOT NULL`,
       set: {
-        ingestionAttempts: sql`CASE WHEN ${tables.message.status} IN ('processed', 'quarantined') THEN ${tables.message.ingestionAttempts} ELSE COALESCE(${tables.message.ingestionAttempts}, 0) + 1 END`,
+        ingestionAttempts: sql`CASE WHEN ${tables.message.ingestionComplete} = true OR ${tables.message.status} = 'quarantined' THEN ${tables.message.ingestionAttempts} ELSE COALESCE(${tables.message.ingestionAttempts}, 0) + 1 END`,
       },
     })
     .returning();
@@ -301,7 +301,7 @@ export async function processInboundMessage(
   if (!row) return { status: "ok" };
 
   // Already durably processed or quarantined — skip effects, allow cursor progress
-  if (row.status === "processed" || row.status === "quarantined") return { status: "ok" };
+  if (row.ingestionComplete || row.status === "quarantined") return { status: "ok" };
 
   // Build the InboundEmail payload (uses the stored row id)
   const inboundEmail: InboundEmail = {
@@ -356,7 +356,7 @@ export async function processInboundMessage(
     // Mark durably processed — crash before commit retries both effects + marker
     await tx
       .update(tables.message)
-      .set({ status: "processed" })
+      .set({ ingestionComplete: true })
       .where(eq(tables.message.id, row.id));
 
     // Collect non-bounce for out-of-tx sentiment enrichment

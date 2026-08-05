@@ -176,6 +176,13 @@
       "when": 1785888236442,
       "tag": "0025_beta_message_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1785974400000,
+      "tag": "0026_ingestion_complete",
+      "breakpoints": true
     }
   ]
 }
