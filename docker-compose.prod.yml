@@ -23,8 +23,6 @@
 # Start services:
 #   docker compose -f docker-compose.prod.yml up -d
 
-version: "3.8"
-
 networks:
   db:
     driver: bridge
@@ -77,9 +75,6 @@ services:
         max-file: "3"
 
   # Database migration service — runs bundled migrate.js against production database.
-  # Build and run once before starting main services:
-  #   docker compose -f docker-compose.prod.yml build migrate
-  #   docker compose -f docker-compose.prod.yml run --rm migrate
   migrate:
     build:
       context: .

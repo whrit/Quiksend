@@ -151,15 +151,3 @@ describe("production-env validation", () => {
     });
   });
 });
-        BETTER_AUTH_URL: "https://app.example.com",
-        NANGO_WEBHOOK_SECRET: "nango-secret-123",
-        MAILBOX_ENCRYPTION_KEY: "base64encodedkey==",
-        UNSUBSCRIBE_TOKEN_SECRET: "unsubscribe-secret",
-        SMTP_HOST: "smtp.provider.com",
-        SMTP_PORT: 587,
-        SMTP_FROM: "noreply@example.com",
-      };
-      expect(() => EnvSchema.parse(config)).not.toThrow();
-    });
-  });
-});

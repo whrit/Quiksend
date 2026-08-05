@@ -1,5 +1,4 @@
 import { EnvSchema } from "@quiksend/config";
-import { z } from "zod";
 
 /**
  * Production environment validator. Runs before container startup to catch
