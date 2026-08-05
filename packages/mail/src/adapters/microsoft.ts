@@ -59,13 +59,22 @@ export function createMicrosoftAdapter(config: MicrosoftAdapterConfig): MailboxA
         throw classifyMicrosoftError(err);
       }
 
-      const sent = await findSentMessage(nango, config.nangoConnectionId, mime.messageId);
+      // POST accepted — provider metadata lookup is best-effort
+      let sent: GraphMessageSummary | null = null;
+      try {
+        sent = await findSentMessage(nango, config.nangoConnectionId, mime.messageId);
+      } catch {
+        // metadata lookup failed post-acceptance
+      }
+
       if (!sent) {
-        throw new SendError(
-          "transient",
-          "Message sent but could not resolve Graph message id from Sent Items",
-          null,
-        );
+        return {
+          messageId: normalizeMessageId(mime.messageId),
+          providerMessageId: null,
+          providerThreadId: null,
+          sentAt: new Date(),
+          metadataReconciled: false,
+        };
       }
 
       let detail: GraphMessageSummary;
@@ -77,8 +86,14 @@ export function createMicrosoftAdapter(config: MicrosoftAdapterConfig): MailboxA
           params: { $select: "internetMessageId,conversationId" },
         });
         detail = response.data as GraphMessageSummary;
-      } catch (err) {
-        throw classifyMicrosoftError(err);
+      } catch {
+        return {
+          messageId: normalizeMessageId(mime.messageId),
+          providerMessageId: sent.id,
+          providerThreadId: sent.conversationId ?? null,
+          sentAt: new Date(),
+          metadataReconciled: false,
+        };
       }
 
       const messageId = normalizeMessageId(detail.internetMessageId ?? mime.messageId);
@@ -88,6 +103,7 @@ export function createMicrosoftAdapter(config: MicrosoftAdapterConfig): MailboxA
         providerMessageId: sent.id,
         providerThreadId: detail.conversationId ?? sent.conversationId ?? null,
         sentAt: new Date(),
+        metadataReconciled: true,
       };
     },
     async listInbound(): Promise<[]> {

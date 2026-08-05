@@ -49,11 +49,13 @@ export interface EmailAddress {
 export interface SendResult {
   /** Normalized RFC-822 Message-Id value (with angle brackets). */
   readonly messageId: string;
-  /** Provider-specific opaque id used for later reads/updates. */
-  readonly providerMessageId: string;
+  /** Provider-specific opaque id used for later reads/updates. Null when metadata lookup failed post-acceptance. */
+  readonly providerMessageId: string | null;
   /** Provider-specific thread id (Gmail threadId, Graph conversationId, none for pure SMTP). */
   readonly providerThreadId: string | null;
   readonly sentAt: Date;
+  /** True when all provider metadata was successfully retrieved after acceptance. */
+  readonly metadataReconciled: boolean;
 }
 
 export interface InboundEmail {

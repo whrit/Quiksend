@@ -55,6 +55,7 @@ describe("sendAndRecord", () => {
           providerMessageId: "provider-1",
           providerThreadId: "thread-1",
           sentAt,
+          metadataReconciled: true,
         }),
       );
 
@@ -70,6 +71,9 @@ describe("sendAndRecord", () => {
       expect(row?.providerMessageId).toBe("provider-1");
       expect(row?.providerThreadId).toBe("thread-1");
       expect(row?.sentAt?.toISOString()).toBe(sentAt.toISOString());
+      expect(row?.acceptedAt).toBeTruthy();
+      expect(row?.metadataReconciledAt).toBeTruthy();
+      expect(row?.reconciliationError).toBeNull();
     });
   });
 
@@ -132,6 +136,7 @@ describe("sendAndRecord", () => {
           providerMessageId: "provider-2",
           providerThreadId: null,
           sentAt: new Date("2026-02-01T11:00:00Z"),
+          metadataReconciled: true,
         }),
       );
 
@@ -143,6 +148,53 @@ describe("sendAndRecord", () => {
       });
 
       expect(row?.providerThreadId).toBe("caller-thread");
+    });
+  });
+
+  it("persists accepted-but-unreconciled result as sent with nullable metadata", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const { mailboxId, prospectId } = await seedMailboxAndProspect(orgA.id, orgA.userId);
+      const sentAt = new Date("2026-02-01T12:00:00Z");
+
+      const { messageId, result } = await sendAndRecord(
+        orgA.id,
+        {
+          organizationId: orgA.id,
+          mailboxId,
+          prospectId,
+          direction: "outbound",
+          subject: "Unreconciled",
+          bodyHtml: "<p>accepted</p>",
+          bodyText: "accepted",
+        },
+        async () => ({
+          messageId: "<unreconciled@provider.test>",
+          providerMessageId: null,
+          providerThreadId: null,
+          sentAt,
+          metadataReconciled: false,
+        }),
+      );
+
+      expect(result.metadataReconciled).toBe(false);
+
+      const row = await db.query.message.findFirst({
+        where: and(
+          eq(tables.message.organizationId, orgA.id),
+          eq(tables.message.mailboxId, mailboxId),
+        ),
+      });
+
+      // Accepted mail is NEVER marked failed
+      expect(row?.status).toBe("sent");
+      expect(row?.messageIdHeader).toBe(messageId);
+      expect(row?.providerMessageId).toBeNull();
+      expect(row?.providerThreadId).toBeNull();
+      expect(row?.sentAt?.toISOString()).toBe(sentAt.toISOString());
+      expect(row?.acceptedAt).toBeTruthy();
+      // Reconciliation not done
+      expect(row?.metadataReconciledAt).toBeNull();
+      expect(row?.reconciliationError).toBe("metadata lookup failed post-acceptance");
     });
   });
 });

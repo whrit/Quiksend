@@ -99,6 +99,7 @@ export async function sendMime(
       providerMessageId,
       providerThreadId: null,
       sentAt: new Date(),
+      metadataReconciled: true,
     };
   } catch (err) {
     throw classifyNodemailerError(err);

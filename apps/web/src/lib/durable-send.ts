@@ -8,11 +8,19 @@ import { and, eq } from "drizzle-orm";
 
 /**
  * Message fields a caller supplies. Everything describing the *outcome* of the
- * send (status, provider ids, sentAt, error) is owned by `sendAndRecord`.
+ * send (status, provider ids, sentAt, error, acceptance/reconciliation) is
+ * owned by `sendAndRecord`.
  */
 export type PendingMessageValues = Omit<
   typeof tables.message.$inferInsert,
-  "status" | "messageIdHeader" | "providerMessageId" | "sentAt" | "error"
+  | "status"
+  | "messageIdHeader"
+  | "providerMessageId"
+  | "sentAt"
+  | "error"
+  | "acceptedAt"
+  | "metadataReconciledAt"
+  | "reconciliationError"
 >;
 
 export interface DurableSendResult {
@@ -66,6 +74,8 @@ export async function sendAndRecord(
 
   const messageId = normalizeMessageId(result.messageId);
 
+  const now = new Date();
+
   await db
     .update(tables.message)
     .set({
@@ -75,7 +85,12 @@ export async function sendAndRecord(
       // whatever thread the caller already knew about.
       providerThreadId: result.providerThreadId ?? values.providerThreadId ?? null,
       status: "sent",
+      acceptedAt: now,
       sentAt: result.sentAt,
+      metadataReconciledAt: result.metadataReconciled ? now : null,
+      reconciliationError: result.metadataReconciled
+        ? null
+        : "metadata lookup failed post-acceptance",
     })
     .where(scope);
 

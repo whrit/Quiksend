@@ -59,6 +59,7 @@ describe("createSmtpAdapter", () => {
     expect(payload?.raw).toContain("Subject: Hello");
     expect(result.messageId).toMatch(/^</);
     expect(result.providerThreadId).toBeNull();
+    expect(result.metadataReconciled).toBe(true);
   });
 
   it("passes threading headers when anchor is provided", async () => {
@@ -145,5 +146,6 @@ describe("sendMime", () => {
       headers: {},
     });
     expect(result.messageId).toBe("<abc@quiksend.local>");
+    expect(result.metadataReconciled).toBe(true);
   });
 });
