@@ -210,6 +210,10 @@ export type NangoWebhookSweepPayload = Record<string, never>;
 // ── health.reconcile — idempotent stale-state reconciliation (Operations) ──────
 export const healthReconcileSchema = z.object({});
 export type HealthReconcilePayload = Record<string, never>;
+// ── ops.snapshot — periodic operational metrics snapshot (Operations) ──────
+export const opsSnapshotSchema = z.object({});
+export type OpsSnapshotPayload = Record<string, never>;
+
 
 
 // ── mail.send_transactional — durable transactional email delivery (auth) ──────
@@ -257,6 +261,7 @@ export interface JobPayloadMap {
   "mail.send_transactional": MailSendTransactionalPayload;
   "outbox.dispatch": OutboxDispatchPayload;
   "health.reconcile": HealthReconcilePayload;
+  "ops.snapshot": OpsSnapshotPayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -287,11 +292,7 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "mail.send_transactional": mailSendTransactionalSchema,
   "outbox.dispatch": outboxDispatchSchema,
   "health.reconcile": healthReconcileSchema,
+  "ops.snapshot": opsSnapshotSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];
-/**
- * Mapping from job name → concrete payload type. Consumers use this to look up
- * a payload interface by job name at the type level; runtime code uses
- * `JobSchemas[name]` for validation.
- */
