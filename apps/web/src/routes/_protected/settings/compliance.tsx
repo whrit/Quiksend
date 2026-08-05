@@ -82,7 +82,7 @@ function ComplianceSettingsPage() {
               {loading ? (
                 <div
                   className="h-[80px] animate-pulse rounded-md bg-muted"
-                  role="status"
+                  role="output"
                   aria-label="Loading postal address"
                 />
               ) : (

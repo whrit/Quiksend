@@ -3,7 +3,7 @@ import { tables } from "@quiksend/db/tables";
 import { enqueue, enqueueWithRetries } from "@quiksend/queue";
 import type { EmailGateway } from "@quiksend/mail/gateway-detect";
 import { isAdminOrOwner } from "@quiksend/core";
-import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, not, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeDomain, normalizeEmail } from "./prospect-import.ts";
 import { createServerFn } from "@tanstack/react-start";

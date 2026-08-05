@@ -143,7 +143,7 @@ describe("task server functions", () => {
 
   it("getTaskContextCore returns task with enrollment and prospect", async () => {
     await withTestOrgs(async ({ orgA }) => {
-      const { task, enrollment, prospect } = await seedTaskGraph(orgA.id, orgA.userId);
+      const { task, enrollment } = await seedTaskGraph(orgA.id, orgA.userId);
 
       const ctx = await getTaskContextCore(task.id, orgA.id);
       expect(ctx).not.toBeNull();

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { emailDomain } from "@quiksend/core";
 import { isProspectStatusSuppressed, checkSendPreConditions } from "./guards.ts";
 
+const matchesGuard = (m: { direction: string; isAutoReply: boolean }) =>
+  m.direction === "inbound" && m.isAutoReply === false;
+
 describe("isProspectStatusSuppressed", () => {
   it("returns false for active prospect with no suppression row", () => {
     expect(isProspectStatusSuppressed("active")).toBe(false);
@@ -188,9 +191,6 @@ describe("hasReplyOnThread auto-reply exclusion", () => {
     // must never cause an enrollment to stop on reply.
     const oomMessage = { direction: "inbound", isAutoReply: true };
     const realReply = { direction: "inbound", isAutoReply: false };
-
-    const matchesGuard = (m: typeof oomMessage) =>
-      m.direction === "inbound" && m.isAutoReply === false;
 
     expect(matchesGuard(oomMessage)).toBe(false);
     expect(matchesGuard(realReply)).toBe(true);

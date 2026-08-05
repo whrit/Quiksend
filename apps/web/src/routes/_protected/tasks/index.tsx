@@ -77,7 +77,7 @@ function TaskInboxPage() {
       <h1 ref={headingRef} className="text-lg font-semibold mb-4" tabIndex={-1}>
         Tasks
       </h1>
-      <ul ref={listRef} role="list" className="space-y-3">
+      <ul ref={listRef}  className="space-y-3">
         {tasks.map((task) => {
           const busy = loading[task.id] ?? false;
           return (
