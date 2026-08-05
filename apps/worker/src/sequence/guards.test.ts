@@ -60,42 +60,46 @@ describe("checkSendPreConditions", () => {
   });
 
   it("rejects deleted prospect", () => {
-    expect(
-      checkSendPreConditions({ ...base, prospectDeletedAt: new Date() }),
-    ).toEqual({ ok: false, reason: "prospect_deleted" });
+    expect(checkSendPreConditions({ ...base, prospectDeletedAt: new Date() })).toEqual({
+      ok: false,
+      reason: "prospect_deleted",
+    });
   });
 
   it("rejects suppressed prospect status", () => {
-    expect(
-      checkSendPreConditions({ ...base, prospectStatus: "unsubscribed" }),
-    ).toEqual({ ok: false, reason: "suppressed" });
-    expect(
-      checkSendPreConditions({ ...base, prospectStatus: "bounced" }),
-    ).toEqual({ ok: false, reason: "suppressed" });
-    expect(
-      checkSendPreConditions({ ...base, prospectStatus: "do_not_contact" }),
-    ).toEqual({ ok: false, reason: "suppressed" });
+    expect(checkSendPreConditions({ ...base, prospectStatus: "unsubscribed" })).toEqual({
+      ok: false,
+      reason: "suppressed",
+    });
+    expect(checkSendPreConditions({ ...base, prospectStatus: "bounced" })).toEqual({
+      ok: false,
+      reason: "suppressed",
+    });
+    expect(checkSendPreConditions({ ...base, prospectStatus: "do_not_contact" })).toEqual({
+      ok: false,
+      reason: "suppressed",
+    });
   });
 
   it("rejects invalid enrollment state", () => {
-    expect(
-      checkSendPreConditions({ ...base, enrollmentState: "stopped" }),
-    ).toEqual({ ok: false, reason: "enrollment_not_active" });
-    expect(
-      checkSendPreConditions({ ...base, enrollmentState: "completed" }),
-    ).toEqual({ ok: false, reason: "enrollment_not_active" });
+    expect(checkSendPreConditions({ ...base, enrollmentState: "stopped" })).toEqual({
+      ok: false,
+      reason: "enrollment_not_active",
+    });
+    expect(checkSendPreConditions({ ...base, enrollmentState: "completed" })).toEqual({
+      ok: false,
+      reason: "enrollment_not_active",
+    });
   });
 
   it("allows waiting_manual enrollment state", () => {
-    expect(
-      checkSendPreConditions({ ...base, enrollmentState: "waiting_manual" }),
-    ).toEqual({ ok: true });
+    expect(checkSendPreConditions({ ...base, enrollmentState: "waiting_manual" })).toEqual({
+      ok: true,
+    });
   });
 
   it("skips enrollment check when enrollmentState is null", () => {
-    expect(
-      checkSendPreConditions({ ...base, enrollmentState: null }),
-    ).toEqual({ ok: true });
+    expect(checkSendPreConditions({ ...base, enrollmentState: null })).toEqual({ ok: true });
   });
 
   it("checks conditions in priority order: mailbox first", () => {
@@ -128,9 +132,7 @@ describe("accepted send result handling", () => {
     const fields = {
       acceptedAt: now,
       metadataReconciledAt: metadataReconciled ? now : null,
-      reconciliationError: metadataReconciled
-        ? null
-        : "metadata lookup failed post-acceptance",
+      reconciliationError: metadataReconciled ? null : "metadata lookup failed post-acceptance",
     };
     expect(fields.acceptedAt).toBe(now);
     expect(fields.metadataReconciledAt).toBeNull();
@@ -143,9 +145,7 @@ describe("accepted send result handling", () => {
     const fields = {
       acceptedAt: now,
       metadataReconciledAt: metadataReconciled ? now : null,
-      reconciliationError: metadataReconciled
-        ? null
-        : "metadata lookup failed post-acceptance",
+      reconciliationError: metadataReconciled ? null : "metadata lookup failed post-acceptance",
     };
     expect(fields.acceptedAt).toBe(now);
     expect(fields.metadataReconciledAt).toBe(now);

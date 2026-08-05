@@ -1,9 +1,6 @@
 import "@tanstack/react-start/server-only";
 
-import {
-  transition,
-  type EnrollmentSnapshot,
-} from "@quiksend/core/state-machine";
+import { transition, type EnrollmentSnapshot } from "@quiksend/core/state-machine";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { and, eq, inArray, asc } from "drizzle-orm";

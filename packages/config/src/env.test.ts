@@ -7,9 +7,7 @@ describe("EnvSchema", () => {
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
     });
     expect(parsed).toBeDefined();
-    expect(parsed.DATABASE_URL).toBe(
-      "postgres://quiksend:quiksend@localhost:5432/quiksend",
-    );
+    expect(parsed.DATABASE_URL).toBe("postgres://quiksend:quiksend@localhost:5432/quiksend");
   });
 
   it("rejects a missing DATABASE_URL", () => {

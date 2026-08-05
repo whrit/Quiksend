@@ -196,10 +196,7 @@ describe("message safety schema", () => {
           acceptedAt,
         });
 
-        const msg = await db
-          .select()
-          .from(tables.message)
-          .where(eq(tables.message.id, messageId));
+        const msg = await db.select().from(tables.message).where(eq(tables.message.id, messageId));
         expect(msg[0]!.acceptedAt).toEqual(acceptedAt);
       });
     });
@@ -227,10 +224,7 @@ describe("message safety schema", () => {
           ingestionAttempts: 1,
         });
 
-        const msg = await db
-          .select()
-          .from(tables.message)
-          .where(eq(tables.message.id, messageId));
+        const msg = await db.select().from(tables.message).where(eq(tables.message.id, messageId));
         expect(msg[0]!.ingestionAttempts).toBe(1);
       });
     });

@@ -94,9 +94,7 @@ export function resolvePostalAddress(input: {
   const address = parsePostalAddress(input.metadata);
   if (address) return address;
 
-  throw new ComplianceConfigurationError(
-    "Workspace postal address is required",
-  );
+  throw new ComplianceConfigurationError("Workspace postal address is required");
 }
 
 function parsePostalAddress(metadata: string | null): string | null {

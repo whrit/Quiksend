@@ -42,9 +42,7 @@
         "app_meta_key_unique": {
           "name": "app_meta_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "key"
-          ]
+          "columns": ["key"]
         }
       },
       "policies": {},
@@ -157,12 +155,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -462,12 +456,8 @@
           "name": "invitation_organization_id_organization_id_fk",
           "tableFrom": "invitation",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -475,12 +465,8 @@
           "name": "invitation_inviter_id_user_id_fk",
           "tableFrom": "invitation",
           "tableTo": "user",
-          "columnsFrom": [
-            "inviter_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["inviter_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -564,12 +550,8 @@
           "name": "member_organization_id_organization_id_fk",
           "tableFrom": "member",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -577,12 +559,8 @@
           "name": "member_user_id_user_id_fk",
           "tableFrom": "member",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -657,9 +635,7 @@
         "organization_slug_unique": {
           "name": "organization_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -748,12 +724,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -763,9 +735,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -829,9 +799,7 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -1122,12 +1090,8 @@
           "name": "mailbox_organization_id_organization_id_fk",
           "tableFrom": "mailbox",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1135,12 +1099,8 @@
           "name": "mailbox_owner_user_id_user_id_fk",
           "tableFrom": "mailbox",
           "tableTo": "user",
-          "columnsFrom": [
-            "owner_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["owner_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1148,12 +1108,8 @@
           "name": "mailbox_archived_by_user_id_user_id_fk",
           "tableFrom": "mailbox",
           "tableTo": "user",
-          "columnsFrom": [
-            "archived_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["archived_by_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1163,11 +1119,7 @@
         "mailbox_org_address_provider_uidx": {
           "name": "mailbox_org_address_provider_uidx",
           "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "address",
-            "provider"
-          ]
+          "columns": ["organization_id", "address", "provider"]
         }
       },
       "policies": {},
@@ -1663,12 +1615,8 @@
           "name": "message_organization_id_organization_id_fk",
           "tableFrom": "message",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1676,12 +1624,8 @@
           "name": "message_mailbox_id_mailbox_id_fk",
           "tableFrom": "message",
           "tableTo": "mailbox",
-          "columnsFrom": [
-            "mailbox_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mailbox_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1689,12 +1633,8 @@
           "name": "message_prospect_id_prospect_id_fk",
           "tableFrom": "message",
           "tableTo": "prospect",
-          "columnsFrom": [
-            "prospect_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["prospect_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1702,12 +1642,8 @@
           "name": "message_enrollment_id_enrollment_id_fk",
           "tableFrom": "message",
           "tableTo": "enrollment",
-          "columnsFrom": [
-            "enrollment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["enrollment_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1717,9 +1653,7 @@
         "message_idempotency_key_unique": {
           "name": "message_idempotency_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "idempotency_key"
-          ]
+          "columns": ["idempotency_key"]
         }
       },
       "policies": {},
@@ -1948,12 +1882,8 @@
           "name": "canary_send_organization_id_organization_id_fk",
           "tableFrom": "canary_send",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1961,12 +1891,8 @@
           "name": "canary_send_sequence_id_sequence_id_fk",
           "tableFrom": "canary_send",
           "tableTo": "sequence",
-          "columnsFrom": [
-            "sequence_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["sequence_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1974,12 +1900,8 @@
           "name": "canary_send_enrollment_id_enrollment_id_fk",
           "tableFrom": "canary_send",
           "tableTo": "enrollment",
-          "columnsFrom": [
-            "enrollment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["enrollment_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1987,12 +1909,8 @@
           "name": "canary_send_mailbox_id_mailbox_id_fk",
           "tableFrom": "canary_send",
           "tableTo": "mailbox",
-          "columnsFrom": [
-            "mailbox_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mailbox_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2000,12 +1918,8 @@
           "name": "canary_send_seed_inbox_id_seed_inbox_id_fk",
           "tableFrom": "canary_send",
           "tableTo": "seed_inbox",
-          "columnsFrom": [
-            "seed_inbox_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["seed_inbox_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2181,12 +2095,8 @@
           "name": "deliverability_snapshot_organization_id_organization_id_fk",
           "tableFrom": "deliverability_snapshot",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2194,12 +2104,8 @@
           "name": "deliverability_snapshot_mailbox_id_mailbox_id_fk",
           "tableFrom": "deliverability_snapshot",
           "tableTo": "mailbox",
-          "columnsFrom": [
-            "mailbox_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mailbox_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2305,9 +2211,7 @@
         "gateway_classification_email_domain_unique": {
           "name": "gateway_classification_email_domain_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email_domain"
-          ]
+          "columns": ["email_domain"]
         }
       },
       "policies": {},
@@ -2498,12 +2402,8 @@
           "name": "seed_inbox_organization_id_organization_id_fk",
           "tableFrom": "seed_inbox",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2706,12 +2606,8 @@
           "name": "company_organization_id_organization_id_fk",
           "tableFrom": "company",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2829,12 +2725,8 @@
           "name": "import_batch_organization_id_organization_id_fk",
           "tableFrom": "import_batch",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2842,12 +2734,8 @@
           "name": "import_batch_created_by_user_id_user_id_fk",
           "tableFrom": "import_batch",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2923,12 +2811,8 @@
           "name": "import_error_batch_id_import_batch_id_fk",
           "tableFrom": "import_error",
           "tableTo": "import_batch",
-          "columnsFrom": [
-            "batch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["batch_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3011,12 +2895,8 @@
           "name": "list_organization_id_organization_id_fk",
           "tableFrom": "list",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3024,12 +2904,8 @@
           "name": "list_created_by_user_id_user_id_fk",
           "tableFrom": "list",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3099,12 +2975,8 @@
           "name": "list_member_list_id_list_id_fk",
           "tableFrom": "list_member",
           "tableTo": "list",
-          "columnsFrom": [
-            "list_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["list_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3112,12 +2984,8 @@
           "name": "list_member_prospect_id_prospect_id_fk",
           "tableFrom": "list_member",
           "tableTo": "prospect",
-          "columnsFrom": [
-            "prospect_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["prospect_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3475,12 +3343,8 @@
           "name": "prospect_organization_id_organization_id_fk",
           "tableFrom": "prospect",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3488,12 +3352,8 @@
           "name": "prospect_company_id_company_id_fk",
           "tableFrom": "prospect",
           "tableTo": "company",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -3624,12 +3484,8 @@
           "name": "crm_connection_organization_id_organization_id_fk",
           "tableFrom": "crm_connection",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3637,12 +3493,8 @@
           "name": "crm_connection_created_by_user_id_user_id_fk",
           "tableFrom": "crm_connection",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -3750,12 +3602,8 @@
           "name": "sync_state_organization_id_organization_id_fk",
           "tableFrom": "sync_state",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3763,12 +3611,8 @@
           "name": "sync_state_connection_id_crm_connection_id_fk",
           "tableFrom": "sync_state",
           "tableTo": "crm_connection",
-          "columnsFrom": [
-            "connection_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["connection_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4048,12 +3892,8 @@
           "name": "enrollment_organization_id_organization_id_fk",
           "tableFrom": "enrollment",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4061,12 +3901,8 @@
           "name": "enrollment_sequence_id_sequence_id_fk",
           "tableFrom": "enrollment",
           "tableTo": "sequence",
-          "columnsFrom": [
-            "sequence_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["sequence_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4074,12 +3910,8 @@
           "name": "enrollment_prospect_id_prospect_id_fk",
           "tableFrom": "enrollment",
           "tableTo": "prospect",
-          "columnsFrom": [
-            "prospect_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["prospect_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4087,12 +3919,8 @@
           "name": "enrollment_mailbox_id_mailbox_id_fk",
           "tableFrom": "enrollment",
           "tableTo": "mailbox",
-          "columnsFrom": [
-            "mailbox_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mailbox_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4100,12 +3928,8 @@
           "name": "enrollment_created_by_user_id_user_id_fk",
           "tableFrom": "enrollment",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -4214,12 +4038,8 @@
           "name": "sequence_organization_id_organization_id_fk",
           "tableFrom": "sequence",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4227,12 +4047,8 @@
           "name": "sequence_created_by_user_id_user_id_fk",
           "tableFrom": "sequence",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -4375,12 +4191,8 @@
           "name": "sequence_step_sequence_id_sequence_id_fk",
           "tableFrom": "sequence_step",
           "tableTo": "sequence",
-          "columnsFrom": [
-            "sequence_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["sequence_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4388,12 +4200,8 @@
           "name": "sequence_step_organization_id_organization_id_fk",
           "tableFrom": "sequence_step",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4559,12 +4367,8 @@
           "name": "generation_organization_id_organization_id_fk",
           "tableFrom": "generation",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4572,12 +4376,8 @@
           "name": "generation_prospect_id_prospect_id_fk",
           "tableFrom": "generation",
           "tableTo": "prospect",
-          "columnsFrom": [
-            "prospect_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["prospect_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4585,12 +4385,8 @@
           "name": "generation_enrollment_id_enrollment_id_fk",
           "tableFrom": "generation",
           "tableTo": "enrollment",
-          "columnsFrom": [
-            "enrollment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["enrollment_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -4598,12 +4394,8 @@
           "name": "generation_step_id_sequence_step_id_fk",
           "tableFrom": "generation",
           "tableTo": "sequence_step",
-          "columnsFrom": [
-            "step_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["step_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -4611,12 +4403,8 @@
           "name": "generation_approved_by_user_id_user_id_fk",
           "tableFrom": "generation",
           "tableTo": "user",
-          "columnsFrom": [
-            "approved_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["approved_by_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -4755,12 +4543,8 @@
           "name": "research_profile_organization_id_organization_id_fk",
           "tableFrom": "research_profile",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4768,12 +4552,8 @@
           "name": "research_profile_prospect_id_prospect_id_fk",
           "tableFrom": "research_profile",
           "tableTo": "prospect",
-          "columnsFrom": [
-            "prospect_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["prospect_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4885,12 +4665,8 @@
           "name": "value_prop_organization_id_organization_id_fk",
           "tableFrom": "value_prop",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4898,12 +4674,8 @@
           "name": "value_prop_created_by_user_id_user_id_fk",
           "tableFrom": "value_prop",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -5104,12 +4876,8 @@
           "name": "send_reservation_mailbox_id_mailbox_id_fk",
           "tableFrom": "send_reservation",
           "tableTo": "mailbox",
-          "columnsFrom": [
-            "mailbox_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mailbox_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5117,12 +4885,8 @@
           "name": "send_reservation_enrollment_id_enrollment_id_fk",
           "tableFrom": "send_reservation",
           "tableTo": "enrollment",
-          "columnsFrom": [
-            "enrollment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["enrollment_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5256,12 +5020,8 @@
           "name": "task_organization_id_organization_id_fk",
           "tableFrom": "task",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5269,12 +5029,8 @@
           "name": "task_enrollment_id_enrollment_id_fk",
           "tableFrom": "task",
           "tableTo": "enrollment",
-          "columnsFrom": [
-            "enrollment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["enrollment_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5282,12 +5038,8 @@
           "name": "task_step_id_sequence_step_id_fk",
           "tableFrom": "task",
           "tableTo": "sequence_step",
-          "columnsFrom": [
-            "step_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["step_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -5295,12 +5047,8 @@
           "name": "task_assigned_user_id_user_id_fk",
           "tableFrom": "task",
           "tableTo": "user",
-          "columnsFrom": [
-            "assigned_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assigned_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -5414,12 +5162,8 @@
           "name": "api_key_usage_organization_id_organization_id_fk",
           "tableFrom": "api_key_usage",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5562,12 +5306,8 @@
           "name": "webhook_delivery_organization_id_organization_id_fk",
           "tableFrom": "webhook_delivery",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5575,12 +5315,8 @@
           "name": "webhook_delivery_endpoint_id_webhook_endpoint_id_fk",
           "tableFrom": "webhook_delivery",
           "tableTo": "webhook_endpoint",
-          "columnsFrom": [
-            "endpoint_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["endpoint_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5683,12 +5419,8 @@
           "name": "webhook_endpoint_organization_id_organization_id_fk",
           "tableFrom": "webhook_endpoint",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5696,12 +5428,8 @@
           "name": "webhook_endpoint_created_by_user_id_user_id_fk",
           "tableFrom": "webhook_endpoint",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -5869,12 +5597,8 @@
           "name": "crm_writeback_log_organization_id_organization_id_fk",
           "tableFrom": "crm_writeback_log",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5882,12 +5606,8 @@
           "name": "crm_writeback_log_crm_connection_id_crm_connection_id_fk",
           "tableFrom": "crm_writeback_log",
           "tableTo": "crm_connection",
-          "columnsFrom": [
-            "crm_connection_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["crm_connection_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -6008,12 +5728,8 @@
           "name": "event_organization_id_organization_id_fk",
           "tableFrom": "event",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6123,12 +5839,8 @@
           "name": "suppression_organization_id_organization_id_fk",
           "tableFrom": "suppression",
           "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -6136,12 +5848,8 @@
           "name": "suppression_source_message_id_message_id_fk",
           "tableFrom": "suppression",
           "tableTo": "message",
-          "columnsFrom": [
-            "source_message_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["source_message_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -6149,12 +5857,8 @@
           "name": "suppression_created_by_user_id_user_id_fk",
           "tableFrom": "suppression",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -6164,10 +5868,7 @@
         "suppression_org_value_uidx": {
           "name": "suppression_org_value_uidx",
           "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "value"
-          ]
+          "columns": ["organization_id", "value"]
         }
       },
       "policies": {},
@@ -6251,10 +5952,7 @@
       "compositePrimaryKeys": {
         "nango_webhook_processed_event_id_connection_id_pk": {
           "name": "nango_webhook_processed_event_id_connection_id_pk",
-          "columns": [
-            "event_id",
-            "connection_id"
-          ]
+          "columns": ["event_id", "connection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -6267,30 +5965,17 @@
     "public.mailbox_provider": {
       "name": "mailbox_provider",
       "schema": "public",
-      "values": [
-        "gmail",
-        "microsoft",
-        "smtp"
-      ]
+      "values": ["gmail", "microsoft", "smtp"]
     },
     "public.message_direction": {
       "name": "message_direction",
       "schema": "public",
-      "values": [
-        "outbound",
-        "inbound"
-      ]
+      "values": ["outbound", "inbound"]
     },
     "public.message_sentiment": {
       "name": "message_sentiment",
       "schema": "public",
-      "values": [
-        "interested",
-        "not_now",
-        "objection",
-        "out_of_office",
-        "unsubscribe_request"
-      ]
+      "values": ["interested", "not_now", "objection", "out_of_office", "unsubscribe_request"]
     },
     "public.canary_arrival_status": {
       "name": "canary_arrival_status",
@@ -6307,11 +5992,7 @@
     "public.gateway_classification_confidence": {
       "name": "gateway_classification_confidence",
       "schema": "public",
-      "values": [
-        "high",
-        "medium",
-        "low"
-      ]
+      "values": ["high", "medium", "low"]
     },
     "public.gateway_type": {
       "name": "gateway_type",
@@ -6336,171 +6017,92 @@
     "public.seed_inbox_pool_tag": {
       "name": "seed_inbox_pool_tag",
       "schema": "public",
-      "values": [
-        "production",
-        "canary_only",
-        "warmup"
-      ]
+      "values": ["production", "canary_only", "warmup"]
     },
     "public.prospect_source": {
       "name": "prospect_source",
       "schema": "public",
-      "values": [
-        "manual",
-        "csv",
-        "crm",
-        "api"
-      ]
+      "values": ["manual", "csv", "crm", "api"]
     },
     "public.prospect_status": {
       "name": "prospect_status",
       "schema": "public",
-      "values": [
-        "new",
-        "active",
-        "replied",
-        "bounced",
-        "unsubscribed",
-        "do_not_contact"
-      ]
+      "values": ["new", "active", "replied", "bounced", "unsubscribed", "do_not_contact"]
     },
     "public.crm_provider": {
       "name": "crm_provider",
       "schema": "public",
-      "values": [
-        "salesforce",
-        "hubspot"
-      ]
+      "values": ["salesforce", "hubspot"]
     },
     "public.sequence_status": {
       "name": "sequence_status",
       "schema": "public",
-      "values": [
-        "draft",
-        "active",
-        "archived"
-      ]
+      "values": ["draft", "active", "archived"]
     },
     "public.sequence_step_type": {
       "name": "sequence_step_type",
       "schema": "public",
-      "values": [
-        "manual_email",
-        "auto_email",
-        "wait",
-        "task"
-      ]
+      "values": ["manual_email", "auto_email", "wait", "task"]
     },
     "public.generation_status": {
       "name": "generation_status",
       "schema": "public",
-      "values": [
-        "draft",
-        "approved",
-        "sent",
-        "discarded"
-      ]
+      "values": ["draft", "approved", "sent", "discarded"]
     },
     "public.research_profile_status": {
       "name": "research_profile_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "ready",
-        "error"
-      ]
+      "values": ["pending", "ready", "error"]
     },
     "public.job_log_status": {
       "name": "job_log_status",
       "schema": "public",
-      "values": [
-        "started",
-        "succeeded",
-        "failed",
-        "dead"
-      ]
+      "values": ["started", "succeeded", "failed", "dead"]
     },
     "public.send_reservation_status": {
       "name": "send_reservation_status",
       "schema": "public",
-      "values": [
-        "held",
-        "sent",
-        "released"
-      ]
+      "values": ["held", "sent", "released"]
     },
     "public.task_status": {
       "name": "task_status",
       "schema": "public",
-      "values": [
-        "open",
-        "in_progress",
-        "done",
-        "skipped"
-      ]
+      "values": ["open", "in_progress", "done", "skipped"]
     },
     "public.task_type": {
       "name": "task_type",
       "schema": "public",
-      "values": [
-        "compose",
-        "generic"
-      ]
+      "values": ["compose", "generic"]
     },
     "public.webhook_delivery_status": {
       "name": "webhook_delivery_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "succeeded",
-        "failed",
-        "dead"
-      ]
+      "values": ["pending", "succeeded", "failed", "dead"]
     },
     "public.webhook_endpoint_status": {
       "name": "webhook_endpoint_status",
       "schema": "public",
-      "values": [
-        "active",
-        "paused",
-        "error"
-      ]
+      "values": ["active", "paused", "error"]
     },
     "public.writeback_event_type": {
       "name": "writeback_event_type",
       "schema": "public",
-      "values": [
-        "activity_log",
-        "contact_upsert",
-        "status_update"
-      ]
+      "values": ["activity_log", "contact_upsert", "status_update"]
     },
     "public.writeback_status": {
       "name": "writeback_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "succeeded",
-        "failed"
-      ]
+      "values": ["pending", "succeeded", "failed"]
     },
     "public.suppression_reason": {
       "name": "suppression_reason",
       "schema": "public",
-      "values": [
-        "bounce",
-        "unsubscribe",
-        "manual",
-        "complaint"
-      ]
+      "values": ["bounce", "unsubscribe", "manual", "complaint"]
     },
     "public.suppression_value_type": {
       "name": "suppression_value_type",
       "schema": "public",
-      "values": [
-        "email",
-        "domain"
-      ]
+      "values": ["email", "domain"]
     }
   },
   "schemas": {},

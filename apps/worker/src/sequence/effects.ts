@@ -10,7 +10,12 @@ import { emailDomain } from "@quiksend/core";
 import { env } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
-import { buildUnsubscribeUrl, mintUnsubscribeToken, resolvePostalAddress, sanitizeForSeg } from "@quiksend/mail";
+import {
+  buildUnsubscribeUrl,
+  mintUnsubscribeToken,
+  resolvePostalAddress,
+  sanitizeForSeg,
+} from "@quiksend/mail";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import type { ComplianceInput, OutboundEmail } from "@quiksend/mail";
 import { and, eq, or, sql } from "drizzle-orm";
@@ -778,7 +783,10 @@ async function recheckSendAllowedInTx(
     columns: { metadata: true },
   });
   try {
-    resolvePostalAddress({ organizationId: ctx.organizationId, metadata: (org?.metadata as string) ?? null });
+    resolvePostalAddress({
+      organizationId: ctx.organizationId,
+      metadata: (org?.metadata as string) ?? null,
+    });
   } catch {
     return { ok: false, reason: "missing_postal_address" };
   }

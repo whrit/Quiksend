@@ -10,8 +10,13 @@ const WIDE_WINDOW = {
   timezone: "UTC",
   business_days_only: false,
   send_window: {
-    sun: [[0, 24]], mon: [[0, 24]], tue: [[0, 24]],
-    wed: [[0, 24]], thu: [[0, 24]], fri: [[0, 24]], sat: [[0, 24]],
+    sun: [[0, 24]],
+    mon: [[0, 24]],
+    tue: [[0, 24]],
+    wed: [[0, 24]],
+    thu: [[0, 24]],
+    fri: [[0, 24]],
+    sat: [[0, 24]],
   },
 };
 
@@ -38,7 +43,11 @@ function makeParsedInbound(overrides: Partial<ParsedInbound> = {}): ParsedInboun
 async function setupEnrollment(orgId: string, userId: string, mailboxId: string) {
   const [prospect] = await db
     .insert(tables.prospect)
-    .values({ organizationId: orgId, email: `prospect-${randomUUID()}@test.local`, status: "active" })
+    .values({
+      organizationId: orgId,
+      email: `prospect-${randomUUID()}@test.local`,
+      status: "active",
+    })
     .returning();
   const [sequence] = await db
     .insert(tables.sequence)

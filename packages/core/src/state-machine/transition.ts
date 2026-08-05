@@ -105,7 +105,10 @@ export function transition(snapshot: EnrollmentSnapshot, event: Event): Transiti
         nextState: "active",
         effects: [
           { kind: "advance_step" },
-          { kind: "emit_event", type: event.kind === "task_completed" ? "task.completed" : "task.skipped" },
+          {
+            kind: "emit_event",
+            type: event.kind === "task_completed" ? "task.completed" : "task.skipped",
+          },
         ],
       };
 

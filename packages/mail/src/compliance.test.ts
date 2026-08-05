@@ -35,8 +35,8 @@ describe("resolvePostalAddress", () => {
   });
 
   it("throws ComplianceConfigurationError when metadata is invalid JSON", () => {
-    expect(() =>
-      resolvePostalAddress({ organizationId: "org-1", metadata: "not-json" }),
-    ).toThrow(ComplianceConfigurationError);
+    expect(() => resolvePostalAddress({ organizationId: "org-1", metadata: "not-json" })).toThrow(
+      ComplianceConfigurationError,
+    );
   });
 });

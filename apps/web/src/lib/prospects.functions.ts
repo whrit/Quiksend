@@ -10,11 +10,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
 import { createProspectInputSchema, prospectStatusSchema } from "./schemas/prospect.ts";
 import { withAnalyticsTiming } from "./timing.ts";
-import {
-  transition,
-  type EnrollmentSnapshot,
-  type StepKind,
-} from "@quiksend/core/state-machine";
+import { transition, type EnrollmentSnapshot, type StepKind } from "@quiksend/core/state-machine";
 import { applyWebEffects } from "./effect-executor.ts";
 
 type ProspectRow = typeof tables.prospect.$inferSelect;

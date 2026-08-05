@@ -5,11 +5,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/primitives.tsx";
-import {
-  listTasks,
-  completeGenericTask,
-  skipTask,
-} from "@/lib/tasks.functions.ts";
+import { listTasks, completeGenericTask, skipTask } from "@/lib/tasks.functions.ts";
 
 export const Route = createFileRoute("/_protected/tasks/")({
   loader: () => listTasks(),
@@ -77,14 +73,11 @@ function TaskInboxPage() {
       <h1 ref={headingRef} className="text-lg font-semibold mb-4" tabIndex={-1}>
         Tasks
       </h1>
-      <ul ref={listRef}  className="space-y-3">
+      <ul ref={listRef} className="space-y-3">
         {tasks.map((task) => {
           const busy = loading[task.id] ?? false;
           return (
-            <li
-              key={task.id}
-              className="flex items-center justify-between rounded-lg border p-4"
-            >
+            <li key={task.id} className="flex items-center justify-between rounded-lg border p-4">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="font-medium truncate">{task.title}</span>
@@ -93,9 +86,7 @@ function TaskInboxPage() {
                   </Badge>
                 </div>
                 {task.instructions && (
-                  <p className="text-sm text-muted-foreground truncate">
-                    {task.instructions}
-                  </p>
+                  <p className="text-sm text-muted-foreground truncate">{task.instructions}</p>
                 )}
               </div>
               <div className="flex items-center gap-2 ml-4 shrink-0">

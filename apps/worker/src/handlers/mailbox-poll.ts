@@ -202,7 +202,10 @@ async function pollMailbox(mailboxId: string, since: Date): Promise<void> {
           .update(tables.message)
           .set({ sentiment })
           .where(
-            and(eq(tables.message.id, e.messageId), eq(tables.message.organizationId, e.organizationId)),
+            and(
+              eq(tables.message.id, e.messageId),
+              eq(tables.message.organizationId, e.organizationId),
+            ),
           );
       }
     } catch (err) {
@@ -223,11 +226,7 @@ export async function processInboundMessage(
     ? { isAutoReply: false, reason: null }
     : detectAutoReply(inbound.headers, inbound.bodyText);
 
-  const outboundRows = await findMatchingOutboundMessages(
-    tx,
-    mailbox.organizationId,
-    inbound,
-  );
+  const outboundRows = await findMatchingOutboundMessages(tx, mailbox.organizationId, inbound);
 
   const anchors: OutboundAnchor[] = outboundRows
     .filter((row) => row.messageIdHeader)
@@ -259,10 +258,18 @@ export async function processInboundMessage(
     : null;
 
   let messageIdHeader = inbound.messageIdHeader;
-  try { if (messageIdHeader) messageIdHeader = normalizeMessageId(messageIdHeader); } catch { /* keep raw */ }
+  try {
+    if (messageIdHeader) messageIdHeader = normalizeMessageId(messageIdHeader);
+  } catch {
+    /* keep raw */
+  }
 
   let inReplyTo = inbound.inReplyTo;
-  try { if (inReplyTo) inReplyTo = normalizeMessageId(inReplyTo); } catch { /* keep raw */ }
+  try {
+    if (inReplyTo) inReplyTo = normalizeMessageId(inReplyTo);
+  } catch {
+    /* keep raw */
+  }
 
   // Upsert: insert new message OR atomically increment ingestionAttempts on duplicate.
   // Already-processed or quarantined rows keep their attempt count unchanged.
@@ -452,7 +459,6 @@ async function findMatchingOutboundMessages(
 
   return rows;
 }
-
 
 async function pollGmail(
   mailbox: typeof tables.mailbox.$inferSelect,

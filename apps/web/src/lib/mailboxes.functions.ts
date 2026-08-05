@@ -20,11 +20,7 @@ import {
   resolveMailboxAdapter,
 } from "./mailboxes.server.ts";
 import { authMiddleware } from "./org-fn.ts";
-import {
-  transition,
-  type EnrollmentSnapshot,
-  type StepKind,
-} from "@quiksend/core/state-machine";
+import { transition, type EnrollmentSnapshot, type StepKind } from "@quiksend/core/state-machine";
 import { applyWebEffects } from "./effect-executor.ts";
 
 class MailboxError extends Error {
