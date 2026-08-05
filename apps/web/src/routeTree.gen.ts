@@ -30,6 +30,7 @@ import { Route as ApiNangoWebhookRouteImport } from './routes/api/nango/webhook'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ProtectedSettingsSuppressionRouteImport } from './routes/_protected/settings/suppression'
 import { Route as ProtectedSettingsDeliverabilityRouteImport } from './routes/_protected/settings/deliverability'
+import { Route as ProtectedSettingsComplianceRouteImport } from './routes/_protected/settings/compliance'
 import { Route as ProtectedSequencesNewRouteImport } from './routes/_protected/sequences/new'
 import { Route as ProtectedProspectsImportRouteImport } from './routes/_protected/prospects/import'
 import { Route as ProtectedProspectsIdRouteImport } from './routes/_protected/prospects/$id'
@@ -157,6 +158,12 @@ const ProtectedSettingsDeliverabilityRoute =
   ProtectedSettingsDeliverabilityRouteImport.update({
     id: '/settings/deliverability',
     path: '/settings/deliverability',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSettingsComplianceRoute =
+  ProtectedSettingsComplianceRouteImport.update({
+    id: '/settings/compliance',
+    path: '/settings/compliance',
     getParentRoute: () => ProtectedRoute,
   } as any)
 const ProtectedSequencesNewRoute = ProtectedSequencesNewRouteImport.update({
@@ -291,6 +298,7 @@ export interface FileRoutesByFullPath {
   '/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/sequences/new': typeof ProtectedSequencesNewRoute
+  '/settings/compliance': typeof ProtectedSettingsComplianceRoute
   '/settings/deliverability': typeof ProtectedSettingsDeliverabilityRoute
   '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -334,6 +342,7 @@ export interface FileRoutesByTo {
   '/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/prospects/import': typeof ProtectedProspectsImportRoute
   '/sequences/new': typeof ProtectedSequencesNewRoute
+  '/settings/compliance': typeof ProtectedSettingsComplianceRoute
   '/settings/deliverability': typeof ProtectedSettingsDeliverabilityRoute
   '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -379,6 +388,7 @@ export interface FileRoutesById {
   '/_protected/prospects/$id': typeof ProtectedProspectsIdRouteWithChildren
   '/_protected/prospects/import': typeof ProtectedProspectsImportRoute
   '/_protected/sequences/new': typeof ProtectedSequencesNewRoute
+  '/_protected/settings/compliance': typeof ProtectedSettingsComplianceRoute
   '/_protected/settings/deliverability': typeof ProtectedSettingsDeliverabilityRoute
   '/_protected/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -424,6 +434,7 @@ export interface FileRouteTypes {
     | '/prospects/$id'
     | '/prospects/import'
     | '/sequences/new'
+    | '/settings/compliance'
     | '/settings/deliverability'
     | '/settings/suppression'
     | '/api/auth/$'
@@ -467,6 +478,7 @@ export interface FileRouteTypes {
     | '/prospects/$id'
     | '/prospects/import'
     | '/sequences/new'
+    | '/settings/compliance'
     | '/settings/deliverability'
     | '/settings/suppression'
     | '/api/auth/$'
@@ -511,6 +523,7 @@ export interface FileRouteTypes {
     | '/_protected/prospects/$id'
     | '/_protected/prospects/import'
     | '/_protected/sequences/new'
+    | '/_protected/settings/compliance'
     | '/_protected/settings/deliverability'
     | '/_protected/settings/suppression'
     | '/api/auth/$'
@@ -711,6 +724,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedSettingsDeliverabilityRouteImport
       parentRoute: typeof ProtectedRoute
     }
+    '/_protected/settings/compliance': {
+      id: '/_protected/settings/compliance'
+      path: '/settings/compliance'
+      fullPath: '/settings/compliance'
+      preLoaderRoute: typeof ProtectedSettingsComplianceRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
     '/_protected/sequences/new': {
       id: '/_protected/sequences/new'
       path: '/sequences/new'
@@ -878,6 +898,7 @@ interface ProtectedRouteChildren {
   ProtectedProspectsIdRoute: typeof ProtectedProspectsIdRouteWithChildren
   ProtectedProspectsImportRoute: typeof ProtectedProspectsImportRoute
   ProtectedSequencesNewRoute: typeof ProtectedSequencesNewRoute
+  ProtectedSettingsComplianceRoute: typeof ProtectedSettingsComplianceRoute
   ProtectedSettingsDeliverabilityRoute: typeof ProtectedSettingsDeliverabilityRoute
   ProtectedSettingsSuppressionRoute: typeof ProtectedSettingsSuppressionRoute
   ProtectedAnalyticsIndexRoute: typeof ProtectedAnalyticsIndexRoute
@@ -906,6 +927,7 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedProspectsIdRoute: ProtectedProspectsIdRouteWithChildren,
   ProtectedProspectsImportRoute: ProtectedProspectsImportRoute,
   ProtectedSequencesNewRoute: ProtectedSequencesNewRoute,
+  ProtectedSettingsComplianceRoute: ProtectedSettingsComplianceRoute,
   ProtectedSettingsDeliverabilityRoute: ProtectedSettingsDeliverabilityRoute,
   ProtectedSettingsSuppressionRoute: ProtectedSettingsSuppressionRoute,
   ProtectedAnalyticsIndexRoute: ProtectedAnalyticsIndexRoute,
