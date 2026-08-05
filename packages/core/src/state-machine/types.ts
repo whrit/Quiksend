@@ -65,6 +65,7 @@ export type Event =
   | { readonly kind: "resume" }
   | { readonly kind: "stop"; readonly reason?: string }
   | { readonly kind: "manual_skipped"; readonly at: Date }
+  | { readonly kind: "task_completed"; readonly at: Date }
   | { readonly kind: "no_safe_mailbox"; readonly at: Date };
 
 export type Effect =

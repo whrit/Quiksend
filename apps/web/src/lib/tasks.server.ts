@@ -3,11 +3,20 @@ import "@tanstack/react-start/server-only";
 import {
   transition,
   type EnrollmentSnapshot,
+  type Event,
 } from "@quiksend/core/state-machine";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { and, eq, inArray, asc } from "drizzle-orm";
 import { applyWebEffects } from "./effect-executor.ts";
+
+type SequenceSettings = {
+  timezone: string;
+  throttle_seconds: number;
+  mailbox_ids: string[];
+  stop_on_reply: boolean;
+  business_days_only: boolean;
+};
 
 export async function listTasksCore(organizationId: string) {
   return db.query.task.findMany({
@@ -65,6 +74,20 @@ async function resolveTaskAndTransition(
         orderBy: asc(tables.sequenceStep.stepIndex),
       });
 
+      const sequence = await tx.query.sequence.findFirst({
+        where: and(
+          eq(tables.sequence.id, enrollment.sequenceId),
+          eq(tables.sequence.organizationId, organizationId),
+        ),
+      });
+
+      const mailbox = await tx.query.mailbox.findFirst({
+        where: and(
+          eq(tables.mailbox.id, enrollment.mailboxId),
+          eq(tables.mailbox.organizationId, organizationId),
+        ),
+      });
+
       const nextStep = steps.find((s) => s.stepIndex === enrollment.currentStepIndex);
       const hasNext = steps.some((s) => s.stepIndex > enrollment.currentStepIndex);
       const snapshot: EnrollmentSnapshot = {
@@ -76,11 +99,20 @@ async function resolveTaskAndTransition(
         attemptCount: enrollment.attemptCount,
       };
 
-      const result = transition(snapshot, { kind: "manual_skipped", at: new Date() });
+      const event: Event =
+        targetStatus === "done"
+          ? { kind: "task_completed", at: new Date() }
+          : { kind: "manual_skipped", at: new Date() };
+
+      const result = transition(snapshot, event);
 
       if (result.effects.length > 0) {
+        const settings = (sequence?.settings ?? {}) as SequenceSettings;
         await applyWebEffects(tx, enrollment.id, organizationId, result.effects, {
           nextState: result.nextState,
+          advanceContext: mailbox
+            ? { steps, settings, mailbox, anchor: enrollment.createdAt }
+            : undefined,
           emitContext: {
             sequenceId: enrollment.sequenceId,
             prospectId: enrollment.prospectId,

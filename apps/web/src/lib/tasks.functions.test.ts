@@ -176,6 +176,16 @@ describe("task server functions", () => {
       });
       expect(updatedEnrollment?.state).toBe("active");
       expect(updatedEnrollment?.currentStepIndex).toBe(1);
+
+      // Must emit task.completed, not task.skipped
+      const events = await db.query.event.findMany({
+        where: and(
+          eq(tables.event.organizationId, orgA.id),
+          eq(tables.event.entityId, enrollment.id),
+        ),
+      });
+      expect(events.some((e) => e.type === "task.completed")).toBe(true);
+      expect(events.some((e) => e.type === "task.skipped")).toBe(false);
     });
   });
 
@@ -196,6 +206,16 @@ describe("task server functions", () => {
       });
       expect(updatedEnrollment?.state).toBe("active");
       expect(updatedEnrollment?.currentStepIndex).toBe(1);
+
+      // Must emit task.skipped, not task.completed
+      const events = await db.query.event.findMany({
+        where: and(
+          eq(tables.event.organizationId, orgA.id),
+          eq(tables.event.entityId, enrollment.id),
+        ),
+      });
+      expect(events.some((e) => e.type === "task.skipped")).toBe(true);
+      expect(events.some((e) => e.type === "task.completed")).toBe(false);
     });
   });
 
