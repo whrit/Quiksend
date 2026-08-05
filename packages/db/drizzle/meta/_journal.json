@@ -169,6 +169,13 @@
       "when": 1785169528040,
       "tag": "0024_backfill_message_step_index",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1785888236442,
+      "tag": "0025_beta_message_safety",
+      "breakpoints": true
     }
   ]
 }
