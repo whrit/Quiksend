@@ -6,6 +6,15 @@ import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 import { processInboundMessage, type ParsedInbound } from "./mailbox-poll.ts";
 
+const WIDE_WINDOW = {
+  timezone: "UTC",
+  business_days_only: false,
+  send_window: {
+    sun: [[0, 24]], mon: [[0, 24]], tue: [[0, 24]],
+    wed: [[0, 24]], thu: [[0, 24]], fri: [[0, 24]], sat: [[0, 24]],
+  },
+};
+
 function makeParsedInbound(overrides: Partial<ParsedInbound> = {}): ParsedInbound {
   return {
     providerMessageId: overrides.providerMessageId ?? `prov-${randomUUID()}`,
@@ -25,10 +34,48 @@ function makeParsedInbound(overrides: Partial<ParsedInbound> = {}): ParsedInboun
   };
 }
 
+/** Shared helper: create mailbox, prospect, sequence, step, enrollment. */
+async function setupEnrollment(orgId: string, userId: string, mailboxId: string) {
+  const [prospect] = await db
+    .insert(tables.prospect)
+    .values({ organizationId: orgId, email: `prospect-${randomUUID()}@test.local`, status: "active" })
+    .returning();
+  const [sequence] = await db
+    .insert(tables.sequence)
+    .values({
+      organizationId: orgId,
+      name: `seq-${randomUUID()}`,
+      status: "active",
+      createdByUserId: userId,
+      settings: WIDE_WINDOW,
+    })
+    .returning();
+  await db.insert(tables.sequenceStep).values({
+    organizationId: orgId,
+    sequenceId: sequence!.id,
+    stepIndex: 0,
+    stepType: "auto_email",
+    delayMinutes: 0,
+    config: { subject: "Hi", body_template: "<p>Hi</p>", ai_generate: false },
+  });
+  const [enrollment] = await db
+    .insert(tables.enrollment)
+    .values({
+      organizationId: orgId,
+      sequenceId: sequence!.id,
+      prospectId: prospect!.id,
+      mailboxId,
+      state: "active",
+      currentStepIndex: 0,
+      createdByUserId: userId,
+    })
+    .returning();
+  return { prospect: prospect!, sequence: sequence!, enrollment: enrollment! };
+}
+
 describe("processInboundMessage", () => {
-  it("blocks cursor when processing fails and allows successful retry", async () => {
+  it("marks processed on success and returns enrichment", async () => {
     await withTestOrgs(async ({ orgA }) => {
-      // Setup: mailbox + outbound message whose enrollmentId points to non-existent enrollment
       const [mailbox] = await db
         .insert(tables.mailbox)
         .values({
@@ -43,39 +90,20 @@ describe("processInboundMessage", () => {
         .returning();
       if (!mailbox) throw new Error("setup failed");
 
-      const fakeEnrollmentId = randomUUID();
-      const outboundMsgId = "<outbound-1@test.local>";
-      // Insert an outbound message so inbound matches and triggers handleInboundReply
-      await db.insert(tables.message).values({
-        organizationId: orgA.id,
-        mailboxId: mailbox.id,
-        direction: "outbound",
-        messageIdHeader: outboundMsgId,
-        enrollmentId: null, // No enrollment → no handleInboundReply call
-        status: "sent",
-      });
-
       const providerMsgId = `prov-${randomUUID()}`;
-      const inbound = makeParsedInbound({
-        providerMessageId: providerMsgId,
-        // No In-Reply-To → no match → no enrollment transition attempted
-        // But we need a failure. Let's use a different approach:
-        // We'll inject a bad enrollment ID via a matching outbound.
-      });
+      const inbound = makeParsedInbound({ providerMessageId: providerMsgId });
 
-      // First attempt: processing succeeds (no enrollment match → just inserts message)
-      const result1 = await db.transaction(async (tx) => {
+      const result = await db.transaction(async (tx) => {
         return processInboundMessage(tx, mailbox, inbound, { stop_on_ooo: false });
       });
-      expect(result1).toBe("ok");
+      expect(result.status).toBe("ok");
+      expect(result.enrichment).toBeDefined();
 
-      // Verify message inserted with ingestionAttempts=1
-      const msg1 = await db.query.message.findFirst({
+      const msg = await db.query.message.findFirst({
         where: eq(tables.message.providerMessageId, providerMsgId),
       });
-      expect(msg1).toBeDefined();
-      expect(msg1!.ingestionAttempts).toBe(1);
-      expect(msg1!.status).toBe("received");
+      expect(msg!.ingestionAttempts).toBe(1);
+      expect(msg!.status).toBe("processed");
     });
   });
 
@@ -119,7 +147,7 @@ describe("processInboundMessage", () => {
       const result1 = await db.transaction(async (tx) => {
         return processInboundMessage(tx, mailbox, inbound, { stop_on_ooo: false });
       });
-      expect(result1).toBe("blocked");
+      expect(result1.status).toBe("blocked");
 
       // Message was still persisted (upsert succeeded before savepoint failed)
       const msg = await db.query.message.findFirst({
@@ -129,7 +157,7 @@ describe("processInboundMessage", () => {
       expect(msg!.ingestionAttempts).toBe(1);
       expect(msg!.status).toBe("received");
 
-      // Cursor should not have advanced — verify by checking mailbox pollCursor is unchanged
+      // Cursor should not have advanced
       const mb = await db.query.mailbox.findFirst({
         where: eq(tables.mailbox.id, mailbox.id),
       });
@@ -137,62 +165,28 @@ describe("processInboundMessage", () => {
       expect(cursor.lastPolledAt).toBe("2026-07-01T00:00:00Z");
 
       // Now set up a real enrollment so retry succeeds
-      const [prospect] = await db
-        .insert(tables.prospect)
-        .values({ organizationId: orgA.id, email: "prospect@test.local", status: "active" })
-        .returning();
-      const [sequence] = await db
-        .insert(tables.sequence)
-        .values({
-          organizationId: orgA.id,
-          name: "retry-seq",
-          status: "active",
-          createdByUserId: orgA.userId,
-          settings: {
-            timezone: "UTC",
-            business_days_only: false,
-            send_window: {
-              sun: [[0, 24]], mon: [[0, 24]], tue: [[0, 24]],
-              wed: [[0, 24]], thu: [[0, 24]], fri: [[0, 24]], sat: [[0, 24]],
-            },
-          },
-        })
-        .returning();
-      await db.insert(tables.sequenceStep).values({
-        organizationId: orgA.id,
-        sequenceId: sequence!.id,
-        stepIndex: 0,
-        stepType: "auto_email",
-        delayMinutes: 0,
-        config: { subject: "Hi", body_template: "<p>Hi</p>", ai_generate: false },
-      });
-      // Create the enrollment that was referenced by the outbound message
-      await db.insert(tables.enrollment).values({
-        id: fakeEnrollmentId,
-        organizationId: orgA.id,
-        sequenceId: sequence!.id,
-        prospectId: prospect!.id,
-        mailboxId: mailbox.id,
-        state: "active",
-        currentStepIndex: 0,
-        createdByUserId: orgA.userId,
-      });
+      const { enrollment } = await setupEnrollment(orgA.id, orgA.userId, mailbox.id);
+      // Point the outbound at the real enrollment
+      await db
+        .update(tables.message)
+        .set({ enrollmentId: enrollment.id })
+        .where(eq(tables.message.messageIdHeader, outboundMsgId));
 
       // Attempt 2: retry — enrollment now exists, processing succeeds
       const result2 = await db.transaction(async (tx) => {
         return processInboundMessage(tx, mailbox, inbound, { stop_on_ooo: false });
       });
-      expect(result2).toBe("ok");
+      expect(result2.status).toBe("ok");
 
-      // ingestionAttempts incremented to 2
       const msgAfter = await db.query.message.findFirst({
         where: eq(tables.message.providerMessageId, providerMsgId),
       });
       expect(msgAfter!.ingestionAttempts).toBe(2);
+      expect(msgAfter!.status).toBe("processed");
     });
   });
 
-  it("concurrent pollers produce one message via advisory lock", async () => {
+  it("concurrent pollers produce one message and one enrollment transition", async () => {
     await withTestOrgs(async ({ orgA }) => {
       const [mailbox] = await db
         .insert(tables.mailbox)
@@ -208,8 +202,24 @@ describe("processInboundMessage", () => {
         .returning();
       if (!mailbox) throw new Error("setup failed");
 
+      // Set up enrollment so the inbound reply triggers a real transition
+      const { enrollment } = await setupEnrollment(orgA.id, orgA.userId, mailbox.id);
+      const outboundMsgId = `<outbound-concurrent-${randomUUID()}@test.local>`;
+      await db.insert(tables.message).values({
+        organizationId: orgA.id,
+        mailboxId: mailbox.id,
+        direction: "outbound",
+        messageIdHeader: outboundMsgId,
+        enrollmentId: enrollment.id,
+        prospectId: enrollment.prospectId,
+        status: "sent",
+      });
+
       const providerMsgId = `prov-concurrent-${randomUUID()}`;
-      const inbound = makeParsedInbound({ providerMessageId: providerMsgId });
+      const inbound = makeParsedInbound({
+        providerMessageId: providerMsgId,
+        inReplyTo: outboundMsgId,
+      });
 
       // Run two concurrent transactions with advisory lock + processInboundMessage
       const [r1, r2] = await Promise.all([
@@ -223,17 +233,26 @@ describe("processInboundMessage", () => {
         }),
       ]);
 
-      // Both succeed — one inserts, the other upserts
-      expect(r1).toBe("ok");
-      expect(r2).toBe("ok");
+      // Both succeed
+      expect(r1.status).toBe("ok");
+      expect(r2.status).toBe("ok");
 
       // Only one message row exists
       const msgs = await db.query.message.findMany({
         where: eq(tables.message.providerMessageId, providerMsgId),
       });
       expect(msgs).toHaveLength(1);
-      // Second poller incremented ingestionAttempts
-      expect(msgs[0]!.ingestionAttempts).toBe(2);
+
+      // First poller processed, second saw "processed" and skipped:
+      // ingestionAttempts stays at 1 (processed rows don't increment)
+      expect(msgs[0]!.ingestionAttempts).toBe(1);
+      expect(msgs[0]!.status).toBe("processed");
+
+      // Enrollment transitioned exactly once (active → replied)
+      const updatedEnrollment = await db.query.enrollment.findFirst({
+        where: eq(tables.enrollment.id, enrollment.id),
+      });
+      expect(updatedEnrollment!.state).toBe("replied");
     });
   });
 
@@ -272,13 +291,14 @@ describe("processInboundMessage", () => {
       const result = await db.transaction(async (tx) => {
         return processInboundMessage(tx, mailbox, inbound, { stop_on_ooo: false });
       });
-      expect(result).toBe("ok");
+      expect(result.status).toBe("ok");
 
       // ingestionAttempts was incremented (proves no early return on duplicate)
       const msg = await db.query.message.findFirst({
         where: eq(tables.message.providerMessageId, providerMsgId),
       });
       expect(msg!.ingestionAttempts).toBe(2);
+      expect(msg!.status).toBe("processed");
     });
   });
 
@@ -334,14 +354,98 @@ describe("processInboundMessage", () => {
       const result = await db.transaction(async (tx) => {
         return processInboundMessage(tx, mailbox, inbound, { stop_on_ooo: false });
       });
-      // Quarantine allows cursor progress
-      expect(result).toBe("ok");
+      expect(result.status).toBe("ok");
 
       const msg = await db.query.message.findFirst({
         where: eq(tables.message.providerMessageId, providerMsgId),
       });
       expect(msg!.ingestionAttempts).toBe(3);
       expect(msg!.status).toBe("quarantined");
+    });
+  });
+
+  it("A succeeds / B blocks: next poll skips A effects, A stays processed while B retries", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const [mailbox] = await db
+        .insert(tables.mailbox)
+        .values({
+          organizationId: orgA.id,
+          ownerUserId: orgA.userId,
+          provider: "gmail",
+          address: "inbox@ab-split.local",
+          dailyCap: 50,
+          throttleSeconds: 0,
+          status: "active",
+        })
+        .returning();
+      if (!mailbox) throw new Error("setup failed");
+
+      const fakeEnrollmentId = randomUUID();
+      const outboundMsgIdB = "<outbound-b@test.local>";
+
+      // Outbound B with non-existent enrollment → processing will fail
+      await db.insert(tables.message).values({
+        organizationId: orgA.id,
+        mailboxId: mailbox.id,
+        direction: "outbound",
+        messageIdHeader: outboundMsgIdB,
+        enrollmentId: fakeEnrollmentId,
+        status: "sent",
+      });
+
+      const providerMsgA = `prov-a-${randomUUID()}`;
+      const providerMsgB = `prov-b-${randomUUID()}`;
+      const inboundA = makeParsedInbound({ providerMessageId: providerMsgA });
+      const inboundB = makeParsedInbound({
+        providerMessageId: providerMsgB,
+        inReplyTo: outboundMsgIdB,
+      });
+
+      // Poll 1: A succeeds, B fails → cursor blocked
+      let cursorBlocked = false;
+      await db.transaction(async (tx) => {
+        const rA = await processInboundMessage(tx, mailbox, inboundA, { stop_on_ooo: false });
+        if (rA.status === "blocked") cursorBlocked = true;
+        const rB = await processInboundMessage(tx, mailbox, inboundB, { stop_on_ooo: false });
+        if (rB.status === "blocked") cursorBlocked = true;
+      });
+      expect(cursorBlocked).toBe(true);
+
+      // Verify A is processed, B is received
+      const msgA1 = await db.query.message.findFirst({
+        where: eq(tables.message.providerMessageId, providerMsgA),
+      });
+      expect(msgA1!.status).toBe("processed");
+      expect(msgA1!.ingestionAttempts).toBe(1);
+
+      const msgB1 = await db.query.message.findFirst({
+        where: eq(tables.message.providerMessageId, providerMsgB),
+      });
+      expect(msgB1!.status).toBe("received");
+      expect(msgB1!.ingestionAttempts).toBe(1);
+
+      // Poll 2: re-fetch both (cursor didn't advance).
+      // A must be skipped (no effect replay), B retries and fails again.
+      await db.transaction(async (tx) => {
+        const rA = await processInboundMessage(tx, mailbox, inboundA, { stop_on_ooo: false });
+        expect(rA.status).toBe("ok"); // skip
+        const rB = await processInboundMessage(tx, mailbox, inboundB, { stop_on_ooo: false });
+        expect(rB.status).toBe("blocked"); // still fails
+      });
+
+      // A: still processed, ingestionAttempts unchanged (no increment for processed)
+      const msgA2 = await db.query.message.findFirst({
+        where: eq(tables.message.providerMessageId, providerMsgA),
+      });
+      expect(msgA2!.status).toBe("processed");
+      expect(msgA2!.ingestionAttempts).toBe(1);
+
+      // B: ingestionAttempts incremented to 2
+      const msgB2 = await db.query.message.findFirst({
+        where: eq(tables.message.providerMessageId, providerMsgB),
+      });
+      expect(msgB2!.status).toBe("received");
+      expect(msgB2!.ingestionAttempts).toBe(2);
     });
   });
 });

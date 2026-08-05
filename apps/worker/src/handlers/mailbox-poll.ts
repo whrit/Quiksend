@@ -66,6 +66,19 @@ type DbTx = PostgresJsDatabase<typeof schema>;
 
 const QUARANTINE_THRESHOLD = 3;
 
+interface SentimentEnrichment {
+  organizationId: string;
+  messageId: string;
+  subject: string | null;
+  bodyText: string | null;
+  bodyHtml: string | null;
+}
+
+interface ProcessResult {
+  status: "ok" | "blocked";
+  enrichment?: SentimentEnrichment;
+}
+
 export async function registerMailboxPollHandler(): Promise<void> {
   await registerHandler("mailbox.poll", async ({ mailboxId, since }) => {
     await pollMailbox(mailboxId, new Date(since));
@@ -106,6 +119,8 @@ export async function registerMailboxPollTick(): Promise<void> {
 }
 
 async function pollMailbox(mailboxId: string, since: Date): Promise<void> {
+  const enrichments: SentimentEnrichment[] = [];
+
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${mailboxId}))`);
 
@@ -150,12 +165,13 @@ async function pollMailbox(mailboxId: string, since: Date): Promise<void> {
       throw err;
     }
 
-    const orgSettings = await loadOrgInboxSettings(mailbox.organizationId);
+    const orgSettings = await loadOrgInboxSettings(tx, mailbox.organizationId);
 
     let cursorBlocked = false;
     for (const inbound of inboundMessages) {
       const result = await processInboundMessage(tx, mailbox, inbound, orgSettings);
-      if (result === "blocked") cursorBlocked = true;
+      if (result.status === "blocked") cursorBlocked = true;
+      if (result.enrichment) enrichments.push(result.enrichment);
     }
 
     if (!cursorBlocked) {
@@ -171,6 +187,28 @@ async function pollMailbox(mailboxId: string, since: Date): Promise<void> {
         );
     }
   });
+
+  // Sentiment enrichment runs outside the advisory-lock transaction.
+  // Failures log but do not affect ingestion success.
+  for (const e of enrichments) {
+    try {
+      const sentiment = await classifyInboundSentiment({
+        subject: e.subject,
+        bodyText: e.bodyText,
+        bodyHtml: e.bodyHtml,
+      });
+      if (sentiment) {
+        await db
+          .update(tables.message)
+          .set({ sentiment })
+          .where(
+            and(eq(tables.message.id, e.messageId), eq(tables.message.organizationId, e.organizationId)),
+          );
+      }
+    } catch (err) {
+      logger.error({ err, messageId: e.messageId }, "sentiment enrichment failed");
+    }
+  }
 }
 
 export async function processInboundMessage(
@@ -178,7 +216,7 @@ export async function processInboundMessage(
   mailbox: typeof tables.mailbox.$inferSelect,
   inbound: ParsedInbound,
   orgSettings: OrgInboxSettings,
-): Promise<"ok" | "blocked"> {
+): Promise<ProcessResult> {
   const bounce = parseBounce(inbound.rawMime);
   const isBounce = bounce !== null;
   const autoReply = isBounce
@@ -226,7 +264,8 @@ export async function processInboundMessage(
   let inReplyTo = inbound.inReplyTo;
   try { if (inReplyTo) inReplyTo = normalizeMessageId(inReplyTo); } catch { /* keep raw */ }
 
-  // Upsert: insert new message OR atomically increment ingestionAttempts on duplicate
+  // Upsert: insert new message OR atomically increment ingestionAttempts on duplicate.
+  // Already-processed or quarantined rows keep their attempt count unchanged.
   const [row] = await tx
     .insert(tables.message)
     .values({
@@ -254,15 +293,15 @@ export async function processInboundMessage(
       target: [tables.message.mailboxId, tables.message.providerMessageId],
       targetWhere: sql`${tables.message.direction} = 'inbound' AND ${tables.message.providerMessageId} IS NOT NULL`,
       set: {
-        ingestionAttempts: sql`COALESCE(${tables.message.ingestionAttempts}, 0) + 1`,
+        ingestionAttempts: sql`CASE WHEN ${tables.message.status} IN ('processed', 'quarantined') THEN ${tables.message.ingestionAttempts} ELSE COALESCE(${tables.message.ingestionAttempts}, 0) + 1 END`,
       },
     })
     .returning();
 
-  if (!row) return "ok";
+  if (!row) return { status: "ok" };
 
-  // Already quarantined from a prior cycle — skip, allow cursor progress
-  if (row.status === "quarantined") return "ok";
+  // Already durably processed or quarantined — skip effects, allow cursor progress
+  if (row.status === "processed" || row.status === "quarantined") return { status: "ok" };
 
   // Build the InboundEmail payload (uses the stored row id)
   const inboundEmail: InboundEmail = {
@@ -286,14 +325,6 @@ export async function processInboundMessage(
   // Wrap effects in a savepoint so failures don't lose the upsert
   try {
     await tx.transaction(async (sp) => {
-      if (!isBounce) {
-        await storeInboundSentiment(sp, mailbox.organizationId, row.id, {
-          subject: inbound.subject,
-          bodyText: inbound.bodyText,
-          bodyHtml: inbound.bodyHtml,
-        });
-      }
-
       if (isBounce && matchedOutbound?.enrollmentId) {
         await handleInboundBounce(
           {
@@ -321,7 +352,24 @@ export async function processInboundMessage(
         await handleInboundReply(inboundEmail, matchedOutbound.enrollmentId, sp);
       }
     });
-    return "ok";
+
+    // Mark durably processed — crash before commit retries both effects + marker
+    await tx
+      .update(tables.message)
+      .set({ status: "processed" })
+      .where(eq(tables.message.id, row.id));
+
+    // Collect non-bounce for out-of-tx sentiment enrichment
+    const enrichment: SentimentEnrichment | undefined = isBounce
+      ? undefined
+      : {
+          organizationId: mailbox.organizationId,
+          messageId: row.id,
+          subject: inbound.subject,
+          bodyText: inbound.bodyText,
+          bodyHtml: inbound.bodyHtml,
+        };
+    return { status: "ok", enrichment };
   } catch (err) {
     if (row.ingestionAttempts >= QUARANTINE_THRESHOLD) {
       await tx
@@ -337,7 +385,7 @@ export async function processInboundMessage(
         },
         "inbound message quarantined after repeated ingestion failures",
       );
-      return "ok";
+      return { status: "ok" };
     }
     logger.error(
       {
@@ -348,7 +396,7 @@ export async function processInboundMessage(
       },
       "inbound process failed; cursor held for retry",
     );
-    return "blocked";
+    return { status: "blocked" };
   }
 }
 
@@ -405,21 +453,6 @@ async function findMatchingOutboundMessages(
   return rows;
 }
 
-async function storeInboundSentiment(
-  tx: DbTx,
-  organizationId: string,
-  messageId: string,
-  inbound: { subject: string | null; bodyText: string | null; bodyHtml: string | null },
-): Promise<void> {
-  const sentiment = await classifyInboundSentiment(inbound);
-  if (!sentiment) return;
-  await tx
-    .update(tables.message)
-    .set({ sentiment })
-    .where(
-      and(eq(tables.message.id, messageId), eq(tables.message.organizationId, organizationId)),
-    );
-}
 
 async function pollGmail(
   mailbox: typeof tables.mailbox.$inferSelect,
@@ -782,8 +815,8 @@ function parsePollCursor(raw: unknown): PollCursor {
   return raw as PollCursor;
 }
 
-async function loadOrgInboxSettings(organizationId: string): Promise<OrgInboxSettings> {
-  const org = await db.query.organization.findFirst({
+async function loadOrgInboxSettings(tx: DbTx, organizationId: string): Promise<OrgInboxSettings> {
+  const org = await tx.query.organization.findFirst({
     where: eq(tables.organization.id, organizationId),
   });
   if (!org?.metadata) return { stop_on_ooo: false };

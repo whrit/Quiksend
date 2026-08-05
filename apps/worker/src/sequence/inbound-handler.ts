@@ -34,7 +34,7 @@ export async function handleInboundReply(
   enrollmentId: string,
   tx: DbTx,
 ): Promise<void> {
-  const ctx = await loadContext(enrollmentId, inbound.organizationId);
+  const ctx = await loadContext(enrollmentId, inbound.organizationId, tx);
   const snapshot = toSnapshot(ctx);
   const { nextState, effects } = transition(snapshot, {
     kind: "reply_received",
@@ -62,7 +62,7 @@ export async function handleInboundBounce(
   tx: DbTx,
 ): Promise<void> {
   const bounceType = inbound.bounceType ?? "hard";
-  const ctx = await loadContext(enrollmentId, inbound.organizationId);
+  const ctx = await loadContext(enrollmentId, inbound.organizationId, tx);
   const snapshot = toSnapshot(ctx);
   const { nextState, effects } = transition(snapshot, {
     kind: "bounce_received",

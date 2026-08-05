@@ -1,8 +1,12 @@
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { and, asc, eq } from "drizzle-orm";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type * as schema from "@quiksend/db/schema";
 import { parseDeliverabilityPolicy } from "@quiksend/core/deliverability";
 import type { EnrollmentContext, SequenceSettings, StepContext } from "./context.ts";
+
+type DbExecutor = PostgresJsDatabase<typeof schema>;
 
 function parseSettings(raw: unknown): SequenceSettings {
   const value = (raw ?? {}) as Partial<SequenceSettings>;
@@ -18,8 +22,9 @@ function parseSettings(raw: unknown): SequenceSettings {
 export async function loadContext(
   enrollmentId: string,
   organizationId?: string,
+  executor: DbExecutor = db,
 ): Promise<EnrollmentContext> {
-  const enrollment = await db.query.enrollment.findFirst({
+  const enrollment = await executor.query.enrollment.findFirst({
     where: organizationId
       ? and(
           eq(tables.enrollment.id, enrollmentId),
@@ -29,7 +34,7 @@ export async function loadContext(
   });
   if (!enrollment) throw new Error(`Enrollment not found: ${enrollmentId}`);
 
-  const sequence = await db.query.sequence.findFirst({
+  const sequence = await executor.query.sequence.findFirst({
     where: and(
       eq(tables.sequence.id, enrollment.sequenceId),
       eq(tables.sequence.organizationId, enrollment.organizationId),
@@ -37,7 +42,7 @@ export async function loadContext(
   });
   if (!sequence) throw new Error(`Sequence not found for enrollment ${enrollmentId}`);
 
-  const stepRows = await db.query.sequenceStep.findMany({
+  const stepRows = await executor.query.sequenceStep.findMany({
     where: and(
       eq(tables.sequenceStep.sequenceId, sequence.id),
       eq(tables.sequenceStep.organizationId, enrollment.organizationId),
@@ -54,7 +59,7 @@ export async function loadContext(
     config: row.config as StepContext["config"],
   }));
 
-  const mailbox = await db.query.mailbox.findFirst({
+  const mailbox = await executor.query.mailbox.findFirst({
     where: and(
       eq(tables.mailbox.id, enrollment.mailboxId),
       eq(tables.mailbox.organizationId, enrollment.organizationId),
@@ -62,7 +67,7 @@ export async function loadContext(
   });
   if (!mailbox) throw new Error(`Mailbox not found for enrollment ${enrollmentId}`);
 
-  const prospect = await db.query.prospect.findFirst({
+  const prospect = await executor.query.prospect.findFirst({
     where: and(
       eq(tables.prospect.id, enrollment.prospectId),
       eq(tables.prospect.organizationId, enrollment.organizationId),
@@ -71,7 +76,7 @@ export async function loadContext(
   if (!prospect) throw new Error(`Prospect not found for enrollment ${enrollmentId}`);
 
   const company = prospect.companyId
-    ? await db.query.company.findFirst({
+    ? await executor.query.company.findFirst({
         where: and(
           eq(tables.company.id, prospect.companyId),
           eq(tables.company.organizationId, enrollment.organizationId),
@@ -79,13 +84,13 @@ export async function loadContext(
       })
     : null;
 
-  const createdBy = await db.query.user.findFirst({
+  const createdBy = await executor.query.user.findFirst({
     where: eq(tables.user.id, enrollment.createdByUserId),
   });
 
   let anchorMessage: EnrollmentContext["anchorMessage"] = null;
   if (enrollment.anchorMessageId) {
-    const anchor = await db.query.message.findFirst({
+    const anchor = await executor.query.message.findFirst({
       where: and(
         eq(tables.message.messageIdHeader, enrollment.anchorMessageId),
         eq(tables.message.organizationId, enrollment.organizationId),
@@ -103,7 +108,7 @@ export async function loadContext(
     }
   }
 
-  const priorOutbound = await db.query.message.findMany({
+  const priorOutbound = await executor.query.message.findMany({
     where: and(
       eq(tables.message.enrollmentId, enrollment.id),
       eq(tables.message.organizationId, enrollment.organizationId),
@@ -114,7 +119,7 @@ export async function loadContext(
 
   const settings = parseSettings(sequence.settings);
 
-  const org = await db.query.organization.findFirst({
+  const org = await executor.query.organization.findFirst({
     where: eq(tables.organization.id, enrollment.organizationId),
     columns: { metadata: true },
   });
