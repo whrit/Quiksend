@@ -97,6 +97,17 @@ export function transition(snapshot: EnrollmentSnapshot, event: Event): Transiti
         ],
       };
 
+    case "manual_skipped":
+      if (snapshot.state !== "waiting_manual" && snapshot.state !== "waiting")
+        return same(snapshot);
+      return {
+        nextState: "active",
+        effects: [
+          { kind: "advance_step" },
+          { kind: "emit_event", type: "task.skipped" },
+        ],
+      };
+
     case "auto_sent":
       return {
         nextState: snapshot.hasNextStep ? "active" : "completed",

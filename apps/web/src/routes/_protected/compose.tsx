@@ -28,12 +28,17 @@ import { generateEmailForProspect } from "@/lib/ai.functions.ts";
 import { listMailboxes, type PublicMailbox } from "@/lib/mailboxes.functions";
 
 export const Route = createFileRoute("/_protected/compose")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    taskId: typeof search.taskId === "string" ? search.taskId : undefined,
+    enrollmentId: typeof search.enrollmentId === "string" ? search.enrollmentId : undefined,
+  }),
   component: ComposePage,
 });
 
 type MailboxRow = PublicMailbox;
 
 function ComposePage() {
+  const { taskId, enrollmentId } = Route.useSearch();
   const [mailboxes, setMailboxes] = useState<MailboxRow[]>([]);
   const [mailboxId, setMailboxId] = useState("");
   const [prospectId, setProspectId] = useState("");
@@ -107,6 +112,7 @@ function ComposePage() {
         data: {
           mailboxId,
           prospectId,
+          enrollmentId,
           subject,
           bodyHtml,
           bodyText: bodyHtml.replace(/<[^>]+>/g, " ").trim(),

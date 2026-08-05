@@ -222,4 +222,36 @@ describe("transition", () => {
     expect(result.nextState).toBe("waiting");
     expect(result.effects).toEqual([]);
   });
+
+  it("manual_skipped from waiting_manual advances without capturing anchor", () => {
+    const snap = activeSnapshot({ state: "waiting_manual", nextStepKind: "manual_email" });
+    const now = new Date();
+    const result = transition(snap, { kind: "manual_skipped", at: now });
+    expect(result.nextState).toBe("active");
+    expect(result.effects).toEqual(
+      expect.arrayContaining([{ kind: "advance_step" }]),
+    );
+    // Must NOT capture an anchor
+    expect(result.effects.some((e) => e.kind === "capture_anchor")).toBe(false);
+  });
+
+  it("manual_skipped from waiting (generic task) also advances", () => {
+    const snap = activeSnapshot({ state: "waiting", nextStepKind: "task" });
+    const result = transition(snap, { kind: "manual_skipped", at: new Date() });
+    expect(result.nextState).toBe("active");
+    expect(result.effects).toEqual(
+      expect.arrayContaining([{ kind: "advance_step" }]),
+    );
+  });
+
+  it("manual_skipped from any other state is a no-op", () => {
+    for (const state of ["active", "paused", ...TERMINAL_STATES] as const) {
+      const result = transition(activeSnapshot({ state }), {
+        kind: "manual_skipped",
+        at: new Date(),
+      });
+      expect(result.nextState).toBe(state);
+      expect(result.effects).toEqual([]);
+    }
+  });
 });
