@@ -155,8 +155,8 @@ export async function buildProfile(
       searchWeb(companyName),
     ]);
 
-    const webFacts = await fetchAndSummarize(searchResults);
-    validateCitations(webFacts, searchResults.map((r) => r.url));
+    const { facts: webFacts, fetchedUrls } = await fetchAndSummarize(searchResults);
+    validateCitations(webFacts, [...searchResults.map((r) => r.url), ...fetchedUrls]);
     const crmFacts = crmContext ? factsFromCrm(crmContext) : [];
     const facts = dedupeFacts([...crmFacts, ...webFacts]);
 

@@ -12,6 +12,7 @@ export type { BuildProfileOptions } from "./research/build-profile.ts";
 export { fetchCrmContext } from "./research/fetch-crm-context.ts";
 export { searchWeb } from "./research/search-web.ts";
 export { fetchAndSummarize } from "./research/fetch-and-summarize.ts";
+export type { SummarizeResult } from "./research/fetch-and-summarize.ts";
 export { buildPrompt, retrieveValueProps } from "./generation/prompt-builder.ts";
 export type {
   BuiltPrompt,

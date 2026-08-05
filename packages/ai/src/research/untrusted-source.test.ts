@@ -132,4 +132,36 @@ describe("citation validation", () => {
 
     expect(() => validateCitations(facts, [])).not.toThrow();
   });
+
+  it("accepts a citation matching a redirected final URL", () => {
+    const facts = [
+      {
+        claim: "Acme expanded to EMEA",
+        source_url: "https://blog.example.com/2026/acme-emea",
+        confidence: 0.8,
+      },
+    ];
+    // Original search result URL differs from the redirect destination
+    const originalUrl = "https://example.com/news/acme-emea";
+    const redirectedUrl = "https://blog.example.com/2026/acme-emea";
+
+    // Allowlist includes both original and final URL
+    expect(() => validateCitations(facts, [originalUrl, redirectedUrl])).not.toThrow();
+  });
+
+  it("rejects when citation matches neither original nor redirected URL", () => {
+    const facts = [
+      {
+        claim: "Acme IPO",
+        source_url: "https://invented.example.com/ipo",
+        confidence: 0.7,
+      },
+    ];
+    const originalUrl = "https://example.com/news/acme";
+    const redirectedUrl = "https://blog.example.com/acme";
+
+    expect(() => validateCitations(facts, [originalUrl, redirectedUrl])).toThrow(
+      "Generated facts cite unfetched URLs",
+    );
+  });
 });

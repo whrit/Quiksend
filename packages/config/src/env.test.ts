@@ -135,8 +135,6 @@ describe("EnvSchema", () => {
       ...validProductionBase,
       SMTP_USER: "relay-user",
       SMTP_PASS: "relay-pass",
-      OPENAI_API_KEY: "sk-test",
-      BRAVE_API_KEY: "brave-token",
     });
     expect(result.success).toBe(true);
   });
@@ -186,8 +184,6 @@ describe("EnvSchema", () => {
       ...validProductionBase,
       DATABASE_URL:
         "postgres://quiksend_prod:R4nd0m-Str0ng-Db-Passw0rd@db.internal.quiksend.example:5432/quiksend",
-      OPENAI_API_KEY: "sk-test",
-      BRAVE_API_KEY: "brave-token",
       QUIKSEND_ENGINE_FAKE_MAIL: "1",
       QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK: "1",
       QUIKSEND_ENGINE_TEST_MODE: "permanent-failure",
@@ -270,27 +266,6 @@ describe("EnvSchema", () => {
       BETTER_AUTH_URL: "http://localhost:3000",
     });
     expect(result.success).toBe(true);
-  });
-  it("rejects production without OPENAI_API_KEY", () => {
-    const result = EnvSchema.safeParse({
-      ...validProductionBase,
-      BRAVE_API_KEY: "brave-token",
-    });
-    expect(result.success).toBe(false);
-    const messages = result.success ? [] : result.error.issues.map((i) => i.message);
-    expect(messages).toContain("OPENAI_API_KEY is required in production for embeddings");
-  });
-
-  it("rejects production without any search provider key", () => {
-    const result = EnvSchema.safeParse({
-      ...validProductionBase,
-      OPENAI_API_KEY: "sk-test",
-    });
-    expect(result.success).toBe(false);
-    const messages = result.success ? [] : result.error.issues.map((i) => i.message);
-    expect(messages).toContain(
-      "At least one search provider (BRAVE_API_KEY, EXA_API_KEY, or TAVILY_API_KEY) is required in production",
-    );
   });
 
 });

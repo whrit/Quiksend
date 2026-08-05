@@ -16,7 +16,13 @@ const FactsSchema = z.object({
   ),
 });
 
-export async function fetchAndSummarize(results: SearchResult[]): Promise<ResearchFact[]> {
+export interface SummarizeResult {
+  facts: ResearchFact[];
+  /** Actual page URLs after redirects — used for citation validation. */
+  fetchedUrls: string[];
+}
+
+export async function fetchAndSummarize(results: SearchResult[]): Promise<SummarizeResult> {
   const pages = await Promise.all(
     results.slice(0, 5).map(async (result) => {
       try {
@@ -29,7 +35,9 @@ export async function fetchAndSummarize(results: SearchResult[]): Promise<Resear
   );
 
   const validPages = pages.filter((p): p is NonNullable<typeof p> => p !== null);
-  if (validPages.length === 0) return [];
+  if (validPages.length === 0) return { facts: [], fetchedUrls: [] };
+
+  const fetchedUrls = validPages.map(({ page }) => page.finalUrl);
 
   const sourceBlocks = validPages
     .map(({ result, page }) =>
@@ -51,5 +59,5 @@ export async function fetchAndSummarize(results: SearchResult[]): Promise<Resear
       sourceBlocks,
   });
 
-  return output.facts;
+  return { facts: output.facts, fetchedUrls };
 }

@@ -1,9 +1,9 @@
 import { and, cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
-import { EMBEDDING_DIMENSIONS } from "@quiksend/ai";
+import { EMBEDDING_DIMENSIONS, retrieveValueProps } from "@quiksend/ai";
 
 describe("value prop tenancy", () => {
   it("org B cannot read org A value props", async () => {
@@ -267,9 +267,8 @@ describe("value prop embedding persistence", () => {
     });
   });
 
-  it("value props with null embedding are excluded from fallback retrieval", async () => {
+  it("fallback retrieval includes legacy null-embedding rows", async () => {
     await withTestOrgs(async ({ orgA }) => {
-      // One with embedding, one without
       await db.insert(tables.valueProp).values({
         organizationId: orgA.id,
         title: "With embedding",
@@ -280,26 +279,17 @@ describe("value prop embedding persistence", () => {
 
       await db.insert(tables.valueProp).values({
         organizationId: orgA.id,
-        title: "No embedding",
-        body: "Legacy row.",
+        title: "Legacy no embedding",
+        body: "No vector.",
         createdByUserId: orgA.userId,
       });
 
-      // Import retrieveValueProps — it uses fallbackValueProps internally which should
-      // filter out null embeddings. We mock embedText to force fallback path.
-      vi.doMock("@quiksend/ai/model/embed", () => ({
-        embedText: vi.fn().mockRejectedValue(new Error("no key")),
-        EMBEDDING_DIMENSIONS: 1536,
-        EMBEDDING_MODEL: "text-embedding-3-small",
-      }));
+      // Fallback path: no researchSummary → skips cosine, uses recency order
+      const results = await retrieveValueProps(orgA.id, null);
 
-      const { retrieveValueProps } = await import("@quiksend/ai");
-      const results = await retrieveValueProps(orgA.id, "anything");
-
-      expect(results.every((r) => r.title !== "No embedding")).toBe(true);
-      expect(results.some((r) => r.title === "With embedding")).toBe(true);
-
-      vi.doUnmock("@quiksend/ai/model/embed");
+      const titles = results.map((r) => r.title);
+      expect(titles).toContain("With embedding");
+      expect(titles).toContain("Legacy no embedding");
     });
   });
 });

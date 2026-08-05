@@ -20,10 +20,7 @@ async function fallbackValueProps(
   limit: number,
 ): Promise<MatchedValueProp[]> {
   const rows = await db.query.valueProp.findMany({
-    where: and(
-      eq(tables.valueProp.organizationId, organizationId),
-      isNotNull(tables.valueProp.embedding),
-    ),
+    where: eq(tables.valueProp.organizationId, organizationId),
     orderBy: desc(tables.valueProp.createdAt),
     limit,
   });
@@ -65,7 +62,13 @@ export async function retrieveValueProps(
       similarity,
     })
     .from(tables.valueProp)
-    .where(and(eq(tables.valueProp.organizationId, organizationId), gt(similarity, 0)))
+    .where(
+      and(
+        eq(tables.valueProp.organizationId, organizationId),
+        isNotNull(tables.valueProp.embedding),
+        gt(similarity, 0),
+      ),
+    )
     .orderBy((t) => desc(t.similarity))
     .limit(limit);
 
