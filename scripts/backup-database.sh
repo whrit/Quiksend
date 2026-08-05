@@ -1,37 +1,56 @@
 #!/bin/bash
-# Backup PostgreSQL database with authenticated encryption (AES-256-CBC).
+# Backup PostgreSQL database with authenticated encryption (age).
 #
 # Security properties:
-# - PBKDF2 key derivation (2M iterations, compatible with openssl)
-# - Random salt per backup (embedded in ciphertext)
-# - Restrictive temp permissions (0400 for plaintext, 0600 for cipher)
+# - Age encryption (modern AEAD, authenticated)
+# - Recipient file (public key) — private key never handled
+# - Temp permissions: 0600 (rw-------) during write, 0400 (r--------) read-only after
 # - Atomic move with fsync where portable
 # - Traps on every exit path for cleanup
-# - Key via environment variable, NEVER command line
-# - Plaintext dump never survives failure
+# - Key material never in argv or environment
+# - Plaintext dump destroyed before exit via trap
 #
 # Usage:
-#   export BACKUP_KEY='<32+ char passphrase>'
-#   scripts/backup-database.sh [output.sql.enc]
+#   scripts/backup-database.sh <recipient-file> [output.sql.enc]
+#
+# Where recipient-file contains one or more age public keys (age1...).
 #
 # Returns 0 on success, 1 on error. Ciphertext is left in output file.
 # Plaintext dump is destroyed before exit (via trap).
 
 set -euo pipefail
 
+# Required arguments
+if [ $# -lt 1 ]; then
+  echo "ERROR: Usage: $0 <recipient-file> [output.sql.enc]" >&2
+  exit 1
+fi
+
+RECIPIENT_FILE="$1"
+OUTPUT_FILE="${2:-backup-$(date +%s).sql.enc}"
+
+# Verify recipient file exists and is readable
+if [ ! -f "$RECIPIENT_FILE" ]; then
+  echo "ERROR: Recipient file not found: $RECIPIENT_FILE" >&2
+  exit 1
+fi
+
+if [ ! -r "$RECIPIENT_FILE" ]; then
+  echo "ERROR: Recipient file not readable: $RECIPIENT_FILE" >&2
+  exit 1
+fi
+
+# Check age command exists
+if ! command -v age >/dev/null 2>&1; then
+  echo "ERROR: age command not found. Install from https://github.com/FiloSottile/age" >&2
+  exit 1
+fi
+
 # Required environment variables
 if [ -z "${DATABASE_URL:-}" ]; then
   echo "ERROR: DATABASE_URL not set" >&2
   exit 1
 fi
-
-if [ -z "${BACKUP_KEY:-}" ]; then
-  echo "ERROR: BACKUP_KEY environment variable required" >&2
-  exit 1
-fi
-
-# Output file (default to backup-$(date +%s).sql.enc)
-OUTPUT_FILE="${1:-backup-$(date +%s).sql.enc}"
 
 # Temp directory and files with restrictive permissions
 TMPDIR_ROOT="${TMPDIR:-/tmp}"
@@ -44,12 +63,16 @@ chmod 0700 "$TMPDIR"
 PLAINTEXT_DUMP="${TMPDIR}/dump.sql"
 CIPHER_FILE="${TMPDIR}/dump.sql.enc"
 
-# Trap on every exit: remove plaintext and cipher in temp dir
+# Trap on every exit: remove plaintext and temp files
 cleanup() {
   local exit_code=$?
   # Overwrite plaintext 3 passes before deletion
   if [ -f "$PLAINTEXT_DUMP" ]; then
-    dd if=/dev/zero of="$PLAINTEXT_DUMP" bs=1M count=$(du -m "$PLAINTEXT_DUMP" | cut -f1) 2>/dev/null || true
+    local size_mb
+    size_mb=$(du -m "$PLAINTEXT_DUMP" 2>/dev/null | cut -f1)
+    if [ -n "$size_mb" ] && [ "$size_mb" -gt 0 ]; then
+      dd if=/dev/zero of="$PLAINTEXT_DUMP" bs=1M count="$size_mb" 2>/dev/null || true
+    fi
     rm -f "$PLAINTEXT_DUMP"
   fi
   # Remove cipher if backup failed (only the output file survives on success)
@@ -58,25 +81,19 @@ cleanup() {
   fi
   # Clean up temp directory
   rmdir "$TMPDIR" 2>/dev/null || true
+  exit $exit_code
 }
 trap cleanup EXIT
 
 # Parse DATABASE_URL to extract connection parameters
-# Format: postgres://user:password@host:port/database?options
 parse_db_url() {
   local url="$1"
-  # Remove scheme
   url="${url#postgres://}"
   url="${url#postgresql://}"
   
-  # Extract credentials and host part
   local creds_and_host="${url%%/*}"
   local db_and_query="${url#*/}"
-  
-  # Extract database name
   local db_name="${db_and_query%%\?*}"
-  
-  # Extract user and password
   local user_and_pass="${creds_and_host%%@*}"
   local host_and_port="${creds_and_host##*@}"
   
@@ -95,10 +112,10 @@ parse_db_url() {
 
 parse_db_url "$DATABASE_URL"
 
-# Dump database to plaintext file with restrictive permissions
-# Use custom format for smaller output and restore flexibility
+# Dump database to plaintext file
+# Permissions: 0600 (rw-------) during write, 0400 (r--------) read-only after
 touch "$PLAINTEXT_DUMP"
-chmod 0400 "$PLAINTEXT_DUMP"
+chmod 0600 "$PLAINTEXT_DUMP"
 
 if [ -z "${PGPASSWORD:-}" ]; then
   pg_dump \
@@ -132,16 +149,15 @@ if [ ! -s "$PLAINTEXT_DUMP" ]; then
   exit 1
 fi
 
-# Encrypt with AES-256-CBC, PBKDF2 key derivation
-# -salt: random salt (embedded in output)
-# -P: print salt and key/IV (for verification, redirected to /dev/null)
-# -pbkdf2: PBKDF2 key derivation (2M iterations by default)
+# Make plaintext read-only after successful write
+chmod 0400 "$PLAINTEXT_DUMP"
+
+# Encrypt with age (authenticated AEAD encryption)
 touch "$CIPHER_FILE"
 chmod 0600 "$CIPHER_FILE"
 
-openssl enc -aes-256-cbc -salt -pbkdf2 -in "$PLAINTEXT_DUMP" -out "$CIPHER_FILE" -k "$BACKUP_KEY" \
-  -P > /dev/null 2>&1 || {
-  echo "ERROR: Encryption failed" >&2
+age -R "$RECIPIENT_FILE" -o "$CIPHER_FILE" "$PLAINTEXT_DUMP" || {
+  echo "ERROR: age encryption failed" >&2
   exit 1
 }
 
@@ -152,7 +168,6 @@ if [ ! -s "$CIPHER_FILE" ]; then
 fi
 
 # Atomic move to output file with fsync on supported systems
-# On macOS and Linux, fsync the file to ensure durability
 if ! mv "$CIPHER_FILE" "$OUTPUT_FILE"; then
   echo "ERROR: Failed to move encrypted backup to $OUTPUT_FILE" >&2
   exit 1

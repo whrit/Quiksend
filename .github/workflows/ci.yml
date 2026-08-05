@@ -105,4 +105,4 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Audit dependencies (error on critical/high)
-        run: pnpm audit --audit-level=moderate --prod || true
+        run: pnpm audit --audit-level=moderate --prod
