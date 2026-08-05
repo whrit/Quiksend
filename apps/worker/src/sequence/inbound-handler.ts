@@ -1,6 +1,5 @@
 import { logger } from "@quiksend/config";
 import { transition } from "@quiksend/core/state-machine";
-import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { getPostHog } from "@quiksend/observability";
 import { and, eq } from "drizzle-orm";
@@ -33,7 +32,7 @@ export interface InboundEmail {
 export async function handleInboundReply(
   inbound: InboundEmail,
   enrollmentId: string,
-  outerTx?: DbTx,
+  tx: DbTx,
 ): Promise<void> {
   const ctx = await loadContext(enrollmentId, inbound.organizationId);
   const snapshot = toSnapshot(ctx);
@@ -43,15 +42,7 @@ export async function handleInboundReply(
     stopOnReply: ctx.stopOnReply,
   });
 
-  const applyEffects = async (tx: DbTx) => {
-    await applyTransitionEffects(tx, ctx, effects, 0, nextState);
-  };
-
-  if (outerTx) {
-    await applyEffects(outerTx);
-  } else {
-    await db.transaction(applyEffects);
-  }
+  await applyTransitionEffects(tx, ctx, effects, 0, nextState);
 
   await emitProductEvents(ctx, effects);
   logger.info(
@@ -68,7 +59,7 @@ export async function handleInboundReply(
 export async function handleInboundBounce(
   inbound: InboundEmail,
   enrollmentId: string,
-  outerTx?: DbTx,
+  tx: DbTx,
 ): Promise<void> {
   const bounceType = inbound.bounceType ?? "hard";
   const ctx = await loadContext(enrollmentId, inbound.organizationId);
@@ -79,38 +70,30 @@ export async function handleInboundBounce(
     at: inbound.receivedAt,
   });
 
-  const applyEffects = async (tx: DbTx) => {
-    await applyTransitionEffects(tx, ctx, effects, 0, nextState);
+  await applyTransitionEffects(tx, ctx, effects, 0, nextState);
 
-    if (bounceType === "hard") {
-      const email = (inbound.fromEmail ?? ctx.prospect.email).toLowerCase();
-      await tx
-        .insert(tables.suppression)
-        .values({
-          organizationId: inbound.organizationId,
-          value: email,
-          valueType: "email",
-          reason: "bounce",
-          sourceMessageId: inbound.id,
-        })
-        .onConflictDoNothing();
+  if (bounceType === "hard") {
+    const email = (inbound.fromEmail ?? ctx.prospect.email).toLowerCase();
+    await tx
+      .insert(tables.suppression)
+      .values({
+        organizationId: inbound.organizationId,
+        value: email,
+        valueType: "email",
+        reason: "bounce",
+        sourceMessageId: inbound.id,
+      })
+      .onConflictDoNothing();
 
-      await tx
-        .update(tables.prospect)
-        .set({ status: "bounced" })
-        .where(
-          and(
-            eq(tables.prospect.organizationId, inbound.organizationId),
-            eq(tables.prospect.email, email),
-          ),
-        );
-    }
-  };
-
-  if (outerTx) {
-    await applyEffects(outerTx);
-  } else {
-    await db.transaction(applyEffects);
+    await tx
+      .update(tables.prospect)
+      .set({ status: "bounced" })
+      .where(
+        and(
+          eq(tables.prospect.organizationId, inbound.organizationId),
+          eq(tables.prospect.email, email),
+        ),
+      );
   }
 
   await emitProductEvents(ctx, effects);

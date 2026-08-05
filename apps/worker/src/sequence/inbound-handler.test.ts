@@ -123,7 +123,7 @@ describe("handleInboundBounce integration", () => {
         enrollmentId: enrollment.id,
       };
 
-      await handleInboundBounce(inbound, enrollment.id);
+      await db.transaction((tx) => handleInboundBounce(inbound, enrollment.id, tx));
 
       const updatedMessage = await db.query.message.findFirst({
         where: eq(tables.message.id, bounceMessage.id),

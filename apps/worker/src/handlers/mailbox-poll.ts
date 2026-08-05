@@ -221,22 +221,10 @@ export async function processInboundMessage(
     : null;
 
   let messageIdHeader = inbound.messageIdHeader;
-  if (messageIdHeader) {
-    try {
-      messageIdHeader = normalizeMessageId(messageIdHeader);
-    } catch {
-      // keep raw
-    }
-  }
+  try { if (messageIdHeader) messageIdHeader = normalizeMessageId(messageIdHeader); } catch { /* keep raw */ }
 
   let inReplyTo = inbound.inReplyTo;
-  if (inReplyTo) {
-    try {
-      inReplyTo = normalizeMessageId(inReplyTo);
-    } catch {
-      // keep raw
-    }
-  }
+  try { if (inReplyTo) inReplyTo = normalizeMessageId(inReplyTo); } catch { /* keep raw */ }
 
   // Upsert: insert new message OR atomically increment ingestionAttempts on duplicate
   const [row] = await tx
