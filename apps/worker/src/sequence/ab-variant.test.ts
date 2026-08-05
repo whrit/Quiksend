@@ -66,6 +66,6 @@ describe("effectiveStepConfig", () => {
     const result1 = effectiveStepConfig(ctx, step);
     const result2 = effectiveStepConfig(ctx, step);
 
-    expect(result1).toEqual(result2);
+    expect(result1).toBe(result2);
   });
 });

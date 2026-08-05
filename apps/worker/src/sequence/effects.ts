@@ -134,7 +134,7 @@ async function createComposeTask(
       `Sequence step ${stepIndex} not found for compose task (enrollment ${ctx.enrollmentId})`,
     );
   }
-  const config = step.config as EmailStepConfig;
+  const config = effectiveStepConfig(ctx, step) as EmailStepConfig;
   await tx.insert(tables.task).values({
     organizationId: ctx.organizationId,
     enrollmentId: ctx.enrollmentId,
@@ -168,7 +168,7 @@ async function createGenericTask(
       `Sequence step ${stepIndex} not found for generic task (enrollment ${ctx.enrollmentId})`,
     );
   }
-  const config = step.config as TaskStepConfig;
+  const config = effectiveStepConfig(ctx, step) as TaskStepConfig;
   await tx.insert(tables.task).values({
     organizationId: ctx.organizationId,
     enrollmentId: ctx.enrollmentId,

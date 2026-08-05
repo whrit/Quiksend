@@ -113,4 +113,275 @@ describe("per-step message attribution", () => {
       expect([...byStep.values()].reduce((a, b) => a + b, 0)).toBe(3);
     });
   });
+
+  it("attributes messages to the selected A/B variant based on enrollment.abBucket", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const [mailbox] = await db
+        .insert(tables.mailbox)
+        .values({
+          organizationId: orgA.id,
+          ownerUserId: orgA.userId,
+          provider: "smtp",
+          address: "sender@ab-test",
+        })
+        .returning();
+
+      const [prospect] = await db
+        .insert(tables.prospect)
+        .values({ organizationId: orgA.id, email: "target@ab-test" })
+        .returning();
+
+      const [sequence] = await db
+        .insert(tables.sequence)
+        .values({ organizationId: orgA.id, name: "AB Test Sequence", createdByUserId: orgA.userId })
+        .returning();
+
+      // Step with both config (control) and variantB (variant)
+      const [step] = await db
+        .insert(tables.sequenceStep)
+        .values({
+          organizationId: orgA.id,
+          sequenceId: sequence!.id,
+          stepIndex: 0,
+          stepType: "auto_email",
+          config: {
+            subject: "Control Subject",
+            body_template: "Control Body",
+            ai_generate: false,
+          },
+          variantB: {
+            subject: "Variant B Subject",
+            body_template: "Variant B Body",
+            ai_generate: false,
+          },
+        })
+        .returning();
+
+      // Enrollment with abBucket: "A" — should use config
+      const [enrollmentA] = await db
+        .insert(tables.enrollment)
+        .values({
+          organizationId: orgA.id,
+          sequenceId: sequence!.id,
+          prospectId: prospect!.id,
+          mailboxId: mailbox!.id,
+          state: "active",
+          abBucket: "A",
+          currentStepIndex: 0,
+          createdByUserId: orgA.userId,
+        })
+        .returning();
+
+      // Enrollment with abBucket: "B" — should use variantB
+      const [enrollmentB] = await db
+        .insert(tables.enrollment)
+        .values({
+          organizationId: orgA.id,
+          sequenceId: sequence!.id,
+          prospectId: prospect!.id,
+          mailboxId: mailbox!.id,
+          state: "active",
+          abBucket: "B",
+          currentStepIndex: 0,
+          createdByUserId: orgA.userId,
+        })
+        .returning();
+
+      // Message for bucket A uses control config
+      await db.insert(tables.message).values({
+        organizationId: orgA.id,
+        mailboxId: mailbox!.id,
+        prospectId: prospect!.id,
+        enrollmentId: enrollmentA!.id,
+        sequenceStepIndex: 0,
+        direction: "outbound",
+        status: "sent",
+        subject: "Control Subject",
+      });
+
+      // Message for bucket B uses variantB config
+      await db.insert(tables.message).values({
+        organizationId: orgA.id,
+        mailboxId: mailbox!.id,
+        prospectId: prospect!.id,
+        enrollmentId: enrollmentB!.id,
+        sequenceStepIndex: 0,
+        direction: "outbound",
+        status: "sent",
+        subject: "Variant B Subject",
+      });
+
+      const messages = await db
+        .select()
+        .from(tables.message)
+        .where(
+          and(
+            eq(tables.message.organizationId, orgA.id),
+            eq(tables.message.direction, "outbound"),
+          ),
+        )
+        .orderBy(tables.message.subject);
+
+      expect(messages).toHaveLength(2);
+      expect(messages[0].subject).toBe("Control Subject");
+      expect(messages[0].enrollmentId).toBe(enrollmentA!.id);
+      expect(messages[1].subject).toBe("Variant B Subject");
+      expect(messages[1].enrollmentId).toBe(enrollmentB!.id);
+    });
+  });
+
+  it("falls back to config when abBucket is B but variantB is missing", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const [mailbox] = await db
+        .insert(tables.mailbox)
+        .values({
+          organizationId: orgA.id,
+          ownerUserId: orgA.userId,
+          provider: "smtp",
+          address: "sender@ab-fallback",
+        })
+        .returning();
+
+      const [prospect] = await db
+        .insert(tables.prospect)
+        .values({ organizationId: orgA.id, email: "target@ab-fallback" })
+        .returning();
+
+      const [sequence] = await db
+        .insert(tables.sequence)
+        .values({ organizationId: orgA.id, name: "AB Fallback Sequence", createdByUserId: orgA.userId })
+        .returning();
+
+      // Step with config but NO variantB
+      await db
+        .insert(tables.sequenceStep)
+        .values({
+          organizationId: orgA.id,
+          sequenceId: sequence!.id,
+          stepIndex: 0,
+          stepType: "auto_email",
+          config: {
+            subject: "Only Config Subject",
+            body_template: "Only Config Body",
+            ai_generate: false,
+          },
+        })
+        .returning();
+
+      // Enrollment with abBucket: "B" but step has no variantB — should fallback to config
+      const [enrollment] = await db
+        .insert(tables.enrollment)
+        .values({
+          organizationId: orgA.id,
+          sequenceId: sequence!.id,
+          prospectId: prospect!.id,
+          mailboxId: mailbox!.id,
+          state: "active",
+          abBucket: "B",
+          currentStepIndex: 0,
+          createdByUserId: orgA.userId,
+        })
+        .returning();
+
+      // Message should use fallback config, not variantB (which doesn't exist)
+      await db.insert(tables.message).values({
+        organizationId: orgA.id,
+        mailboxId: mailbox!.id,
+        prospectId: prospect!.id,
+        enrollmentId: enrollment!.id,
+        sequenceStepIndex: 0,
+        direction: "outbound",
+        status: "sent",
+        subject: "Only Config Subject",
+      });
+
+      const messages = await db
+        .select()
+        .from(tables.message)
+        .where(eq(tables.message.organizationId, orgA.id));
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].subject).toBe("Only Config Subject");
+    });
+  });
+
+  it("falls back to config when abBucket is null", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const [mailbox] = await db
+        .insert(tables.mailbox)
+        .values({
+          organizationId: orgA.id,
+          ownerUserId: orgA.userId,
+          provider: "smtp",
+          address: "sender@ab-null",
+        })
+        .returning();
+
+      const [prospect] = await db
+        .insert(tables.prospect)
+        .values({ organizationId: orgA.id, email: "target@ab-null" })
+        .returning();
+
+      const [sequence] = await db
+        .insert(tables.sequence)
+        .values({ organizationId: orgA.id, name: "AB Null Sequence", createdByUserId: orgA.userId })
+        .returning();
+
+      // Step with both config and variantB
+      await db
+        .insert(tables.sequenceStep)
+        .values({
+          organizationId: orgA.id,
+          sequenceId: sequence!.id,
+          stepIndex: 0,
+          stepType: "auto_email",
+          config: {
+            subject: "Config for Null Bucket",
+            body_template: "Config Body",
+            ai_generate: false,
+          },
+          variantB: {
+            subject: "Variant B for Null Bucket",
+            body_template: "Variant B Body",
+            ai_generate: false,
+          },
+        })
+        .returning();
+
+      // Enrollment with abBucket: null — should always use config, never variantB
+      const [enrollment] = await db
+        .insert(tables.enrollment)
+        .values({
+          organizationId: orgA.id,
+          sequenceId: sequence!.id,
+          prospectId: prospect!.id,
+          mailboxId: mailbox!.id,
+          state: "active",
+          abBucket: null,
+          currentStepIndex: 0,
+          createdByUserId: orgA.userId,
+        })
+        .returning();
+
+      // Message should use config, not variantB
+      await db.insert(tables.message).values({
+        organizationId: orgA.id,
+        mailboxId: mailbox!.id,
+        prospectId: prospect!.id,
+        enrollmentId: enrollment!.id,
+        sequenceStepIndex: 0,
+        direction: "outbound",
+        status: "sent",
+        subject: "Config for Null Bucket",
+      });
+
+      const messages = await db
+        .select()
+        .from(tables.message)
+        .where(eq(tables.message.organizationId, orgA.id));
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].subject).toBe("Config for Null Bucket");
+    });
+  });
 });
