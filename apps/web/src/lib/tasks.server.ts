@@ -39,11 +39,7 @@ async function resolveTaskAndTransition(
 
     if (!locked) throw new Error("Task not found");
 
-    // Idempotent: already in a terminal state → return it
-    if (locked.status === "done" || locked.status === "skipped") {
-      return { status: locked.status, alreadyTerminal: true };
-    }
-
+    // Idempotent: already terminal or unrecognized status → no-op
     if (locked.status !== "open" && locked.status !== "in_progress") {
       return { status: locked.status, alreadyTerminal: true };
     }

@@ -8,6 +8,8 @@ import {
   skipTaskCore,
 } from "./tasks.server.ts";
 
+const taskIdInput = (data: unknown) => z.object({ taskId: z.string().uuid() }).parse(data);
+
 export const listTasks = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
@@ -17,7 +19,7 @@ export const listTasks = createServerFn({ method: "GET" })
 
 export const getTaskContext = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .validator((data: unknown) => z.object({ taskId: z.string().uuid() }).parse(data))
+  .validator(taskIdInput)
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
     return getTaskContextCore(data.taskId, organizationId);
@@ -25,7 +27,7 @@ export const getTaskContext = createServerFn({ method: "GET" })
 
 export const completeGenericTask = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((data: unknown) => z.object({ taskId: z.string().uuid() }).parse(data))
+  .validator(taskIdInput)
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
     return completeGenericTaskCore(data.taskId, organizationId);
@@ -33,7 +35,7 @@ export const completeGenericTask = createServerFn({ method: "POST" })
 
 export const skipTask = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((data: unknown) => z.object({ taskId: z.string().uuid() }).parse(data))
+  .validator(taskIdInput)
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
     return skipTaskCore(data.taskId, organizationId);

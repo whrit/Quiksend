@@ -21,27 +21,18 @@ function TaskInboxPage() {
   const [tasks, setTasks] = useState(initialTasks);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
 
-  const handleComplete = async (taskId: string) => {
+  const resolveTask = async (
+    taskId: string,
+    action: typeof completeGenericTask | typeof skipTask,
+    label: string,
+  ) => {
     setLoading((p) => ({ ...p, [taskId]: true }));
     try {
-      await completeGenericTask({ data: { taskId } });
+      await action({ data: { taskId } });
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
-      toast.success("Task completed");
+      toast.success(`Task ${label}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to complete task");
-    } finally {
-      setLoading((p) => ({ ...p, [taskId]: false }));
-    }
-  };
-
-  const handleSkip = async (taskId: string) => {
-    setLoading((p) => ({ ...p, [taskId]: true }));
-    try {
-      await skipTask({ data: { taskId } });
-      setTasks((prev) => prev.filter((t) => t.id !== taskId));
-      toast.success("Task skipped");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to skip task");
+      toast.error(err instanceof Error ? err.message : `Failed to ${label.toLowerCase()} task`);
     } finally {
       setLoading((p) => ({ ...p, [taskId]: false }));
     }
@@ -97,7 +88,7 @@ function TaskInboxPage() {
                   <Button
                     size="sm"
                     variant="default"
-                    onClick={() => handleComplete(task.id)}
+                    onClick={() => resolveTask(task.id, completeGenericTask, "completed")}
                     disabled={busy}
                   >
                     <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
@@ -107,7 +98,7 @@ function TaskInboxPage() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => handleSkip(task.id)}
+                  onClick={() => resolveTask(task.id, skipTask, "skipped")}
                   disabled={busy}
                 >
                   <SkipForward className="mr-1.5 h-3.5 w-3.5" />
