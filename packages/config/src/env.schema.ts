@@ -146,7 +146,7 @@ export const EnvSchema = z
     },
     {
       message:
-        "BETTER_AUTH_URL must be a public HTTPS URL in production (no localhost, loopback, or unspecified addresses)",
+        "BETTER_AUTH_URL is required in production and must be a public HTTPS URL (no localhost, loopback, or unspecified addresses)",
     },
   );
 

@@ -206,10 +206,16 @@ export const setPostalAddress = createServerFn({ method: "POST" })
     requireAdmin(context);
     const { organizationId } = context.orgContext;
     const raw = await loadOrgMetadata(organizationId);
-    const existing =
-      typeof raw === "string"
-        ? (JSON.parse(raw) as Record<string, unknown>)
-        : {};
+    let existing: Record<string, unknown> = {};
+    if (raw) {
+      try {
+        existing = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        // Corrupted metadata — start fresh but preserve nothing; the only safe
+        // option is to overwrite since we cannot merge into garbage.
+        existing = {};
+      }
+    }
     const next = { ...existing, postal_address: data.postalAddress };
     await db
       .update(tables.organization)

@@ -62,6 +62,7 @@ function OnboardingPage() {
       }
     }
     setCreating(false);
+    setError(null);
     setStep(2);
   };
 
@@ -78,6 +79,9 @@ function OnboardingPage() {
     }
   };
 
+  const nameErrorId = "workspace-name-error";
+  const addressErrorId = "postal-address-error";
+
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background p-6">
       <div className="w-full max-w-[380px]">
@@ -93,17 +97,22 @@ function OnboardingPage() {
         </div>
 
         {removedFromWorkspace && step === 1 && (
-          <div className="mb-4 rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-2 text-[0.75rem] leading-relaxed text-[color:var(--status-red-600)]">
+          <div
+            role="alert"
+            className="mb-4 rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-2 text-[0.75rem] leading-relaxed text-[color:var(--status-red-600)]"
+          >
             You no longer have access to your previous workspace. Create a new one below or ask an
             admin to send you a fresh invite.
           </div>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" aria-live="polite">
           <Tile size="xs" hue="brand">
             {step}
           </Tile>
-          <span className="micro-label">Step {step} of 2</span>
+          <span className="micro-label" aria-current="step">
+            Step {step} of 2
+          </span>
         </div>
 
         {step === 1 ? (
@@ -118,6 +127,7 @@ function OnboardingPage() {
 
             <form
               className="mt-6 flex flex-col gap-3"
+              aria-busy={creating}
               onSubmit={(e) => {
                 e.preventDefault();
                 void createWorkspace();
@@ -129,15 +139,22 @@ function OnboardingPage() {
                 </Label>
                 <Input
                   id="workspace-name"
+                  required
                   // oxlint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
                   placeholder="Acme Q4 outbound"
                   value={name}
+                  aria-invalid={error != null && step === 1}
+                  aria-describedby={error && step === 1 ? nameErrorId : undefined}
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
               {error && (
-                <div className="rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-1.5 text-[0.6875rem] text-[color:var(--status-red-600)]">
+                <div
+                  id={nameErrorId}
+                  role="alert"
+                  className="rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-1.5 text-[0.6875rem] text-[color:var(--status-red-600)]"
+                >
                   {error}
                 </div>
               )}
@@ -146,6 +163,7 @@ function OnboardingPage() {
                 size="lg"
                 className="mt-1 w-full"
                 disabled={creating || !name.trim()}
+                aria-busy={creating}
               >
                 {creating ? "Creating…" : "Continue"}
               </Button>
@@ -162,6 +180,7 @@ function OnboardingPage() {
 
             <form
               className="mt-6 flex flex-col gap-3"
+              aria-busy={creating}
               onSubmit={(e) => {
                 e.preventDefault();
                 void savePostalAddress();
@@ -173,16 +192,23 @@ function OnboardingPage() {
                 </Label>
                 <Textarea
                   id="postal-address"
+                  required
                   // oxlint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
                   placeholder="123 Main St, Suite 100&#10;San Francisco, CA 94105"
                   rows={3}
                   value={postalAddress}
+                  aria-invalid={error != null && step === 2}
+                  aria-describedby={error && step === 2 ? addressErrorId : undefined}
                   onChange={(e) => setPostalAddress_(e.target.value)}
                 />
               </div>
               {error && (
-                <div className="rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-1.5 text-[0.6875rem] text-[color:var(--status-red-600)]">
+                <div
+                  id={addressErrorId}
+                  role="alert"
+                  className="rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-1.5 text-[0.6875rem] text-[color:var(--status-red-600)]"
+                >
                   {error}
                 </div>
               )}
@@ -191,6 +217,7 @@ function OnboardingPage() {
                 size="lg"
                 className="mt-1 w-full"
                 disabled={creating || !postalAddress.trim()}
+                aria-busy={creating}
               >
                 {creating ? "Saving…" : "Finish setup"}
               </Button>

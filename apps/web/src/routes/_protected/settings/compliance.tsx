@@ -16,6 +16,7 @@ function ComplianceSettingsPage() {
   const [saved, setSaved] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -34,18 +35,22 @@ function ComplianceSettingsPage() {
   const save = async () => {
     if (!postalAddress.trim()) return;
     setSaving(true);
+    setError(null);
     try {
       const result = await setPostalAddress({ data: { postalAddress: postalAddress.trim() } });
       setSaved(result.postalAddress);
       toast.success("Postal address updated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save");
+      const msg = err instanceof Error ? err.message : "Failed to save";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
   };
 
   const dirty = postalAddress.trim() !== saved;
+  const errorId = "postal-address-error";
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-6 fade-in">
@@ -55,38 +60,67 @@ function ComplianceSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Business mailing address</CardTitle>
+          <CardTitle>
+            <h2>Business mailing address</h2>
+          </CardTitle>
           <CardDescription>
             Required by CAN-SPAM. This address is included in the footer of every outbound email.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="postal-address" className="text-[0.6875rem] font-medium">
-              Postal address
-            </Label>
-            {loading ? (
-              <div className="h-[80px] animate-pulse rounded-md bg-muted" />
-            ) : (
-              <Textarea
-                id="postal-address"
-                placeholder="123 Main St, Suite 100&#10;San Francisco, CA 94105"
-                rows={3}
-                value={postalAddress}
-                onChange={(e) => setPostalAddress_(e.target.value)}
-              />
-            )}
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button
-            size="sm"
-            disabled={saving || !dirty || !postalAddress.trim()}
-            onClick={() => void save()}
-          >
-            {saving ? "Saving…" : "Save"}
-          </Button>
-        </CardFooter>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+          aria-busy={saving}
+        >
+          <CardContent>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="postal-address" className="text-[0.6875rem] font-medium">
+                Postal address
+              </Label>
+              {loading ? (
+                <div
+                  className="h-[80px] animate-pulse rounded-md bg-muted"
+                  role="status"
+                  aria-label="Loading postal address"
+                />
+              ) : (
+                <Textarea
+                  id="postal-address"
+                  required
+                  placeholder="123 Main St, Suite 100&#10;San Francisco, CA 94105"
+                  rows={3}
+                  value={postalAddress}
+                  aria-invalid={error != null}
+                  aria-describedby={error ? errorId : undefined}
+                  onChange={(e) => {
+                    setPostalAddress_(e.target.value);
+                    if (error) setError(null);
+                  }}
+                />
+              )}
+              {error && (
+                <div
+                  id={errorId}
+                  role="alert"
+                  className="text-[0.6875rem] text-[color:var(--status-red-600)]"
+                >
+                  {error}
+                </div>
+              )}
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button
+              type="submit"
+              disabled={saving || loading || !dirty || !postalAddress.trim()}
+              aria-busy={saving}
+            >
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </CardFooter>
+        </form>
       </Card>
     </div>
   );
