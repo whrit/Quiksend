@@ -1,6 +1,6 @@
 import { auth } from "@quiksend/auth";
 import { isAdminOrOwner, type OrgContext } from "@quiksend/core";
-import { db } from "@quiksend/db";
+import { withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { APIError } from "better-auth";
 import { and, eq, gte } from "drizzle-orm";
@@ -159,23 +159,25 @@ export const getApiUsageSummary = createServerFn({ method: "GET" })
     const { organizationId } = context.orgContext;
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const conditions = [
-      eq(tables.apiKeyUsage.organizationId, organizationId),
-      gte(tables.apiKeyUsage.timestamp, since),
-    ];
-    if (data.apiKeyId) {
-      conditions.push(eq(tables.apiKeyUsage.apiKeyId, data.apiKeyId));
-    }
+    return withTenantTransaction(organizationId, async (tx) => {
+      const conditions = [
+        eq(tables.apiKeyUsage.organizationId, organizationId),
+        gte(tables.apiKeyUsage.timestamp, since),
+      ];
+      if (data.apiKeyId) {
+        conditions.push(eq(tables.apiKeyUsage.apiKeyId, data.apiKeyId));
+      }
 
-    const rows = await db.query.apiKeyUsage.findMany({
-      where: and(...conditions),
+      const rows = await tx.query.apiKeyUsage.findMany({
+        where: and(...conditions),
+      });
+
+      return {
+        total24h: rows.length,
+        byStatus: rows.reduce<Record<number, number>>((acc, row) => {
+          acc[row.statusCode] = (acc[row.statusCode] ?? 0) + 1;
+          return acc;
+        }, {}),
+      };
     });
-
-    return {
-      total24h: rows.length,
-      byStatus: rows.reduce<Record<number, number>>((acc, row) => {
-        acc[row.statusCode] = (acc[row.statusCode] ?? 0) + 1;
-        return acc;
-      }, {}),
-    };
   });

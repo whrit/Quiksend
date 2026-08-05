@@ -6,7 +6,7 @@ import {
   type EnrollmentSnapshot,
   type EnrollmentState,
 } from "@quiksend/core/state-machine";
-import { db } from "@quiksend/db";
+import { db, type DbTx, withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { and, asc, desc, eq, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -157,6 +157,7 @@ function parseSettings(raw: unknown): SequenceSettings {
 }
 
 async function loadSuppressedEmails(
+  tx: DbTx,
   organizationId: string,
   emails: string[],
 ): Promise<Set<string>> {
@@ -165,7 +166,7 @@ async function loadSuppressedEmails(
   const normalized = emails.map((e) => e.toLowerCase());
   const domains = [...new Set(normalized.map(emailDomain))];
 
-  const rows = await db.query.suppression.findMany({
+  const rows = await tx.query.suppression.findMany({
     where: and(
       eq(tables.suppression.organizationId, organizationId),
       inArray(tables.suppression.value, [...normalized, ...domains]),
@@ -239,8 +240,8 @@ function serializeEnrollment(row: EnrollmentRow) {
   };
 }
 
-async function loadSequenceOrThrow(id: string, organizationId: string): Promise<SequenceRow> {
-  const row = await db.query.sequence.findFirst({
+async function loadSequenceOrThrow(tx: DbTx, id: string, organizationId: string): Promise<SequenceRow> {
+  const row = await tx.query.sequence.findFirst({
     where: and(
       eq(tables.sequence.id, id),
       eq(tables.sequence.organizationId, organizationId),
@@ -251,8 +252,8 @@ async function loadSequenceOrThrow(id: string, organizationId: string): Promise<
   return row;
 }
 
-async function loadSteps(sequenceId: string, organizationId: string): Promise<SequenceStepRow[]> {
-  return db.query.sequenceStep.findMany({
+async function loadSteps(tx: DbTx, sequenceId: string, organizationId: string): Promise<SequenceStepRow[]> {
+  return tx.query.sequenceStep.findMany({
     where: and(
       eq(tables.sequenceStep.sequenceId, sequenceId),
       eq(tables.sequenceStep.organizationId, organizationId),
@@ -384,51 +385,53 @@ export const listSequences = createServerFn({ method: "GET" })
   )
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
-    const conditions = [
-      eq(tables.sequence.organizationId, organizationId),
-      isNull(tables.sequence.deletedAt),
-    ];
-    if (data.status) conditions.push(eq(tables.sequence.status, data.status));
-    if (data.search?.trim()) {
-      conditions.push(ilike(tables.sequence.name, `%${data.search.trim()}%`));
-    }
+    return withTenantTransaction(organizationId, async (tx) => {
+      const conditions = [
+        eq(tables.sequence.organizationId, organizationId),
+        isNull(tables.sequence.deletedAt),
+      ];
+      if (data.status) conditions.push(eq(tables.sequence.status, data.status));
+      if (data.search?.trim()) {
+        conditions.push(ilike(tables.sequence.name, `%${data.search.trim()}%`));
+      }
 
-    const rows = await db.query.sequence.findMany({
-      where: and(...conditions),
-      orderBy: desc(tables.sequence.updatedAt),
+      const rows = await tx.query.sequence.findMany({
+        where: and(...conditions),
+        orderBy: desc(tables.sequence.updatedAt),
+      });
+
+      const counts = await tx
+        .select({
+          sequenceId: tables.sequenceStep.sequenceId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(tables.sequenceStep)
+        .where(eq(tables.sequenceStep.organizationId, organizationId))
+        .groupBy(tables.sequenceStep.sequenceId);
+
+      const enrollmentCounts = await tx
+        .select({
+          sequenceId: tables.enrollment.sequenceId,
+          state: tables.enrollment.state,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(tables.enrollment)
+        .where(eq(tables.enrollment.organizationId, organizationId))
+        .groupBy(tables.enrollment.sequenceId, tables.enrollment.state);
+
+      const stepCountBySeq = new Map(counts.map((c) => [c.sequenceId, c.count]));
+      const enrollBySeq = new Map<string, Record<string, number>>();
+      for (const row of enrollmentCounts) {
+        const existing = enrollBySeq.get(row.sequenceId) ?? {};
+        existing[row.state] = row.count;
+        enrollBySeq.set(row.sequenceId, existing);
+      }
+
+      return rows.map((row) => ({
+        ...serializeSequence(row, { stepCount: stepCountBySeq.get(row.id) ?? 0 }),
+        enrollmentCounts: enrollBySeq.get(row.id) ?? {},
+      }));
     });
-
-    const counts = await db
-      .select({
-        sequenceId: tables.sequenceStep.sequenceId,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(tables.sequenceStep)
-      .where(eq(tables.sequenceStep.organizationId, organizationId))
-      .groupBy(tables.sequenceStep.sequenceId);
-
-    const enrollmentCounts = await db
-      .select({
-        sequenceId: tables.enrollment.sequenceId,
-        state: tables.enrollment.state,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(tables.enrollment)
-      .where(eq(tables.enrollment.organizationId, organizationId))
-      .groupBy(tables.enrollment.sequenceId, tables.enrollment.state);
-
-    const stepCountBySeq = new Map(counts.map((c) => [c.sequenceId, c.count]));
-    const enrollBySeq = new Map<string, Record<string, number>>();
-    for (const row of enrollmentCounts) {
-      const existing = enrollBySeq.get(row.sequenceId) ?? {};
-      existing[row.state] = row.count;
-      enrollBySeq.set(row.sequenceId, existing);
-    }
-
-    return rows.map((row) => ({
-      ...serializeSequence(row, { stepCount: stepCountBySeq.get(row.id) ?? 0 }),
-      enrollmentCounts: enrollBySeq.get(row.id) ?? {},
-    }));
   });
 
 export const getSequence = createServerFn({ method: "GET" })
@@ -436,31 +439,33 @@ export const getSequence = createServerFn({ method: "GET" })
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
-    const seq = await loadSequenceOrThrow(data.id, organizationId);
-    const steps = await loadSteps(seq.id, organizationId);
+    return withTenantTransaction(organizationId, async (tx) => {
+      const seq = await loadSequenceOrThrow(tx, data.id, organizationId);
+      const steps = await loadSteps(tx, seq.id, organizationId);
 
-    const enrollmentCounts = await db
-      .select({
-        state: tables.enrollment.state,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(tables.enrollment)
-      .where(
-        and(
-          eq(tables.enrollment.sequenceId, seq.id),
-          eq(tables.enrollment.organizationId, organizationId),
-        ),
-      )
-      .groupBy(tables.enrollment.state);
+      const enrollmentCounts = await tx
+        .select({
+          state: tables.enrollment.state,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(tables.enrollment)
+        .where(
+          and(
+            eq(tables.enrollment.sequenceId, seq.id),
+            eq(tables.enrollment.organizationId, organizationId),
+          ),
+        )
+        .groupBy(tables.enrollment.state);
 
-    const counts: Record<string, number> = {};
-    for (const row of enrollmentCounts) counts[row.state] = row.count;
+      const counts: Record<string, number> = {};
+      for (const row of enrollmentCounts) counts[row.state] = row.count;
 
-    return {
-      ...serializeSequence(seq, { stepCount: steps.length }),
-      steps: steps.map(serializeStep),
-      enrollmentCounts: counts,
-    };
+      return {
+        ...serializeSequence(seq, { stepCount: steps.length }),
+        steps: steps.map(serializeStep),
+        enrollmentCounts: counts,
+      };
+    });
   });
 
 export const createSequence = createServerFn({ method: "POST" })
@@ -475,24 +480,26 @@ export const createSequence = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { organizationId, userId } = context.orgContext;
-    const [row] = await db
-      .insert(tables.sequence)
-      .values({
-        organizationId,
-        name: data.name.trim(),
-        status: "draft",
-        settings: data.settings ?? {
-          timezone: "UTC",
-          throttle_seconds: 90,
-          mailbox_ids: [],
-          stop_on_reply: true,
-          business_days_only: true,
-        },
-        createdByUserId: userId,
-      })
-      .returning();
-    if (!row) throw new SequenceError("VALIDATION", "Failed to create sequence");
-    return serializeSequence(row, { stepCount: 0 });
+    return withTenantTransaction(organizationId, async (tx) => {
+      const [row] = await tx
+        .insert(tables.sequence)
+        .values({
+          organizationId,
+          name: data.name.trim(),
+          status: "draft",
+          settings: data.settings ?? {
+            timezone: "UTC",
+            throttle_seconds: 90,
+            mailbox_ids: [],
+            stop_on_reply: true,
+            business_days_only: true,
+          },
+          createdByUserId: userId,
+        })
+        .returning();
+      if (!row) throw new SequenceError("VALIDATION", "Failed to create sequence");
+      return serializeSequence(row, { stepCount: 0 });
+    });
   });
 
 export const updateSequence = createServerFn({ method: "POST" })
@@ -512,50 +519,52 @@ export const updateSequence = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
-    const seq = await loadSequenceOrThrow(data.id, organizationId);
+    return withTenantTransaction(organizationId, async (tx) => {
+      const seq = await loadSequenceOrThrow(tx, data.id, organizationId);
 
-    if (seq.status === "archived") {
-      throw new SequenceError("INVALID_STATE", "Cannot update an archived sequence");
-    }
-
-    const patch: Partial<{ name: string; settings: SequenceSettings }> = {};
-    if (data.patch.name !== undefined) {
-      if (seq.status !== "draft") {
-        throw new SequenceError("INVALID_STATE", "Name can only be changed on draft sequences");
+      if (seq.status === "archived") {
+        throw new SequenceError("INVALID_STATE", "Cannot update an archived sequence");
       }
-      patch.name = data.patch.name.trim();
-    }
 
-    if (data.patch.settings !== undefined) {
-      const current = parseSettings(seq.settings);
-      if (seq.status === "draft") {
-        patch.settings = { ...current, ...data.patch.settings };
-      } else if (seq.status === "active") {
-        const allowed = sequenceSettingsSchema
-          .pick({
-            timezone: true,
-            throttle_seconds: true,
-            stop_on_reply: true,
-            business_days_only: true,
-          })
-          .partial()
-          .parse(data.patch.settings);
-        patch.settings = { ...current, ...allowed };
+      const patch: Partial<{ name: string; settings: SequenceSettings }> = {};
+      if (data.patch.name !== undefined) {
+        if (seq.status !== "draft") {
+          throw new SequenceError("INVALID_STATE", "Name can only be changed on draft sequences");
+        }
+        patch.name = data.patch.name.trim();
       }
-    }
 
-    if (Object.keys(patch).length === 0) return serializeSequence(seq);
+      if (data.patch.settings !== undefined) {
+        const current = parseSettings(seq.settings);
+        if (seq.status === "draft") {
+          patch.settings = { ...current, ...data.patch.settings };
+        } else if (seq.status === "active") {
+          const allowed = sequenceSettingsSchema
+            .pick({
+              timezone: true,
+              throttle_seconds: true,
+              stop_on_reply: true,
+              business_days_only: true,
+            })
+            .partial()
+            .parse(data.patch.settings);
+          patch.settings = { ...current, ...allowed };
+        }
+      }
 
-    const [row] = await db
-      .update(tables.sequence)
-      .set(patch)
-      .where(
-        and(eq(tables.sequence.id, seq.id), eq(tables.sequence.organizationId, organizationId)),
-      )
-      .returning();
-    if (!row) throw new SequenceError("NOT_FOUND", "Sequence not found");
-    const steps = await loadSteps(row.id, organizationId);
-    return serializeSequence(row, { stepCount: steps.length });
+      if (Object.keys(patch).length === 0) return serializeSequence(seq);
+
+      const [row] = await tx
+        .update(tables.sequence)
+        .set(patch)
+        .where(
+          and(eq(tables.sequence.id, seq.id), eq(tables.sequence.organizationId, organizationId)),
+        )
+        .returning();
+      if (!row) throw new SequenceError("NOT_FOUND", "Sequence not found");
+      const steps = await loadSteps(tx, row.id, organizationId);
+      return serializeSequence(row, { stepCount: steps.length });
+    });
   });
 
 export const reorderSteps = createServerFn({ method: "POST" })
@@ -570,26 +579,26 @@ export const reorderSteps = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
-    const seq = await loadSequenceOrThrow(data.sequenceId, organizationId);
-    assertDraft(seq, "reorder steps");
+    return withTenantTransaction(organizationId, async (tx) => {
+      const seq = await loadSequenceOrThrow(tx, data.sequenceId, organizationId);
+      assertDraft(seq, "reorder steps");
 
-    const steps = await loadSteps(seq.id, organizationId);
-    const stepIds = new Set(steps.map((s) => s.id));
-    const orderedSet = new Set(data.orderedIds);
+      const steps = await loadSteps(tx, seq.id, organizationId);
+      const stepIds = new Set(steps.map((s) => s.id));
+      const orderedSet = new Set(data.orderedIds);
 
-    if (orderedSet.size !== data.orderedIds.length) {
-      throw new SequenceError("VALIDATION", "Duplicate step ids in order");
-    }
-    if (orderedSet.size !== stepIds.size) {
-      throw new SequenceError("VALIDATION", "Ordered ids must match all sequence steps");
-    }
-    for (const id of data.orderedIds) {
-      if (!stepIds.has(id)) {
-        throw new SequenceError("VALIDATION", `Step ${id} does not belong to this sequence`);
+      if (orderedSet.size !== data.orderedIds.length) {
+        throw new SequenceError("VALIDATION", "Duplicate step ids in order");
       }
-    }
+      if (orderedSet.size !== stepIds.size) {
+        throw new SequenceError("VALIDATION", "Ordered ids must match all sequence steps");
+      }
+      for (const id of data.orderedIds) {
+        if (!stepIds.has(id)) {
+          throw new SequenceError("VALIDATION", `Step ${id} does not belong to this sequence`);
+        }
+      }
 
-    await db.transaction(async (tx) => {
       for (let i = 0; i < data.orderedIds.length; i++) {
         const stepId = data.orderedIds[i];
         if (!stepId) continue;
@@ -603,10 +612,10 @@ export const reorderSteps = createServerFn({ method: "POST" })
             ),
           );
       }
-    });
 
-    const updated = await loadSteps(seq.id, organizationId);
-    return updated.map(serializeStep);
+      const updated = await loadSteps(tx, seq.id, organizationId);
+      return updated.map(serializeStep);
+    });
   });
 
 export const upsertStep = createServerFn({ method: "POST" })
@@ -621,25 +630,50 @@ export const upsertStep = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
-    const seq = await loadSequenceOrThrow(data.sequenceId, organizationId);
-    assertDraft(seq, "modify steps");
-    validateStepTemplates(data.step);
+    return withTenantTransaction(organizationId, async (tx) => {
+      const seq = await loadSequenceOrThrow(tx, data.sequenceId, organizationId);
+      assertDraft(seq, "modify steps");
+      validateStepTemplates(data.step);
 
-    const { step } = data;
+      const { step } = data;
 
-    if (step.id) {
-      const existing = await db.query.sequenceStep.findFirst({
-        where: and(
-          eq(tables.sequenceStep.id, step.id),
-          eq(tables.sequenceStep.sequenceId, seq.id),
-          eq(tables.sequenceStep.organizationId, organizationId),
-        ),
-      });
-      if (!existing) throw new SequenceError("NOT_FOUND", "Step not found");
+      if (step.id) {
+        const existing = await tx.query.sequenceStep.findFirst({
+          where: and(
+            eq(tables.sequenceStep.id, step.id),
+            eq(tables.sequenceStep.sequenceId, seq.id),
+            eq(tables.sequenceStep.organizationId, organizationId),
+          ),
+        });
+        if (!existing) throw new SequenceError("NOT_FOUND", "Step not found");
 
-      const [row] = await db
-        .update(tables.sequenceStep)
-        .set({
+        const [row] = await tx
+          .update(tables.sequenceStep)
+          .set({
+            stepIndex: step.index,
+            stepType: step.type,
+            delayMinutes: step.delayMinutes,
+            businessDaysOnly: step.businessDaysOnly,
+            config: step.config,
+            variantB: step.variantB ?? null,
+            entryCondition: step.entryCondition ?? null,
+          })
+          .where(
+            and(
+              eq(tables.sequenceStep.id, step.id),
+              eq(tables.sequenceStep.organizationId, organizationId),
+            ),
+          )
+          .returning();
+        if (!row) throw new SequenceError("VALIDATION", "Failed to update step");
+        return serializeStep(row);
+      }
+
+      const [row] = await tx
+        .insert(tables.sequenceStep)
+        .values({
+          sequenceId: seq.id,
+          organizationId,
           stepIndex: step.index,
           stepType: step.type,
           delayMinutes: step.delayMinutes,
@@ -648,33 +682,10 @@ export const upsertStep = createServerFn({ method: "POST" })
           variantB: step.variantB ?? null,
           entryCondition: step.entryCondition ?? null,
         })
-        .where(
-          and(
-            eq(tables.sequenceStep.id, step.id),
-            eq(tables.sequenceStep.organizationId, organizationId),
-          ),
-        )
         .returning();
-      if (!row) throw new SequenceError("VALIDATION", "Failed to update step");
+      if (!row) throw new SequenceError("VALIDATION", "Failed to create step");
       return serializeStep(row);
-    }
-
-    const [row] = await db
-      .insert(tables.sequenceStep)
-      .values({
-        sequenceId: seq.id,
-        organizationId,
-        stepIndex: step.index,
-        stepType: step.type,
-        delayMinutes: step.delayMinutes,
-        businessDaysOnly: step.businessDaysOnly,
-        config: step.config,
-        variantB: step.variantB ?? null,
-        entryCondition: step.entryCondition ?? null,
-      })
-      .returning();
-    if (!row) throw new SequenceError("VALIDATION", "Failed to create step");
-    return serializeStep(row);
+    });
   });
 
 export const deleteStep = createServerFn({ method: "POST" })
@@ -682,28 +693,28 @@ export const deleteStep = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
-    const step = await db.query.sequenceStep.findFirst({
-      where: and(
-        eq(tables.sequenceStep.id, data.id),
-        eq(tables.sequenceStep.organizationId, organizationId),
-      ),
-    });
-    if (!step) throw new SequenceError("NOT_FOUND", "Step not found");
-
-    const seq = await loadSequenceOrThrow(step.sequenceId, organizationId);
-    assertDraft(seq, "delete steps");
-
-    await db
-      .delete(tables.sequenceStep)
-      .where(
-        and(
+    return withTenantTransaction(organizationId, async (tx) => {
+      const step = await tx.query.sequenceStep.findFirst({
+        where: and(
           eq(tables.sequenceStep.id, data.id),
           eq(tables.sequenceStep.organizationId, organizationId),
         ),
-      );
+      });
+      if (!step) throw new SequenceError("NOT_FOUND", "Step not found");
 
-    const remaining = await loadSteps(seq.id, organizationId);
-    await db.transaction(async (tx) => {
+      const seq = await loadSequenceOrThrow(tx, step.sequenceId, organizationId);
+      assertDraft(seq, "delete steps");
+
+      await tx
+        .delete(tables.sequenceStep)
+        .where(
+          and(
+            eq(tables.sequenceStep.id, data.id),
+            eq(tables.sequenceStep.organizationId, organizationId),
+          ),
+        );
+
+      const remaining = await loadSteps(tx, seq.id, organizationId);
       for (let i = 0; i < remaining.length; i++) {
         const s = remaining[i];
         if (!s || s.stepIndex === i) continue;
@@ -717,9 +728,9 @@ export const deleteStep = createServerFn({ method: "POST" })
             ),
           );
       }
-    });
 
-    return { ok: true as const };
+      return { ok: true as const };
+    });
   });
 
 export const activateSequence = createServerFn({ method: "POST" })
@@ -730,56 +741,58 @@ export const activateSequence = createServerFn({ method: "POST" })
       throw new SequenceError("FORBIDDEN", "Admin or owner role required to activate sequences");
     }
     const { organizationId } = context.orgContext;
-    const seq = await loadSequenceOrThrow(data.id, organizationId);
-    if (seq.status !== "draft") {
-      throw new SequenceError("INVALID_STATE", "Only draft sequences can be activated");
-    }
+    return withTenantTransaction(organizationId, async (tx) => {
+      const seq = await loadSequenceOrThrow(tx, data.id, organizationId);
+      if (seq.status !== "draft") {
+        throw new SequenceError("INVALID_STATE", "Only draft sequences can be activated");
+      }
 
-    const steps = await loadSteps(seq.id, organizationId);
-    if (steps.length === 0) {
-      throw new SequenceError("VALIDATION", "Sequence must have at least one step");
-    }
+      const steps = await loadSteps(tx, seq.id, organizationId);
+      if (steps.length === 0) {
+        throw new SequenceError("VALIDATION", "Sequence must have at least one step");
+      }
 
-    assertFirstStepIsNotAutoEmail(steps);
+      assertFirstStepIsNotAutoEmail(steps);
 
-    for (const step of steps) {
-      if (step.stepType === "manual_email" || step.stepType === "auto_email") {
-        const config = emailConfigSchema.parse(step.config);
-        if (!config.ai_generate) {
-          if (!config.subject.trim() || !config.body_template.trim()) {
-            throw new SequenceError(
-              "VALIDATION",
-              `Step ${step.stepIndex + 1} requires subject and body (or enable AI generate)`,
-            );
+      for (const step of steps) {
+        if (step.stepType === "manual_email" || step.stepType === "auto_email") {
+          const config = emailConfigSchema.parse(step.config);
+          if (!config.ai_generate) {
+            if (!config.subject.trim() || !config.body_template.trim()) {
+              throw new SequenceError(
+                "VALIDATION",
+                `Step ${step.stepIndex + 1} requires subject and body (or enable AI generate)`,
+              );
+            }
           }
         }
       }
-    }
 
-    const settings = parseSettings(seq.settings);
-    if (settings.mailbox_ids.length === 0) {
-      throw new SequenceError("VALIDATION", "At least one mailbox must be selected");
-    }
+      const settings = parseSettings(seq.settings);
+      if (settings.mailbox_ids.length === 0) {
+        throw new SequenceError("VALIDATION", "At least one mailbox must be selected");
+      }
 
-    const mailboxes = await db.query.mailbox.findMany({
-      where: and(
-        eq(tables.mailbox.organizationId, organizationId),
-        inArray(tables.mailbox.id, settings.mailbox_ids),
-      ),
+      const mailboxes = await tx.query.mailbox.findMany({
+        where: and(
+          eq(tables.mailbox.organizationId, organizationId),
+          inArray(tables.mailbox.id, settings.mailbox_ids),
+        ),
+      });
+      if (mailboxes.length !== settings.mailbox_ids.length) {
+        throw new SequenceError("VALIDATION", "One or more selected mailboxes do not exist");
+      }
+
+      const [row] = await tx
+        .update(tables.sequence)
+        .set({ status: "active" })
+        .where(
+          and(eq(tables.sequence.id, seq.id), eq(tables.sequence.organizationId, organizationId)),
+        )
+        .returning();
+      if (!row) throw new SequenceError("NOT_FOUND", "Sequence not found");
+      return serializeSequence(row, { stepCount: steps.length });
     });
-    if (mailboxes.length !== settings.mailbox_ids.length) {
-      throw new SequenceError("VALIDATION", "One or more selected mailboxes do not exist");
-    }
-
-    const [row] = await db
-      .update(tables.sequence)
-      .set({ status: "active" })
-      .where(
-        and(eq(tables.sequence.id, seq.id), eq(tables.sequence.organizationId, organizationId)),
-      )
-      .returning();
-    if (!row) throw new SequenceError("NOT_FOUND", "Sequence not found");
-    return serializeSequence(row, { stepCount: steps.length });
   });
 
 export const archiveSequence = createServerFn({ method: "POST" })
@@ -790,19 +803,21 @@ export const archiveSequence = createServerFn({ method: "POST" })
       throw new SequenceError("FORBIDDEN", "Admin or owner role required to archive sequences");
     }
     const { organizationId } = context.orgContext;
-    const seq = await loadSequenceOrThrow(data.id, organizationId);
-    if (seq.status === "archived") return serializeSequence(seq);
+    return withTenantTransaction(organizationId, async (tx) => {
+      const seq = await loadSequenceOrThrow(tx, data.id, organizationId);
+      if (seq.status === "archived") return serializeSequence(seq);
 
-    const [row] = await db
-      .update(tables.sequence)
-      .set({ status: "archived" })
-      .where(
-        and(eq(tables.sequence.id, seq.id), eq(tables.sequence.organizationId, organizationId)),
-      )
-      .returning();
-    if (!row) throw new SequenceError("NOT_FOUND", "Sequence not found");
-    const steps = await loadSteps(row.id, organizationId);
-    return serializeSequence(row, { stepCount: steps.length });
+      const [row] = await tx
+        .update(tables.sequence)
+        .set({ status: "archived" })
+        .where(
+          and(eq(tables.sequence.id, seq.id), eq(tables.sequence.organizationId, organizationId)),
+        )
+        .returning();
+      if (!row) throw new SequenceError("NOT_FOUND", "Sequence not found");
+      const steps = await loadSteps(tx, row.id, organizationId);
+      return serializeSequence(row, { stepCount: steps.length });
+    });
   });
 
 export const enrollProspects = createServerFn({ method: "POST" })
@@ -820,141 +835,146 @@ export const enrollProspects = createServerFn({ method: "POST" })
       throw new SequenceError("FORBIDDEN", "Admin or owner role required to enroll prospects");
     }
     const { organizationId, userId } = context.orgContext;
-    const seq = await loadSequenceOrThrow(data.sequenceId, organizationId);
-    if (seq.status === "archived") {
-      return {
-        enrolled: 0,
-        exclusions: data.prospectIds.map((prospectId) => ({
-          prospectId,
-          reason: "sequence_archived" as const,
-        })),
-        canariesCreated: 0,
-      };
-    }
-    if (seq.status !== "active") {
-      throw new SequenceError("INVALID_STATE", "Can only enroll into active sequences");
-    }
+    return withTenantTransaction(organizationId, async (tx) => {
+      const seq = await loadSequenceOrThrow(tx, data.sequenceId, organizationId);
+      if (seq.status === "archived") {
+        return {
+          enrolled: 0,
+          exclusions: data.prospectIds.map((prospectId) => ({
+            prospectId,
+            reason: "sequence_archived" as const,
+          })),
+          canariesCreated: 0,
+        };
+      }
+      if (seq.status !== "active") {
+        throw new SequenceError("INVALID_STATE", "Can only enroll into active sequences");
+      }
 
-    const settings = parseSettings(seq.settings);
-    if (settings.mailbox_ids.length === 0) {
-      throw new SequenceError("VALIDATION", "Sequence has no mailboxes configured");
-    }
+      const settings = parseSettings(seq.settings);
+      if (settings.mailbox_ids.length === 0) {
+        throw new SequenceError("VALIDATION", "Sequence has no mailboxes configured");
+      }
 
-    const steps = await loadSteps(seq.id, organizationId);
-    const mailboxes = await db.query.mailbox.findMany({
-      where: and(
-        eq(tables.mailbox.organizationId, organizationId),
-        inArray(tables.mailbox.id, settings.mailbox_ids),
-        eq(tables.mailbox.status, "active"),
-      ),
-    });
-    if (mailboxes.length === 0) {
-      throw new SequenceError(
-        "VALIDATION",
-        "No active mailboxes configured for this sequence — resume or reconnect a mailbox before enrolling",
+      const steps = await loadSteps(tx, seq.id, organizationId);
+      const mailboxes = await tx.query.mailbox.findMany({
+        where: and(
+          eq(tables.mailbox.organizationId, organizationId),
+          inArray(tables.mailbox.id, settings.mailbox_ids),
+          eq(tables.mailbox.status, "active"),
+        ),
+      });
+      if (mailboxes.length === 0) {
+        throw new SequenceError(
+          "VALIDATION",
+          "No active mailboxes configured for this sequence — resume or reconnect a mailbox before enrolling",
+        );
+      }
+
+      const prospects = await tx.query.prospect.findMany({
+        where: and(
+          eq(tables.prospect.organizationId, organizationId),
+          inArray(tables.prospect.id, data.prospectIds),
+          isNull(tables.prospect.deletedAt),
+        ),
+      });
+      const prospectSet = new Set(prospects.map((p) => p.id));
+      const prospectById = new Map(prospects.map((p) => [p.id, p]));
+
+      const suppressedEmails = await loadSuppressedEmails(
+        tx,
+        organizationId,
+        prospects.map((p) => p.email),
       );
-    }
 
-    const prospects = await db.query.prospect.findMany({
-      where: and(
-        eq(tables.prospect.organizationId, organizationId),
-        inArray(tables.prospect.id, data.prospectIds),
-        isNull(tables.prospect.deletedAt),
-      ),
-    });
-    const prospectSet = new Set(prospects.map((p) => p.id));
-    const prospectById = new Map(prospects.map((p) => [p.id, p]));
+      const existing = await tx.query.enrollment.findMany({
+        where: and(
+          eq(tables.enrollment.sequenceId, seq.id),
+          eq(tables.enrollment.organizationId, organizationId),
+          inArray(tables.enrollment.prospectId, data.prospectIds),
+        ),
+      });
+      const alreadyEnrolled = new Set(existing.map((e) => e.prospectId));
 
-    const suppressedEmails = await loadSuppressedEmails(
-      organizationId,
-      prospects.map((p) => p.email),
-    );
+      const exclusions: { prospectId: string; reason: EnrollmentExclusionReason }[] = [];
+      const enrolled: string[] = [];
+      const anchor = new Date();
+      let mailboxIndex = 0;
 
-    const existing = await db.query.enrollment.findMany({
-      where: and(
-        eq(tables.enrollment.sequenceId, seq.id),
-        eq(tables.enrollment.organizationId, organizationId),
-        inArray(tables.enrollment.prospectId, data.prospectIds),
-      ),
-    });
-    const alreadyEnrolled = new Set(existing.map((e) => e.prospectId));
-
-    const exclusions: { prospectId: string; reason: EnrollmentExclusionReason }[] = [];
-    const enrolled: string[] = [];
-    const anchor = new Date();
-    let mailboxIndex = 0;
-
-    for (const prospectId of data.prospectIds) {
-      if (!prospectSet.has(prospectId)) {
-        exclusions.push({ prospectId, reason: "prospect_deleted" });
-        continue;
-      }
-      if (alreadyEnrolled.has(prospectId)) {
-        exclusions.push({ prospectId, reason: "already_enrolled" });
-        continue;
-      }
-
-      const prospect = prospectById.get(prospectId);
-      if (prospect) {
-        const email = prospect.email.toLowerCase();
-        if (
-          suppressedEmails.has(email) ||
-          prospect.status === "unsubscribed" ||
-          prospect.status === "do_not_contact" ||
-          prospect.status === "bounced"
-        ) {
-          exclusions.push({ prospectId, reason: "prospect_suppressed" });
+      for (const prospectId of data.prospectIds) {
+        if (!prospectSet.has(prospectId)) {
+          exclusions.push({ prospectId, reason: "prospect_deleted" });
           continue;
         }
-      }
-
-      const mailbox = mailboxes[mailboxIndex % mailboxes.length]!;
-      mailboxIndex++;
-
-      const nextRunAt = computeNextRunAt(steps, settings, mailbox, 0, anchor);
-
-      try {
-        await db.insert(tables.enrollment).values({
-          organizationId,
-          sequenceId: seq.id,
-          prospectId,
-          mailboxId: mailbox.id,
-          state: "active",
-          currentStepIndex: 0,
-          nextRunAt,
-          abBucket: Math.random() < 0.5 ? "A" : "B",
-          createdByUserId: userId,
-        });
-        enrolled.push(prospectId);
-        alreadyEnrolled.add(prospectId);
-      } catch (err) {
-        if (isEnrollmentDuplicate(err)) {
+        if (alreadyEnrolled.has(prospectId)) {
           exclusions.push({ prospectId, reason: "already_enrolled" });
           continue;
         }
-        throw err;
+
+        const prospect = prospectById.get(prospectId);
+        if (prospect) {
+          const email = prospect.email.toLowerCase();
+          if (
+            suppressedEmails.has(email) ||
+            prospect.status === "unsubscribed" ||
+            prospect.status === "do_not_contact" ||
+            prospect.status === "bounced"
+          ) {
+            exclusions.push({ prospectId, reason: "prospect_suppressed" });
+            continue;
+          }
+        }
+
+        const mailbox = mailboxes[mailboxIndex % mailboxes.length]!;
+        mailboxIndex++;
+
+        const nextRunAt = computeNextRunAt(steps, settings, mailbox, 0, anchor);
+
+        try {
+          await tx.insert(tables.enrollment).values({
+            organizationId,
+            sequenceId: seq.id,
+            prospectId,
+            mailboxId: mailbox.id,
+            state: "active",
+            currentStepIndex: 0,
+            nextRunAt,
+            abBucket: Math.random() < 0.5 ? "A" : "B",
+            createdByUserId: userId,
+          });
+          enrolled.push(prospectId);
+          alreadyEnrolled.add(prospectId);
+        } catch (err) {
+          if (isEnrollmentDuplicate(err)) {
+            exclusions.push({ prospectId, reason: "already_enrolled" });
+            continue;
+          }
+          throw err;
+        }
       }
-    }
 
-    const org = await db.query.organization.findFirst({
-      where: eq(tables.organization.id, organizationId),
-      columns: { metadata: true },
+      const org = await tx.query.organization.findFirst({
+        where: eq(tables.organization.id, organizationId),
+        columns: { metadata: true },
+      });
+
+      const canariesCreated = await injectCanariesForEnrollment({
+        organizationId,
+        sequenceId: seq.id,
+        enrolledProspectIds: enrolled,
+        mailboxIds: mailboxes.map((m) => m.id),
+        sequenceCanaryConfig: seq.canaryConfig,
+        workspaceCanaryConfig: parseWorkspaceCanaryConfig(org?.metadata),
+        isProEntitled: isDeliverabilityProEntitled(org?.metadata),
+      });
+
+      return {
+        enrolled: enrolled.length,
+        exclusions,
+        canariesCreated,
+      };
     });
 
-    const canariesCreated = await injectCanariesForEnrollment({
-      organizationId,
-      sequenceId: seq.id,
-      enrolledProspectIds: enrolled,
-      mailboxIds: mailboxes.map((m) => m.id),
-      sequenceCanaryConfig: seq.canaryConfig,
-      workspaceCanaryConfig: parseWorkspaceCanaryConfig(org?.metadata),
-    });
-
-    return {
-      enrolled: enrolled.length,
-      exclusions,
-      canariesCreated,
-    };
   });
 
 export const previewSchedule = createServerFn({ method: "POST" })
@@ -970,42 +990,44 @@ export const previewSchedule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
-    const seq = await loadSequenceOrThrow(data.sequenceId, organizationId);
-    const settings = parseSettings(seq.settings);
-    const steps = await loadSteps(seq.id, organizationId);
+    return withTenantTransaction(organizationId, async (tx) => {
+      const seq = await loadSequenceOrThrow(tx, data.sequenceId, organizationId);
+      const settings = parseSettings(seq.settings);
+      const steps = await loadSteps(tx, seq.id, organizationId);
 
-    const mailbox = await db.query.mailbox.findFirst({
-      where: and(
-        eq(tables.mailbox.id, data.mailboxId),
-        eq(tables.mailbox.organizationId, organizationId),
-      ),
+      const mailbox = await tx.query.mailbox.findFirst({
+        where: and(
+          eq(tables.mailbox.id, data.mailboxId),
+          eq(tables.mailbox.organizationId, organizationId),
+        ),
+      });
+      if (!mailbox) throw new SequenceError("NOT_FOUND", "Mailbox not found");
+
+      const anchor = new Date();
+      const schedule = computeSchedule(
+        stepsToScheduleSpecs(steps, settings),
+        toMailboxSchedule(mailbox.sendWindow, mailbox, settings),
+        anchor,
+      );
+
+      return schedule.map((s) => ({
+        index: s.index,
+        kind: s.kind,
+        scheduledAt: s.scheduledAt.toISOString(),
+        deferredBy: s.deferredBy.map((d) => {
+          if (d.kind === "outside_window") {
+            return { kind: d.kind, nextOpen: d.nextOpen.toISOString() };
+          }
+          if (d.kind === "business_day") {
+            return { kind: d.kind, nextBusinessDay: d.nextBusinessDay.toISOString() };
+          }
+          if (d.kind === "throttle") {
+            return { kind: d.kind, gapSeconds: d.gapSeconds };
+          }
+          return { kind: d.kind, resetAt: d.resetAt.toISOString() };
+        }),
+      }));
     });
-    if (!mailbox) throw new SequenceError("NOT_FOUND", "Mailbox not found");
-
-    const anchor = new Date();
-    const schedule = computeSchedule(
-      stepsToScheduleSpecs(steps, settings),
-      toMailboxSchedule(mailbox.sendWindow, mailbox, settings),
-      anchor,
-    );
-
-    return schedule.map((s) => ({
-      index: s.index,
-      kind: s.kind,
-      scheduledAt: s.scheduledAt.toISOString(),
-      deferredBy: s.deferredBy.map((d) => {
-        if (d.kind === "outside_window") {
-          return { kind: d.kind, nextOpen: d.nextOpen.toISOString() };
-        }
-        if (d.kind === "business_day") {
-          return { kind: d.kind, nextBusinessDay: d.nextBusinessDay.toISOString() };
-        }
-        if (d.kind === "throttle") {
-          return { kind: d.kind, gapSeconds: d.gapSeconds };
-        }
-        return { kind: d.kind, resetAt: d.resetAt.toISOString() };
-      }),
-    }));
   });
 
 /**
@@ -1023,19 +1045,19 @@ async function transitionEnrollment(
   organizationId: string,
   event: { kind: "pause" } | { kind: "resume" } | { kind: "stop"; reason?: string },
 ) {
-  const row = await db.query.enrollment.findFirst({
-    where: and(
-      eq(tables.enrollment.id, enrollmentId),
-      eq(tables.enrollment.organizationId, organizationId),
-    ),
-  });
-  if (!row) throw new SequenceError("NOT_FOUND", "Enrollment not found");
+  return withTenantTransaction(organizationId, async (tx) => {
+    const row = await tx.query.enrollment.findFirst({
+      where: and(
+        eq(tables.enrollment.id, enrollmentId),
+        eq(tables.enrollment.organizationId, organizationId),
+      ),
+    });
+    if (!row) throw new SequenceError("NOT_FOUND", "Enrollment not found");
 
-  const steps = await loadSteps(row.sequenceId, organizationId);
-  const snapshot = buildEnrollmentSnapshot(row, steps);
-  const result = transition(snapshot, event);
+    const steps = await loadSteps(tx, row.sequenceId, organizationId);
+    const snapshot = buildEnrollmentSnapshot(row, steps);
+    const result = transition(snapshot, event);
 
-  await db.transaction(async (tx) => {
     await applyWebEffects(tx, enrollmentId, organizationId, result.effects, {
       nextState: result.nextState,
       emitContext: {
@@ -1043,16 +1065,16 @@ async function transitionEnrollment(
         prospectId: row.prospectId,
       },
     });
-  });
 
-  const updated = await db.query.enrollment.findFirst({
-    where: and(
-      eq(tables.enrollment.id, enrollmentId),
-      eq(tables.enrollment.organizationId, organizationId),
-    ),
+    const updated = await tx.query.enrollment.findFirst({
+      where: and(
+        eq(tables.enrollment.id, enrollmentId),
+        eq(tables.enrollment.organizationId, organizationId),
+      ),
+    });
+    if (!updated) throw new SequenceError("NOT_FOUND", "Enrollment not found");
+    return { enrollment: serializeEnrollment(updated), effects: result.effects };
   });
-  if (!updated) throw new SequenceError("NOT_FOUND", "Enrollment not found");
-  return { enrollment: serializeEnrollment(updated), effects: result.effects };
 }
 
 export const pauseEnrollment = createServerFn({ method: "POST" })
@@ -1100,54 +1122,56 @@ export const listEnrollments = createServerFn({ method: "GET" })
   .validator((data: unknown) => listEnrollmentsInputSchema.parse(data ?? {}))
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
-    await loadSequenceOrThrow(data.sequenceId, organizationId);
+    return withTenantTransaction(organizationId, async (tx) => {
+      await loadSequenceOrThrow(tx, data.sequenceId, organizationId);
 
-    const conditions = [
-      eq(tables.enrollment.sequenceId, data.sequenceId),
-      eq(tables.enrollment.organizationId, organizationId),
-    ];
-    if (data.cursor) {
-      conditions.push(enrollmentCursorCondition(data.cursor));
-    }
+      const conditions = [
+        eq(tables.enrollment.sequenceId, data.sequenceId),
+        eq(tables.enrollment.organizationId, organizationId),
+      ];
+      if (data.cursor) {
+        conditions.push(enrollmentCursorCondition(data.cursor));
+      }
 
-    const rows = await db.query.enrollment.findMany({
-      where: and(...conditions),
-      orderBy: [desc(tables.enrollment.createdAt), desc(tables.enrollment.id)],
-      limit: data.limit + 1,
-    });
+      const rows = await tx.query.enrollment.findMany({
+        where: and(...conditions),
+        orderBy: [desc(tables.enrollment.createdAt), desc(tables.enrollment.id)],
+        limit: data.limit + 1,
+      });
 
-    const hasMore = rows.length > data.limit;
-    const page = hasMore ? rows.slice(0, data.limit) : rows;
-    const last = page.at(-1);
+      const hasMore = rows.length > data.limit;
+      const page = hasMore ? rows.slice(0, data.limit) : rows;
+      const last = page.at(-1);
 
-    const prospectIds = [...new Set(page.map((r) => r.prospectId))];
-    const prospects =
-      prospectIds.length > 0
-        ? await db.query.prospect.findMany({
-            where: and(
-              eq(tables.prospect.organizationId, organizationId),
-              inArray(tables.prospect.id, prospectIds),
-            ),
-          })
-        : [];
-    const prospectById = new Map(prospects.map((p) => [p.id, p]));
+      const prospectIds = [...new Set(page.map((r) => r.prospectId))];
+      const prospects =
+        prospectIds.length > 0
+          ? await tx.query.prospect.findMany({
+              where: and(
+                eq(tables.prospect.organizationId, organizationId),
+                inArray(tables.prospect.id, prospectIds),
+              ),
+            })
+          : [];
+      const prospectById = new Map(prospects.map((p) => [p.id, p]));
 
-    const items = page.map((row) => {
-      const prospect = prospectById.get(row.prospectId);
-      return {
-        ...serializeEnrollment(row),
-        prospect: prospect
-          ? {
-              id: prospect.id,
-              email: prospect.email,
-              firstName: prospect.firstName,
-              lastName: prospect.lastName,
-            }
-          : null,
-      };
-    });
+      const items = page.map((row) => {
+        const prospect = prospectById.get(row.prospectId);
+        return {
+          ...serializeEnrollment(row),
+          prospect: prospect
+            ? {
+                id: prospect.id,
+                email: prospect.email,
+                firstName: prospect.firstName,
+                lastName: prospect.lastName,
+              }
+            : null,
+        };
+      });
 
-    return Object.assign(items, {
-      nextCursor: hasMore && last ? { createdAt: last.createdAt.toISOString(), id: last.id } : null,
+      return Object.assign(items, {
+        nextCursor: hasMore && last ? { createdAt: last.createdAt.toISOString(), id: last.id } : null,
+      });
     });
   });

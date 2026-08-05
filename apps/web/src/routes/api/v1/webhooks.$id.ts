@@ -1,4 +1,4 @@
-import { db } from "@quiksend/db";
+import { withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { SUPPORTED_WEBHOOK_EVENTS } from "@quiksend/db/schema";
 import { createFileRoute } from "@tanstack/react-router";
@@ -52,19 +52,21 @@ export const Route = createFileRoute("/api/v1/webhooks/$id")({
             return jsonError("VALIDATION", "Webhook URL is not allowed", 400);
           }
 
-          const [updated] = await db
-            .update(tables.webhookEndpoint)
-            .set(parsed.data)
-            .where(
-              and(
-                eq(tables.webhookEndpoint.id, uuid.data),
-                eq(tables.webhookEndpoint.organizationId, ctx.orgId),
-              ),
-            )
-            .returning();
+          return withTenantTransaction(ctx.orgId, async (tx) => {
+            const [updated] = await tx
+              .update(tables.webhookEndpoint)
+              .set(parsed.data)
+              .where(
+                and(
+                  eq(tables.webhookEndpoint.id, uuid.data),
+                  eq(tables.webhookEndpoint.organizationId, ctx.orgId),
+                ),
+              )
+              .returning();
 
-          if (!updated) return jsonError("NOT_FOUND", "Webhook endpoint not found", 404);
-          return jsonData(serializeEndpoint(updated));
+            if (!updated) return jsonError("NOT_FOUND", "Webhook endpoint not found", 404);
+            return jsonData(serializeEndpoint(updated));
+          });
         }),
 
       DELETE: ({ request, params }: { request: Request; params: { id: string } }) =>
@@ -72,18 +74,20 @@ export const Route = createFileRoute("/api/v1/webhooks/$id")({
           const uuid = z.string().uuid().safeParse(params.id);
           if (!uuid.success) return jsonError("VALIDATION", "Webhook id must be a UUID", 400);
 
-          const [deleted] = await db
-            .delete(tables.webhookEndpoint)
-            .where(
-              and(
-                eq(tables.webhookEndpoint.id, uuid.data),
-                eq(tables.webhookEndpoint.organizationId, ctx.orgId),
-              ),
-            )
-            .returning({ id: tables.webhookEndpoint.id });
+          return withTenantTransaction(ctx.orgId, async (tx) => {
+            const [deleted] = await tx
+              .delete(tables.webhookEndpoint)
+              .where(
+                and(
+                  eq(tables.webhookEndpoint.id, uuid.data),
+                  eq(tables.webhookEndpoint.organizationId, ctx.orgId),
+                ),
+              )
+              .returning({ id: tables.webhookEndpoint.id });
 
-          if (!deleted) return jsonError("NOT_FOUND", "Webhook endpoint not found", 404);
-          return jsonData({ ok: true });
+            if (!deleted) return jsonError("NOT_FOUND", "Webhook endpoint not found", 404);
+            return jsonData({ ok: true });
+          });
         }),
     },
   },

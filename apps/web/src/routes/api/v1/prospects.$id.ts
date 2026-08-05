@@ -1,4 +1,4 @@
-import { db } from "@quiksend/db";
+import { withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, eq, isNull } from "drizzle-orm";
@@ -34,15 +34,17 @@ export const Route = createFileRoute("/api/v1/prospects/$id")({
     handlers: {
       GET: ({ request, params }: { request: Request; params: { id: string } }) =>
         withApiAuth(request, async (ctx) => {
-          const row = await db.query.prospect.findFirst({
-            where: and(
-              eq(tables.prospect.id, params.id),
-              eq(tables.prospect.organizationId, ctx.orgId),
-              isNull(tables.prospect.deletedAt),
-            ),
+          return withTenantTransaction(ctx.orgId, async (tx) => {
+            const row = await tx.query.prospect.findFirst({
+              where: and(
+                eq(tables.prospect.id, params.id),
+                eq(tables.prospect.organizationId, ctx.orgId),
+                isNull(tables.prospect.deletedAt),
+              ),
+            });
+            if (!row) return jsonError("NOT_FOUND", "Prospect not found", 404);
+            return jsonData(serializeProspect(row));
           });
-          if (!row) return jsonError("NOT_FOUND", "Prospect not found", 404);
-          return jsonData(serializeProspect(row));
         }),
 
       PATCH: ({ request, params }: { request: Request; params: { id: string } }) =>
@@ -63,38 +65,42 @@ export const Route = createFileRoute("/api/v1/prospects/$id")({
 
           if (!patch.success) return jsonError("VALIDATION", patch.error.message, 400);
 
-          const [updated] = await db
-            .update(tables.prospect)
-            .set(patch.data)
-            .where(
-              and(
-                eq(tables.prospect.id, params.id),
-                eq(tables.prospect.organizationId, ctx.orgId),
-                isNull(tables.prospect.deletedAt),
-              ),
-            )
-            .returning();
+          return withTenantTransaction(ctx.orgId, async (tx) => {
+            const [updated] = await tx
+              .update(tables.prospect)
+              .set(patch.data)
+              .where(
+                and(
+                  eq(tables.prospect.id, params.id),
+                  eq(tables.prospect.organizationId, ctx.orgId),
+                  isNull(tables.prospect.deletedAt),
+                ),
+              )
+              .returning();
 
-          if (!updated) return jsonError("NOT_FOUND", "Prospect not found", 404);
-          return jsonData(serializeProspect(updated));
+            if (!updated) return jsonError("NOT_FOUND", "Prospect not found", 404);
+            return jsonData(serializeProspect(updated));
+          });
         }),
 
       DELETE: ({ request, params }: { request: Request; params: { id: string } }) =>
         withApiAuth(request, async (ctx) => {
-          const [deleted] = await db
-            .update(tables.prospect)
-            .set({ deletedAt: new Date() })
-            .where(
-              and(
-                eq(tables.prospect.id, params.id),
-                eq(tables.prospect.organizationId, ctx.orgId),
-                isNull(tables.prospect.deletedAt),
-              ),
-            )
-            .returning({ id: tables.prospect.id });
+          return withTenantTransaction(ctx.orgId, async (tx) => {
+            const [deleted] = await tx
+              .update(tables.prospect)
+              .set({ deletedAt: new Date() })
+              .where(
+                and(
+                  eq(tables.prospect.id, params.id),
+                  eq(tables.prospect.organizationId, ctx.orgId),
+                  isNull(tables.prospect.deletedAt),
+                ),
+              )
+              .returning({ id: tables.prospect.id });
 
-          if (!deleted) return jsonError("NOT_FOUND", "Prospect not found", 404);
-          return jsonData({ ok: true });
+            if (!deleted) return jsonError("NOT_FOUND", "Prospect not found", 404);
+            return jsonData({ ok: true });
+          });
         }),
     },
   },

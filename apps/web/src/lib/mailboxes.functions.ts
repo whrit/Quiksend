@@ -1,6 +1,6 @@
 import { env } from "@quiksend/config";
 import { isAdminOrOwner } from "@quiksend/core";
-import { db } from "@quiksend/db";
+import { db, type DbTx, withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import {
   consumePeriodicQuota,

@@ -1,4 +1,4 @@
-import { db } from "@quiksend/db";
+import { db, type DbTx, withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { enqueue, enqueueWithRetries } from "@quiksend/queue";
 import { getOrganizationLimits } from "@quiksend/db/organization-limits";

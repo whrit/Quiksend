@@ -1,5 +1,5 @@
 import { env } from "@quiksend/config";
-import { db, isSendSuppressed } from "@quiksend/db";
+import { db, isSendSuppressed, type DbTx, withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { sendAndRecord } from "./durable-send.ts";
 import { buildUnsubscribeUrl, mintUnsubscribeToken, resolvePostalAddress } from "@quiksend/mail";

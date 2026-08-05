@@ -1,4 +1,4 @@
-import { db } from "@quiksend/db";
+import { withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, desc, eq, lt, or } from "drizzle-orm";
@@ -36,41 +36,43 @@ export const Route = createFileRoute("/api/v1/messages")({
           const limit = parseLimit(url.searchParams.get("limit"));
           const cursor = parseCursor(url.searchParams.get("cursor"));
 
-          const conditions = [eq(tables.message.organizationId, ctx.orgId)];
+          return withTenantTransaction(ctx.orgId, async (tx) => {
+            const conditions = [eq(tables.message.organizationId, ctx.orgId)];
 
-          if (mailboxId) {
-            conditions.push(eq(tables.message.mailboxId, mailboxId));
-          }
-          if (direction === "inbound" || direction === "outbound") {
-            conditions.push(eq(tables.message.direction, direction));
-          }
-          if (cursor) {
-            const cursorDate = new Date(cursor.createdAt);
-            conditions.push(
-              or(
-                lt(tables.message.createdAt, cursorDate),
-                and(eq(tables.message.createdAt, cursorDate), lt(tables.message.id, cursor.id)),
-              )!,
-            );
-          }
+            if (mailboxId) {
+              conditions.push(eq(tables.message.mailboxId, mailboxId));
+            }
+            if (direction === "inbound" || direction === "outbound") {
+              conditions.push(eq(tables.message.direction, direction));
+            }
+            if (cursor) {
+              const cursorDate = new Date(cursor.createdAt);
+              conditions.push(
+                or(
+                  lt(tables.message.createdAt, cursorDate),
+                  and(eq(tables.message.createdAt, cursorDate), lt(tables.message.id, cursor.id)),
+                )!,
+              );
+            }
 
-          const rows = await db
-            .select()
-            .from(tables.message)
-            .where(and(...conditions))
-            .orderBy(desc(tables.message.createdAt), desc(tables.message.id))
-            .limit(limit + 1);
+            const rows = await tx
+              .select()
+              .from(tables.message)
+              .where(and(...conditions))
+              .orderBy(desc(tables.message.createdAt), desc(tables.message.id))
+              .limit(limit + 1);
 
-          const hasMore = rows.length > limit;
-          const page = hasMore ? rows.slice(0, limit) : rows;
-          const last = page.at(-1);
+            const hasMore = rows.length > limit;
+            const page = hasMore ? rows.slice(0, limit) : rows;
+            const last = page.at(-1);
 
-          return jsonData({
-            items: page.map(serializeMessage),
-            nextCursor:
-              hasMore && last
-                ? encodeCursor({ id: last.id, createdAt: last.createdAt.toISOString() })
-                : null,
+            return jsonData({
+              items: page.map(serializeMessage),
+              nextCursor:
+                hasMore && last
+                  ? encodeCursor({ id: last.id, createdAt: last.createdAt.toISOString() })
+                  : null,
+            });
           });
         }),
     },
