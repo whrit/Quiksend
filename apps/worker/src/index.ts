@@ -26,6 +26,7 @@ import { registerSeedPoolHealthHandler } from "./handlers/seed-pool-health.ts";
 import { registerSeedPoolLegitMailHandler } from "./handlers/seed-pool-legit-mail.ts";
 import { registerMailTransactionalSendHandler } from "./handlers/mail-transactional-send.ts";
 import { registerHealthReconcileHandler } from "./handlers/health-reconcile.ts";
+import { registerRetentionPurgeHandler } from "./handlers/retention-purge.ts";
 import { registerOperationalSnapshotHandler, shutdownOperationalSnapshot } from "./operational-snapshot.ts";
 
 /**
@@ -112,6 +113,7 @@ async function main(): Promise<void> {
   // Write initial heartbeat file (all initialization complete)
   await registerHealthReconcileHandler();
   await registerOperationalSnapshotHandler();
+  await registerRetentionPurgeHandler();
   try {
     writeFileSync("/tmp/worker-ready", "");
   } catch (err) {

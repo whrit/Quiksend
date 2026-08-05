@@ -214,6 +214,10 @@ export type HealthReconcilePayload = Record<string, never>;
 export const opsSnapshotSchema = z.object({});
 export type OpsSnapshotPayload = Record<string, never>;
 
+// ── retention.purge — nightly bounded, resumable data lifecycle purge (Operations) ──
+export const retentionPurgeSchema = z.object({});
+export type RetentionPurgePayload = Record<string, never>;
+
 
 
 // ── mail.send_transactional — durable transactional email delivery (auth) ──────
@@ -262,6 +266,7 @@ export interface JobPayloadMap {
   "outbox.dispatch": OutboxDispatchPayload;
   "health.reconcile": HealthReconcilePayload;
   "ops.snapshot": OpsSnapshotPayload;
+  "retention.purge": RetentionPurgePayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -293,6 +298,7 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "outbox.dispatch": outboxDispatchSchema,
   "health.reconcile": healthReconcileSchema,
   "ops.snapshot": opsSnapshotSchema,
+  "retention.purge": retentionPurgeSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];

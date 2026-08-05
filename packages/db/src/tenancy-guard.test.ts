@@ -64,6 +64,9 @@ const RLS_SCOPED_TABLES: readonly string[] = [
   "seed_inbox",
   "canary_send",
   "deliverability_snapshot",
+  // Operations (Task 5 — audit + lifecycle):
+  "audit_log",
+  "organization_lifecycle",
 ];
 
 describe("tenancy guard", () => {

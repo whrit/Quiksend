@@ -37,19 +37,30 @@ export async function isSendSuppressed(input: {
   const at = normalized.lastIndexOf("@");
   const domain = at >= 0 ? normalized.slice(at + 1) : normalized;
 
-  const rows = await db
-    .select({ id: tables.suppression.id })
-    .from(tables.suppression)
-    .where(
-      and(
-        eq(tables.suppression.organizationId, input.organizationId),
-        or(
-          and(eq(tables.suppression.valueType, "email"), eq(tables.suppression.value, normalized)),
-          and(eq(tables.suppression.valueType, "domain"), eq(tables.suppression.value, domain)),
+  const [lifecycle, rows] = await Promise.all([
+    db.query.organizationLifecycle.findFirst({
+      where: eq(tables.organizationLifecycle.organizationId, input.organizationId),
+      columns: { sendingDisabledAt: true },
+    }),
+    db
+      .select({ id: tables.suppression.id })
+      .from(tables.suppression)
+      .where(
+        and(
+          eq(tables.suppression.organizationId, input.organizationId),
+          or(
+            and(eq(tables.suppression.valueType, "email"), eq(tables.suppression.value, normalized)),
+            and(eq(tables.suppression.valueType, "domain"), eq(tables.suppression.value, domain)),
+          ),
         ),
-      ),
-    )
-    .limit(1);
+      )
+      .limit(1),
+  ]);
+
+  // Organization deletion disables sending immediately — checked here, the
+  // one chokepoint every send path (sequence engine, compose, inbox reply)
+  // already shares, rather than threading a new check through each caller.
+  if (lifecycle?.sendingDisabledAt) return true;
 
   return rows.length > 0;
 }

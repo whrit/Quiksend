@@ -110,6 +110,14 @@ export const EnvSchema = z
     POSTHOG_KEY: z.string().optional(),
     POSTHOG_HOST: z.string().url().default("https://us.i.posthog.com"),
 
+    // Data lifecycle retention (Operations, Task 5). Backups (30d) are
+    // documented in internal-runbooks/backup-restore.md — Task 4 owns that
+    // script, there's no DB row to purge for it. Logs (14d) are retained by
+    // the log aggregator/Sentry, not a DB table here.
+    RETENTION_EVENT_DAYS: z.coerce.number().int().positive().default(180),
+    RETENTION_WEBHOOK_ATTEMPT_DAYS: z.coerce.number().int().positive().default(30),
+    RETENTION_DELETED_MESSAGE_DAYS: z.coerce.number().int().positive().default(365),
+
     // Worker test / load-test hooks — default off; forcibly disabled in production.
     QUIKSEND_ENGINE_FAKE_MAIL: envBooleanFlag,
     QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK: envBooleanFlag,
