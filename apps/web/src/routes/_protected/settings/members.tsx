@@ -88,9 +88,13 @@ function MembersPage() {
     setCanceling(true);
     try {
       await cancelInvitation({ data: { invitationId: cancelTarget.id } });
+      // Close the dialog before reloading — Radix needs to unmount/release
+      // its focus trap first, so the restoration below lands after that,
+      // not on the about-to-be-removed row's Cancel button. Matches
+      // handleInvite's ordering.
+      setCancelTarget(null);
       await reload();
       toast.success("Invitation canceled");
-      setCancelTarget(null);
       // The row (and its Cancel button) that had focus no longer exists
       // once the list reloads without it — land on the heading instead of
       // silently losing focus to <body>.
