@@ -9,7 +9,11 @@ import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
+import { loadDotenv } from "./load-dotenv.ts";
 import { databaseNameOf, redact, resolveTestDatabaseUrl } from "./test-database-url.ts";
+
+// Root scripts run without the per-package `dotenv -e ../../.env --` wrapper.
+loadDotenv();
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 

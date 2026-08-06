@@ -527,7 +527,11 @@ function ProspectsPage() {
                   tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
                 />
                 <YAxis type="category" dataKey="gateway" width={76} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(value: number) => `${(value * 100).toFixed(1)}%`} />
+                <Tooltip
+                  formatter={(value) =>
+                    typeof value === "number" ? `${(value * 100).toFixed(1)}%` : ""
+                  }
+                />
                 <Bar dataKey="pct" fill="hsl(var(--primary))" radius={2} />
               </BarChart>
             </ResponsiveContainer>

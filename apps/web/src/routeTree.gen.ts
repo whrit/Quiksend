@@ -9,59 +9,63 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
+import { Route as ProtectedRouteImport } from './routes/_protected'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ProtectedComposeRouteImport } from './routes/_protected/compose'
-import { Route as ProtectedTasksIndexRouteImport } from './routes/_protected/tasks/index'
-import { Route as ProtectedSequencesIndexRouteImport } from './routes/_protected/sequences/index'
-import { Route as ProtectedProspectsIndexRouteImport } from './routes/_protected/prospects/index'
-import { Route as ProtectedInboxIndexRouteImport } from './routes/_protected/inbox/index'
-import { Route as ProtectedDeliverabilityIndexRouteImport } from './routes/_protected/deliverability/index'
+import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
 import { Route as ProtectedAnalyticsIndexRouteImport } from './routes/_protected/analytics/index'
-import { Route as ApiV1WebhooksRouteImport } from './routes/api/v1/webhooks'
-import { Route as ApiV1UnsubscribeRouteImport } from './routes/api/v1/unsubscribe'
-import { Route as ApiV1ProspectsRouteImport } from './routes/api/v1/prospects'
-import { Route as ApiV1OrganizationDeleteRouteImport } from './routes/api/v1/organization-delete'
-import { Route as ApiV1OpenapiDotjsonRouteImport } from './routes/api/v1/openapi[.]json'
-import { Route as ApiV1MessagesRouteImport } from './routes/api/v1/messages'
-import { Route as ApiV1ExportRouteImport } from './routes/api/v1/export'
-import { Route as ApiV1EnrollmentsRouteImport } from './routes/api/v1/enrollments'
-import { Route as ApiNangoWebhookRouteImport } from './routes/api/nango/webhook'
-import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
-import { Route as ApiHealthLiveRouteImport } from './routes/api/health/live'
-import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as ProtectedSettingsSuppressionRouteImport } from './routes/_protected/settings/suppression'
-import { Route as ProtectedSettingsMembersRouteImport } from './routes/_protected/settings/members'
-import { Route as ProtectedSettingsDeliverabilityRouteImport } from './routes/_protected/settings/deliverability'
-import { Route as ProtectedSettingsComplianceRouteImport } from './routes/_protected/settings/compliance'
-import { Route as ProtectedSequencesNewRouteImport } from './routes/_protected/sequences/new'
-import { Route as ProtectedProspectsImportRouteImport } from './routes/_protected/prospects/import'
+import { Route as ProtectedDeliverabilityIndexRouteImport } from './routes/_protected/deliverability/index'
+import { Route as ProtectedInboxIndexRouteImport } from './routes/_protected/inbox/index'
+import { Route as ProtectedProspectsIndexRouteImport } from './routes/_protected/prospects/index'
 import { Route as ProtectedProspectsIdRouteImport } from './routes/_protected/prospects/$id'
-import { Route as ProtectedSettingsWebhooksIndexRouteImport } from './routes/_protected/settings/webhooks/index'
-import { Route as ProtectedSettingsValuePropsIndexRouteImport } from './routes/_protected/settings/value-props/index'
-import { Route as ProtectedSettingsMailboxesIndexRouteImport } from './routes/_protected/settings/mailboxes/index'
-import { Route as ProtectedSettingsCrmIndexRouteImport } from './routes/_protected/settings/crm/index'
-import { Route as ProtectedSettingsApiKeysIndexRouteImport } from './routes/_protected/settings/api-keys/index'
-import { Route as ProtectedSequencesIdIndexRouteImport } from './routes/_protected/sequences/$id/index'
-import { Route as ApiV1WebhooksIdRouteImport } from './routes/api/v1/webhooks.$id'
-import { Route as ApiV1ProspectsIdRouteImport } from './routes/api/v1/prospects.$id'
-import { Route as ProtectedSettingsMailboxesNewRouteImport } from './routes/_protected/settings/mailboxes/new'
-import { Route as ProtectedSequencesIdEnrollmentsRouteImport } from './routes/_protected/sequences/$id/enrollments'
-import { Route as ProtectedSequencesIdEnrollRouteImport } from './routes/_protected/sequences/$id/enroll'
-import { Route as ProtectedSequencesIdEditRouteImport } from './routes/_protected/sequences/$id/edit'
-import { Route as ProtectedSequencesIdAnalyticsRouteImport } from './routes/_protected/sequences/$id/analytics'
+import { Route as ProtectedProspectsImportRouteImport } from './routes/_protected/prospects/import'
+import { Route as ProtectedSequencesIndexRouteImport } from './routes/_protected/sequences/index'
+import { Route as ProtectedSequencesNewRouteImport } from './routes/_protected/sequences/new'
+import { Route as ProtectedSettingsComplianceRouteImport } from './routes/_protected/settings/compliance'
+import { Route as ProtectedSettingsDeliverabilityRouteImport } from './routes/_protected/settings/deliverability'
+import { Route as ProtectedSettingsMembersRouteImport } from './routes/_protected/settings/members'
+import { Route as ProtectedSettingsSuppressionRouteImport } from './routes/_protected/settings/suppression'
+import { Route as ProtectedTasksIndexRouteImport } from './routes/_protected/tasks/index'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiHealthLiveRouteImport } from './routes/api/health/live'
+import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
+import { Route as ApiNangoWebhookRouteImport } from './routes/api/nango/webhook'
+import { Route as ApiV1EnrollmentsRouteImport } from './routes/api/v1/enrollments'
+import { Route as ApiV1ExportRouteImport } from './routes/api/v1/export'
+import { Route as ApiV1MessagesRouteImport } from './routes/api/v1/messages'
+import { Route as ApiV1OpenapiDotjsonRouteImport } from './routes/api/v1/openapi[.]json'
+import { Route as ApiV1OrganizationDeleteRouteImport } from './routes/api/v1/organization-delete'
+import { Route as ApiV1ProspectsRouteImport } from './routes/api/v1/prospects'
+import { Route as ApiV1UnsubscribeRouteImport } from './routes/api/v1/unsubscribe'
+import { Route as ApiV1WebhooksRouteImport } from './routes/api/v1/webhooks'
 import { Route as ProtectedProspectsIdGenerateRouteImport } from './routes/_protected/prospects/$id/generate'
-import { Route as ApiV1WebhooksIdDeliveriesRouteImport } from './routes/api/v1/webhooks.$id.deliveries'
-import { Route as ApiV1SequencesIdAnalyticsRouteImport } from './routes/api/v1/sequences.$id.analytics'
-import { Route as ProtectedSettingsMailboxesIdHealthRouteImport } from './routes/_protected/settings/mailboxes/$id/health'
+import { Route as ProtectedSequencesIdIndexRouteImport } from './routes/_protected/sequences/$id/index'
+import { Route as ProtectedSequencesIdAnalyticsRouteImport } from './routes/_protected/sequences/$id/analytics'
+import { Route as ProtectedSequencesIdEditRouteImport } from './routes/_protected/sequences/$id/edit'
+import { Route as ProtectedSequencesIdEnrollRouteImport } from './routes/_protected/sequences/$id/enroll'
+import { Route as ProtectedSequencesIdEnrollmentsRouteImport } from './routes/_protected/sequences/$id/enrollments'
+import { Route as ProtectedSettingsApiKeysIndexRouteImport } from './routes/_protected/settings/api-keys/index'
+import { Route as ProtectedSettingsCrmIndexRouteImport } from './routes/_protected/settings/crm/index'
+import { Route as ProtectedSettingsMailboxesIndexRouteImport } from './routes/_protected/settings/mailboxes/index'
+import { Route as ProtectedSettingsMailboxesNewRouteImport } from './routes/_protected/settings/mailboxes/new'
+import { Route as ProtectedSettingsValuePropsIndexRouteImport } from './routes/_protected/settings/value-props/index'
+import { Route as ProtectedSettingsWebhooksIndexRouteImport } from './routes/_protected/settings/webhooks/index'
+import { Route as ApiV1ProspectsIdRouteImport } from './routes/api/v1/prospects.$id'
+import { Route as ApiV1WebhooksIdRouteImport } from './routes/api/v1/webhooks.$id'
 import { Route as ProtectedSettingsCrmConnectionIdMappingRouteImport } from './routes/_protected/settings/crm/$connectionId/mapping'
+import { Route as ProtectedSettingsMailboxesIdHealthRouteImport } from './routes/_protected/settings/mailboxes/$id/health'
+import { Route as ApiV1SequencesIdAnalyticsRouteImport } from './routes/api/v1/sequences.$id.analytics'
+import { Route as ApiV1WebhooksIdDeliveriesRouteImport } from './routes/api/v1/webhooks.$id.deliveries'
 
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProtectedRoute = ProtectedRouteImport.update({
+  id: '/_protected',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -69,43 +73,24 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProtectedRoute = ProtectedRouteImport.update({
-  id: '/_protected',
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProtectedDashboardRoute = ProtectedDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => ProtectedRoute,
 } as any)
 const ProtectedComposeRoute = ProtectedComposeRouteImport.update({
   id: '/compose',
   path: '/compose',
   getParentRoute: () => ProtectedRoute,
 } as any)
-const ProtectedTasksIndexRoute = ProtectedTasksIndexRouteImport.update({
-  id: '/tasks/',
-  path: '/tasks/',
+const ProtectedDashboardRoute = ProtectedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => ProtectedRoute,
 } as any)
-const ProtectedSequencesIndexRoute = ProtectedSequencesIndexRouteImport.update({
-  id: '/sequences/',
-  path: '/sequences/',
-  getParentRoute: () => ProtectedRoute,
-} as any)
-const ProtectedProspectsIndexRoute = ProtectedProspectsIndexRouteImport.update({
-  id: '/prospects/',
-  path: '/prospects/',
-  getParentRoute: () => ProtectedRoute,
-} as any)
-const ProtectedInboxIndexRoute = ProtectedInboxIndexRouteImport.update({
-  id: '/inbox/',
-  path: '/inbox/',
+const ProtectedAnalyticsIndexRoute = ProtectedAnalyticsIndexRouteImport.update({
+  id: '/analytics/',
+  path: '/analytics/',
   getParentRoute: () => ProtectedRoute,
 } as any)
 const ProtectedDeliverabilityIndexRoute =
@@ -114,98 +99,19 @@ const ProtectedDeliverabilityIndexRoute =
     path: '/deliverability/',
     getParentRoute: () => ProtectedRoute,
   } as any)
-const ProtectedAnalyticsIndexRoute = ProtectedAnalyticsIndexRouteImport.update({
-  id: '/analytics/',
-  path: '/analytics/',
+const ProtectedInboxIndexRoute = ProtectedInboxIndexRouteImport.update({
+  id: '/inbox/',
+  path: '/inbox/',
   getParentRoute: () => ProtectedRoute,
 } as any)
-const ApiV1WebhooksRoute = ApiV1WebhooksRouteImport.update({
-  id: '/api/v1/webhooks',
-  path: '/api/v1/webhooks',
-  getParentRoute: () => rootRouteImport,
+const ProtectedProspectsIndexRoute = ProtectedProspectsIndexRouteImport.update({
+  id: '/prospects/',
+  path: '/prospects/',
+  getParentRoute: () => ProtectedRoute,
 } as any)
-const ApiV1UnsubscribeRoute = ApiV1UnsubscribeRouteImport.update({
-  id: '/api/v1/unsubscribe',
-  path: '/api/v1/unsubscribe',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiV1ProspectsRoute = ApiV1ProspectsRouteImport.update({
-  id: '/api/v1/prospects',
-  path: '/api/v1/prospects',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiV1OrganizationDeleteRoute = ApiV1OrganizationDeleteRouteImport.update({
-  id: '/api/v1/organization-delete',
-  path: '/api/v1/organization-delete',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiV1OpenapiDotjsonRoute = ApiV1OpenapiDotjsonRouteImport.update({
-  id: '/api/v1/openapi.json',
-  path: '/api/v1/openapi.json',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiV1MessagesRoute = ApiV1MessagesRouteImport.update({
-  id: '/api/v1/messages',
-  path: '/api/v1/messages',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiV1ExportRoute = ApiV1ExportRouteImport.update({
-  id: '/api/v1/export',
-  path: '/api/v1/export',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiV1EnrollmentsRoute = ApiV1EnrollmentsRouteImport.update({
-  id: '/api/v1/enrollments',
-  path: '/api/v1/enrollments',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiNangoWebhookRoute = ApiNangoWebhookRouteImport.update({
-  id: '/api/nango/webhook',
-  path: '/api/nango/webhook',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHealthReadyRoute = ApiHealthReadyRouteImport.update({
-  id: '/api/health/ready',
-  path: '/api/health/ready',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHealthLiveRoute = ApiHealthLiveRouteImport.update({
-  id: '/api/health/live',
-  path: '/api/health/live',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
-  id: '/api/auth/$',
-  path: '/api/auth/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProtectedSettingsSuppressionRoute =
-  ProtectedSettingsSuppressionRouteImport.update({
-    id: '/settings/suppression',
-    path: '/settings/suppression',
-    getParentRoute: () => ProtectedRoute,
-  } as any)
-const ProtectedSettingsMembersRoute =
-  ProtectedSettingsMembersRouteImport.update({
-    id: '/settings/members',
-    path: '/settings/members',
-    getParentRoute: () => ProtectedRoute,
-  } as any)
-const ProtectedSettingsDeliverabilityRoute =
-  ProtectedSettingsDeliverabilityRouteImport.update({
-    id: '/settings/deliverability',
-    path: '/settings/deliverability',
-    getParentRoute: () => ProtectedRoute,
-  } as any)
-const ProtectedSettingsComplianceRoute =
-  ProtectedSettingsComplianceRouteImport.update({
-    id: '/settings/compliance',
-    path: '/settings/compliance',
-    getParentRoute: () => ProtectedRoute,
-  } as any)
-const ProtectedSequencesNewRoute = ProtectedSequencesNewRouteImport.update({
-  id: '/sequences/new',
-  path: '/sequences/new',
+const ProtectedProspectsIdRoute = ProtectedProspectsIdRouteImport.update({
+  id: '/prospects/$id',
+  path: '/prospects/$id',
   getParentRoute: () => ProtectedRoute,
 } as any)
 const ProtectedProspectsImportRoute =
@@ -214,79 +120,115 @@ const ProtectedProspectsImportRoute =
     path: '/prospects/import',
     getParentRoute: () => ProtectedRoute,
   } as any)
-const ProtectedProspectsIdRoute = ProtectedProspectsIdRouteImport.update({
-  id: '/prospects/$id',
-  path: '/prospects/$id',
+const ProtectedSequencesIndexRoute = ProtectedSequencesIndexRouteImport.update({
+  id: '/sequences/',
+  path: '/sequences/',
   getParentRoute: () => ProtectedRoute,
 } as any)
-const ProtectedSettingsWebhooksIndexRoute =
-  ProtectedSettingsWebhooksIndexRouteImport.update({
-    id: '/settings/webhooks/',
-    path: '/settings/webhooks/',
+const ProtectedSequencesNewRoute = ProtectedSequencesNewRouteImport.update({
+  id: '/sequences/new',
+  path: '/sequences/new',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedSettingsComplianceRoute =
+  ProtectedSettingsComplianceRouteImport.update({
+    id: '/settings/compliance',
+    path: '/settings/compliance',
     getParentRoute: () => ProtectedRoute,
   } as any)
-const ProtectedSettingsValuePropsIndexRoute =
-  ProtectedSettingsValuePropsIndexRouteImport.update({
-    id: '/settings/value-props/',
-    path: '/settings/value-props/',
+const ProtectedSettingsDeliverabilityRoute =
+  ProtectedSettingsDeliverabilityRouteImport.update({
+    id: '/settings/deliverability',
+    path: '/settings/deliverability',
     getParentRoute: () => ProtectedRoute,
   } as any)
-const ProtectedSettingsMailboxesIndexRoute =
-  ProtectedSettingsMailboxesIndexRouteImport.update({
-    id: '/settings/mailboxes/',
-    path: '/settings/mailboxes/',
+const ProtectedSettingsMembersRoute =
+  ProtectedSettingsMembersRouteImport.update({
+    id: '/settings/members',
+    path: '/settings/members',
     getParentRoute: () => ProtectedRoute,
   } as any)
-const ProtectedSettingsCrmIndexRoute =
-  ProtectedSettingsCrmIndexRouteImport.update({
-    id: '/settings/crm/',
-    path: '/settings/crm/',
+const ProtectedSettingsSuppressionRoute =
+  ProtectedSettingsSuppressionRouteImport.update({
+    id: '/settings/suppression',
+    path: '/settings/suppression',
     getParentRoute: () => ProtectedRoute,
   } as any)
-const ProtectedSettingsApiKeysIndexRoute =
-  ProtectedSettingsApiKeysIndexRouteImport.update({
-    id: '/settings/api-keys/',
-    path: '/settings/api-keys/',
-    getParentRoute: () => ProtectedRoute,
+const ProtectedTasksIndexRoute = ProtectedTasksIndexRouteImport.update({
+  id: '/tasks/',
+  path: '/tasks/',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthLiveRoute = ApiHealthLiveRouteImport.update({
+  id: '/api/health/live',
+  path: '/api/health/live',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthReadyRoute = ApiHealthReadyRouteImport.update({
+  id: '/api/health/ready',
+  path: '/api/health/ready',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNangoWebhookRoute = ApiNangoWebhookRouteImport.update({
+  id: '/api/nango/webhook',
+  path: '/api/nango/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1EnrollmentsRoute = ApiV1EnrollmentsRouteImport.update({
+  id: '/api/v1/enrollments',
+  path: '/api/v1/enrollments',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ExportRoute = ApiV1ExportRouteImport.update({
+  id: '/api/v1/export',
+  path: '/api/v1/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1MessagesRoute = ApiV1MessagesRouteImport.update({
+  id: '/api/v1/messages',
+  path: '/api/v1/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1OpenapiDotjsonRoute = ApiV1OpenapiDotjsonRouteImport.update({
+  id: '/api/v1/openapi.json',
+  path: '/api/v1/openapi.json',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1OrganizationDeleteRoute = ApiV1OrganizationDeleteRouteImport.update({
+  id: '/api/v1/organization-delete',
+  path: '/api/v1/organization-delete',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ProspectsRoute = ApiV1ProspectsRouteImport.update({
+  id: '/api/v1/prospects',
+  path: '/api/v1/prospects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1UnsubscribeRoute = ApiV1UnsubscribeRouteImport.update({
+  id: '/api/v1/unsubscribe',
+  path: '/api/v1/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1WebhooksRoute = ApiV1WebhooksRouteImport.update({
+  id: '/api/v1/webhooks',
+  path: '/api/v1/webhooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProtectedProspectsIdGenerateRoute =
+  ProtectedProspectsIdGenerateRouteImport.update({
+    id: '/generate',
+    path: '/generate',
+    getParentRoute: () => ProtectedProspectsIdRoute,
   } as any)
 const ProtectedSequencesIdIndexRoute =
   ProtectedSequencesIdIndexRouteImport.update({
     id: '/sequences/$id/',
     path: '/sequences/$id/',
-    getParentRoute: () => ProtectedRoute,
-  } as any)
-const ApiV1WebhooksIdRoute = ApiV1WebhooksIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ApiV1WebhooksRoute,
-} as any)
-const ApiV1ProspectsIdRoute = ApiV1ProspectsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ApiV1ProspectsRoute,
-} as any)
-const ProtectedSettingsMailboxesNewRoute =
-  ProtectedSettingsMailboxesNewRouteImport.update({
-    id: '/settings/mailboxes/new',
-    path: '/settings/mailboxes/new',
-    getParentRoute: () => ProtectedRoute,
-  } as any)
-const ProtectedSequencesIdEnrollmentsRoute =
-  ProtectedSequencesIdEnrollmentsRouteImport.update({
-    id: '/sequences/$id/enrollments',
-    path: '/sequences/$id/enrollments',
-    getParentRoute: () => ProtectedRoute,
-  } as any)
-const ProtectedSequencesIdEnrollRoute =
-  ProtectedSequencesIdEnrollRouteImport.update({
-    id: '/sequences/$id/enroll',
-    path: '/sequences/$id/enroll',
-    getParentRoute: () => ProtectedRoute,
-  } as any)
-const ProtectedSequencesIdEditRoute =
-  ProtectedSequencesIdEditRouteImport.update({
-    id: '/sequences/$id/edit',
-    path: '/sequences/$id/edit',
     getParentRoute: () => ProtectedRoute,
   } as any)
 const ProtectedSequencesIdAnalyticsRoute =
@@ -295,23 +237,75 @@ const ProtectedSequencesIdAnalyticsRoute =
     path: '/sequences/$id/analytics',
     getParentRoute: () => ProtectedRoute,
   } as any)
-const ProtectedProspectsIdGenerateRoute =
-  ProtectedProspectsIdGenerateRouteImport.update({
-    id: '/generate',
-    path: '/generate',
-    getParentRoute: () => ProtectedProspectsIdRoute,
+const ProtectedSequencesIdEditRoute =
+  ProtectedSequencesIdEditRouteImport.update({
+    id: '/sequences/$id/edit',
+    path: '/sequences/$id/edit',
+    getParentRoute: () => ProtectedRoute,
   } as any)
-const ApiV1WebhooksIdDeliveriesRoute =
-  ApiV1WebhooksIdDeliveriesRouteImport.update({
-    id: '/deliveries',
-    path: '/deliveries',
-    getParentRoute: () => ApiV1WebhooksIdRoute,
+const ProtectedSequencesIdEnrollRoute =
+  ProtectedSequencesIdEnrollRouteImport.update({
+    id: '/sequences/$id/enroll',
+    path: '/sequences/$id/enroll',
+    getParentRoute: () => ProtectedRoute,
   } as any)
-const ApiV1SequencesIdAnalyticsRoute =
-  ApiV1SequencesIdAnalyticsRouteImport.update({
-    id: '/api/v1/sequences/$id/analytics',
-    path: '/api/v1/sequences/$id/analytics',
-    getParentRoute: () => rootRouteImport,
+const ProtectedSequencesIdEnrollmentsRoute =
+  ProtectedSequencesIdEnrollmentsRouteImport.update({
+    id: '/sequences/$id/enrollments',
+    path: '/sequences/$id/enrollments',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSettingsApiKeysIndexRoute =
+  ProtectedSettingsApiKeysIndexRouteImport.update({
+    id: '/settings/api-keys/',
+    path: '/settings/api-keys/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSettingsCrmIndexRoute =
+  ProtectedSettingsCrmIndexRouteImport.update({
+    id: '/settings/crm/',
+    path: '/settings/crm/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSettingsMailboxesIndexRoute =
+  ProtectedSettingsMailboxesIndexRouteImport.update({
+    id: '/settings/mailboxes/',
+    path: '/settings/mailboxes/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSettingsMailboxesNewRoute =
+  ProtectedSettingsMailboxesNewRouteImport.update({
+    id: '/settings/mailboxes/new',
+    path: '/settings/mailboxes/new',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSettingsValuePropsIndexRoute =
+  ProtectedSettingsValuePropsIndexRouteImport.update({
+    id: '/settings/value-props/',
+    path: '/settings/value-props/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ProtectedSettingsWebhooksIndexRoute =
+  ProtectedSettingsWebhooksIndexRouteImport.update({
+    id: '/settings/webhooks/',
+    path: '/settings/webhooks/',
+    getParentRoute: () => ProtectedRoute,
+  } as any)
+const ApiV1ProspectsIdRoute = ApiV1ProspectsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiV1ProspectsRoute,
+} as any)
+const ApiV1WebhooksIdRoute = ApiV1WebhooksIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiV1WebhooksRoute,
+} as any)
+const ProtectedSettingsCrmConnectionIdMappingRoute =
+  ProtectedSettingsCrmConnectionIdMappingRouteImport.update({
+    id: '/settings/crm/$connectionId/mapping',
+    path: '/settings/crm/$connectionId/mapping',
+    getParentRoute: () => ProtectedRoute,
   } as any)
 const ProtectedSettingsMailboxesIdHealthRoute =
   ProtectedSettingsMailboxesIdHealthRouteImport.update({
@@ -319,11 +313,17 @@ const ProtectedSettingsMailboxesIdHealthRoute =
     path: '/settings/mailboxes/$id/health',
     getParentRoute: () => ProtectedRoute,
   } as any)
-const ProtectedSettingsCrmConnectionIdMappingRoute =
-  ProtectedSettingsCrmConnectionIdMappingRouteImport.update({
-    id: '/settings/crm/$connectionId/mapping',
-    path: '/settings/crm/$connectionId/mapping',
-    getParentRoute: () => ProtectedRoute,
+const ApiV1SequencesIdAnalyticsRoute =
+  ApiV1SequencesIdAnalyticsRouteImport.update({
+    id: '/api/v1/sequences/$id/analytics',
+    path: '/api/v1/sequences/$id/analytics',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1WebhooksIdDeliveriesRoute =
+  ApiV1WebhooksIdDeliveriesRouteImport.update({
+    id: '/deliveries',
+    path: '/deliveries',
+    getParentRoute: () => ApiV1WebhooksIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -654,18 +654,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_protected': {
@@ -675,19 +668,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_protected/dashboard': {
-      id: '/_protected/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof ProtectedDashboardRouteImport
-      parentRoute: typeof ProtectedRoute
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_protected/compose': {
       id: '/_protected/compose'
@@ -696,39 +689,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedComposeRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/_protected/tasks/': {
-      id: '/_protected/tasks/'
-      path: '/tasks'
-      fullPath: '/tasks/'
-      preLoaderRoute: typeof ProtectedTasksIndexRouteImport
-      parentRoute: typeof ProtectedRoute
-    }
-    '/_protected/sequences/': {
-      id: '/_protected/sequences/'
-      path: '/sequences'
-      fullPath: '/sequences/'
-      preLoaderRoute: typeof ProtectedSequencesIndexRouteImport
-      parentRoute: typeof ProtectedRoute
-    }
-    '/_protected/prospects/': {
-      id: '/_protected/prospects/'
-      path: '/prospects'
-      fullPath: '/prospects/'
-      preLoaderRoute: typeof ProtectedProspectsIndexRouteImport
-      parentRoute: typeof ProtectedRoute
-    }
-    '/_protected/inbox/': {
-      id: '/_protected/inbox/'
-      path: '/inbox'
-      fullPath: '/inbox/'
-      preLoaderRoute: typeof ProtectedInboxIndexRouteImport
-      parentRoute: typeof ProtectedRoute
-    }
-    '/_protected/deliverability/': {
-      id: '/_protected/deliverability/'
-      path: '/deliverability'
-      fullPath: '/deliverability/'
-      preLoaderRoute: typeof ProtectedDeliverabilityIndexRouteImport
+    '/_protected/dashboard': {
+      id: '/_protected/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof ProtectedDashboardRouteImport
       parentRoute: typeof ProtectedRoute
     }
     '/_protected/analytics/': {
@@ -738,130 +703,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedAnalyticsIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/api/v1/webhooks': {
-      id: '/api/v1/webhooks'
-      path: '/api/v1/webhooks'
-      fullPath: '/api/v1/webhooks'
-      preLoaderRoute: typeof ApiV1WebhooksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/unsubscribe': {
-      id: '/api/v1/unsubscribe'
-      path: '/api/v1/unsubscribe'
-      fullPath: '/api/v1/unsubscribe'
-      preLoaderRoute: typeof ApiV1UnsubscribeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/prospects': {
-      id: '/api/v1/prospects'
-      path: '/api/v1/prospects'
-      fullPath: '/api/v1/prospects'
-      preLoaderRoute: typeof ApiV1ProspectsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/organization-delete': {
-      id: '/api/v1/organization-delete'
-      path: '/api/v1/organization-delete'
-      fullPath: '/api/v1/organization-delete'
-      preLoaderRoute: typeof ApiV1OrganizationDeleteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/openapi.json': {
-      id: '/api/v1/openapi.json'
-      path: '/api/v1/openapi.json'
-      fullPath: '/api/v1/openapi.json'
-      preLoaderRoute: typeof ApiV1OpenapiDotjsonRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/messages': {
-      id: '/api/v1/messages'
-      path: '/api/v1/messages'
-      fullPath: '/api/v1/messages'
-      preLoaderRoute: typeof ApiV1MessagesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/export': {
-      id: '/api/v1/export'
-      path: '/api/v1/export'
-      fullPath: '/api/v1/export'
-      preLoaderRoute: typeof ApiV1ExportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/enrollments': {
-      id: '/api/v1/enrollments'
-      path: '/api/v1/enrollments'
-      fullPath: '/api/v1/enrollments'
-      preLoaderRoute: typeof ApiV1EnrollmentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/nango/webhook': {
-      id: '/api/nango/webhook'
-      path: '/api/nango/webhook'
-      fullPath: '/api/nango/webhook'
-      preLoaderRoute: typeof ApiNangoWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/health/ready': {
-      id: '/api/health/ready'
-      path: '/api/health/ready'
-      fullPath: '/api/health/ready'
-      preLoaderRoute: typeof ApiHealthReadyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/health/live': {
-      id: '/api/health/live'
-      path: '/api/health/live'
-      fullPath: '/api/health/live'
-      preLoaderRoute: typeof ApiHealthLiveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/$': {
-      id: '/api/auth/$'
-      path: '/api/auth/$'
-      fullPath: '/api/auth/$'
-      preLoaderRoute: typeof ApiAuthSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_protected/settings/suppression': {
-      id: '/_protected/settings/suppression'
-      path: '/settings/suppression'
-      fullPath: '/settings/suppression'
-      preLoaderRoute: typeof ProtectedSettingsSuppressionRouteImport
+    '/_protected/deliverability/': {
+      id: '/_protected/deliverability/'
+      path: '/deliverability'
+      fullPath: '/deliverability/'
+      preLoaderRoute: typeof ProtectedDeliverabilityIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/_protected/settings/members': {
-      id: '/_protected/settings/members'
-      path: '/settings/members'
-      fullPath: '/settings/members'
-      preLoaderRoute: typeof ProtectedSettingsMembersRouteImport
+    '/_protected/inbox/': {
+      id: '/_protected/inbox/'
+      path: '/inbox'
+      fullPath: '/inbox/'
+      preLoaderRoute: typeof ProtectedInboxIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/_protected/settings/deliverability': {
-      id: '/_protected/settings/deliverability'
-      path: '/settings/deliverability'
-      fullPath: '/settings/deliverability'
-      preLoaderRoute: typeof ProtectedSettingsDeliverabilityRouteImport
-      parentRoute: typeof ProtectedRoute
-    }
-    '/_protected/settings/compliance': {
-      id: '/_protected/settings/compliance'
-      path: '/settings/compliance'
-      fullPath: '/settings/compliance'
-      preLoaderRoute: typeof ProtectedSettingsComplianceRouteImport
-      parentRoute: typeof ProtectedRoute
-    }
-    '/_protected/sequences/new': {
-      id: '/_protected/sequences/new'
-      path: '/sequences/new'
-      fullPath: '/sequences/new'
-      preLoaderRoute: typeof ProtectedSequencesNewRouteImport
-      parentRoute: typeof ProtectedRoute
-    }
-    '/_protected/prospects/import': {
-      id: '/_protected/prospects/import'
-      path: '/prospects/import'
-      fullPath: '/prospects/import'
-      preLoaderRoute: typeof ProtectedProspectsImportRouteImport
+    '/_protected/prospects/': {
+      id: '/_protected/prospects/'
+      path: '/prospects'
+      fullPath: '/prospects/'
+      preLoaderRoute: typeof ProtectedProspectsIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
     '/_protected/prospects/$id': {
@@ -871,88 +731,158 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedProspectsIdRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/_protected/settings/webhooks/': {
-      id: '/_protected/settings/webhooks/'
-      path: '/settings/webhooks'
-      fullPath: '/settings/webhooks/'
-      preLoaderRoute: typeof ProtectedSettingsWebhooksIndexRouteImport
+    '/_protected/prospects/import': {
+      id: '/_protected/prospects/import'
+      path: '/prospects/import'
+      fullPath: '/prospects/import'
+      preLoaderRoute: typeof ProtectedProspectsImportRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/_protected/settings/value-props/': {
-      id: '/_protected/settings/value-props/'
-      path: '/settings/value-props'
-      fullPath: '/settings/value-props/'
-      preLoaderRoute: typeof ProtectedSettingsValuePropsIndexRouteImport
+    '/_protected/sequences/': {
+      id: '/_protected/sequences/'
+      path: '/sequences'
+      fullPath: '/sequences/'
+      preLoaderRoute: typeof ProtectedSequencesIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/_protected/settings/mailboxes/': {
-      id: '/_protected/settings/mailboxes/'
-      path: '/settings/mailboxes'
-      fullPath: '/settings/mailboxes/'
-      preLoaderRoute: typeof ProtectedSettingsMailboxesIndexRouteImport
+    '/_protected/sequences/new': {
+      id: '/_protected/sequences/new'
+      path: '/sequences/new'
+      fullPath: '/sequences/new'
+      preLoaderRoute: typeof ProtectedSequencesNewRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/_protected/settings/crm/': {
-      id: '/_protected/settings/crm/'
-      path: '/settings/crm'
-      fullPath: '/settings/crm/'
-      preLoaderRoute: typeof ProtectedSettingsCrmIndexRouteImport
+    '/_protected/settings/compliance': {
+      id: '/_protected/settings/compliance'
+      path: '/settings/compliance'
+      fullPath: '/settings/compliance'
+      preLoaderRoute: typeof ProtectedSettingsComplianceRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/_protected/settings/api-keys/': {
-      id: '/_protected/settings/api-keys/'
-      path: '/settings/api-keys'
-      fullPath: '/settings/api-keys/'
-      preLoaderRoute: typeof ProtectedSettingsApiKeysIndexRouteImport
+    '/_protected/settings/deliverability': {
+      id: '/_protected/settings/deliverability'
+      path: '/settings/deliverability'
+      fullPath: '/settings/deliverability'
+      preLoaderRoute: typeof ProtectedSettingsDeliverabilityRouteImport
       parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings/members': {
+      id: '/_protected/settings/members'
+      path: '/settings/members'
+      fullPath: '/settings/members'
+      preLoaderRoute: typeof ProtectedSettingsMembersRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings/suppression': {
+      id: '/_protected/settings/suppression'
+      path: '/settings/suppression'
+      fullPath: '/settings/suppression'
+      preLoaderRoute: typeof ProtectedSettingsSuppressionRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/tasks/': {
+      id: '/_protected/tasks/'
+      path: '/tasks'
+      fullPath: '/tasks/'
+      preLoaderRoute: typeof ProtectedTasksIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/live': {
+      id: '/api/health/live'
+      path: '/api/health/live'
+      fullPath: '/api/health/live'
+      preLoaderRoute: typeof ApiHealthLiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/ready': {
+      id: '/api/health/ready'
+      path: '/api/health/ready'
+      fullPath: '/api/health/ready'
+      preLoaderRoute: typeof ApiHealthReadyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/nango/webhook': {
+      id: '/api/nango/webhook'
+      path: '/api/nango/webhook'
+      fullPath: '/api/nango/webhook'
+      preLoaderRoute: typeof ApiNangoWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/enrollments': {
+      id: '/api/v1/enrollments'
+      path: '/api/v1/enrollments'
+      fullPath: '/api/v1/enrollments'
+      preLoaderRoute: typeof ApiV1EnrollmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/export': {
+      id: '/api/v1/export'
+      path: '/api/v1/export'
+      fullPath: '/api/v1/export'
+      preLoaderRoute: typeof ApiV1ExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/messages': {
+      id: '/api/v1/messages'
+      path: '/api/v1/messages'
+      fullPath: '/api/v1/messages'
+      preLoaderRoute: typeof ApiV1MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/openapi.json': {
+      id: '/api/v1/openapi.json'
+      path: '/api/v1/openapi.json'
+      fullPath: '/api/v1/openapi.json'
+      preLoaderRoute: typeof ApiV1OpenapiDotjsonRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/organization-delete': {
+      id: '/api/v1/organization-delete'
+      path: '/api/v1/organization-delete'
+      fullPath: '/api/v1/organization-delete'
+      preLoaderRoute: typeof ApiV1OrganizationDeleteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/prospects': {
+      id: '/api/v1/prospects'
+      path: '/api/v1/prospects'
+      fullPath: '/api/v1/prospects'
+      preLoaderRoute: typeof ApiV1ProspectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/unsubscribe': {
+      id: '/api/v1/unsubscribe'
+      path: '/api/v1/unsubscribe'
+      fullPath: '/api/v1/unsubscribe'
+      preLoaderRoute: typeof ApiV1UnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/webhooks': {
+      id: '/api/v1/webhooks'
+      path: '/api/v1/webhooks'
+      fullPath: '/api/v1/webhooks'
+      preLoaderRoute: typeof ApiV1WebhooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_protected/prospects/$id/generate': {
+      id: '/_protected/prospects/$id/generate'
+      path: '/generate'
+      fullPath: '/prospects/$id/generate'
+      preLoaderRoute: typeof ProtectedProspectsIdGenerateRouteImport
+      parentRoute: typeof ProtectedProspectsIdRoute
     }
     '/_protected/sequences/$id/': {
       id: '/_protected/sequences/$id/'
       path: '/sequences/$id'
       fullPath: '/sequences/$id/'
       preLoaderRoute: typeof ProtectedSequencesIdIndexRouteImport
-      parentRoute: typeof ProtectedRoute
-    }
-    '/api/v1/webhooks/$id': {
-      id: '/api/v1/webhooks/$id'
-      path: '/$id'
-      fullPath: '/api/v1/webhooks/$id'
-      preLoaderRoute: typeof ApiV1WebhooksIdRouteImport
-      parentRoute: typeof ApiV1WebhooksRoute
-    }
-    '/api/v1/prospects/$id': {
-      id: '/api/v1/prospects/$id'
-      path: '/$id'
-      fullPath: '/api/v1/prospects/$id'
-      preLoaderRoute: typeof ApiV1ProspectsIdRouteImport
-      parentRoute: typeof ApiV1ProspectsRoute
-    }
-    '/_protected/settings/mailboxes/new': {
-      id: '/_protected/settings/mailboxes/new'
-      path: '/settings/mailboxes/new'
-      fullPath: '/settings/mailboxes/new'
-      preLoaderRoute: typeof ProtectedSettingsMailboxesNewRouteImport
-      parentRoute: typeof ProtectedRoute
-    }
-    '/_protected/sequences/$id/enrollments': {
-      id: '/_protected/sequences/$id/enrollments'
-      path: '/sequences/$id/enrollments'
-      fullPath: '/sequences/$id/enrollments'
-      preLoaderRoute: typeof ProtectedSequencesIdEnrollmentsRouteImport
-      parentRoute: typeof ProtectedRoute
-    }
-    '/_protected/sequences/$id/enroll': {
-      id: '/_protected/sequences/$id/enroll'
-      path: '/sequences/$id/enroll'
-      fullPath: '/sequences/$id/enroll'
-      preLoaderRoute: typeof ProtectedSequencesIdEnrollRouteImport
-      parentRoute: typeof ProtectedRoute
-    }
-    '/_protected/sequences/$id/edit': {
-      id: '/_protected/sequences/$id/edit'
-      path: '/sequences/$id/edit'
-      fullPath: '/sequences/$id/edit'
-      preLoaderRoute: typeof ProtectedSequencesIdEditRouteImport
       parentRoute: typeof ProtectedRoute
     }
     '/_protected/sequences/$id/analytics': {
@@ -962,26 +892,89 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedSequencesIdAnalyticsRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/_protected/prospects/$id/generate': {
-      id: '/_protected/prospects/$id/generate'
-      path: '/generate'
-      fullPath: '/prospects/$id/generate'
-      preLoaderRoute: typeof ProtectedProspectsIdGenerateRouteImport
-      parentRoute: typeof ProtectedProspectsIdRoute
+    '/_protected/sequences/$id/edit': {
+      id: '/_protected/sequences/$id/edit'
+      path: '/sequences/$id/edit'
+      fullPath: '/sequences/$id/edit'
+      preLoaderRoute: typeof ProtectedSequencesIdEditRouteImport
+      parentRoute: typeof ProtectedRoute
     }
-    '/api/v1/webhooks/$id/deliveries': {
-      id: '/api/v1/webhooks/$id/deliveries'
-      path: '/deliveries'
-      fullPath: '/api/v1/webhooks/$id/deliveries'
-      preLoaderRoute: typeof ApiV1WebhooksIdDeliveriesRouteImport
-      parentRoute: typeof ApiV1WebhooksIdRoute
+    '/_protected/sequences/$id/enroll': {
+      id: '/_protected/sequences/$id/enroll'
+      path: '/sequences/$id/enroll'
+      fullPath: '/sequences/$id/enroll'
+      preLoaderRoute: typeof ProtectedSequencesIdEnrollRouteImport
+      parentRoute: typeof ProtectedRoute
     }
-    '/api/v1/sequences/$id/analytics': {
-      id: '/api/v1/sequences/$id/analytics'
-      path: '/api/v1/sequences/$id/analytics'
-      fullPath: '/api/v1/sequences/$id/analytics'
-      preLoaderRoute: typeof ApiV1SequencesIdAnalyticsRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_protected/sequences/$id/enrollments': {
+      id: '/_protected/sequences/$id/enrollments'
+      path: '/sequences/$id/enrollments'
+      fullPath: '/sequences/$id/enrollments'
+      preLoaderRoute: typeof ProtectedSequencesIdEnrollmentsRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings/api-keys/': {
+      id: '/_protected/settings/api-keys/'
+      path: '/settings/api-keys'
+      fullPath: '/settings/api-keys/'
+      preLoaderRoute: typeof ProtectedSettingsApiKeysIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings/crm/': {
+      id: '/_protected/settings/crm/'
+      path: '/settings/crm'
+      fullPath: '/settings/crm/'
+      preLoaderRoute: typeof ProtectedSettingsCrmIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings/mailboxes/': {
+      id: '/_protected/settings/mailboxes/'
+      path: '/settings/mailboxes'
+      fullPath: '/settings/mailboxes/'
+      preLoaderRoute: typeof ProtectedSettingsMailboxesIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings/mailboxes/new': {
+      id: '/_protected/settings/mailboxes/new'
+      path: '/settings/mailboxes/new'
+      fullPath: '/settings/mailboxes/new'
+      preLoaderRoute: typeof ProtectedSettingsMailboxesNewRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings/value-props/': {
+      id: '/_protected/settings/value-props/'
+      path: '/settings/value-props'
+      fullPath: '/settings/value-props/'
+      preLoaderRoute: typeof ProtectedSettingsValuePropsIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/settings/webhooks/': {
+      id: '/_protected/settings/webhooks/'
+      path: '/settings/webhooks'
+      fullPath: '/settings/webhooks/'
+      preLoaderRoute: typeof ProtectedSettingsWebhooksIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/api/v1/prospects/$id': {
+      id: '/api/v1/prospects/$id'
+      path: '/$id'
+      fullPath: '/api/v1/prospects/$id'
+      preLoaderRoute: typeof ApiV1ProspectsIdRouteImport
+      parentRoute: typeof ApiV1ProspectsRoute
+    }
+    '/api/v1/webhooks/$id': {
+      id: '/api/v1/webhooks/$id'
+      path: '/$id'
+      fullPath: '/api/v1/webhooks/$id'
+      preLoaderRoute: typeof ApiV1WebhooksIdRouteImport
+      parentRoute: typeof ApiV1WebhooksRoute
+    }
+    '/_protected/settings/crm/$connectionId/mapping': {
+      id: '/_protected/settings/crm/$connectionId/mapping'
+      path: '/settings/crm/$connectionId/mapping'
+      fullPath: '/settings/crm/$connectionId/mapping'
+      preLoaderRoute: typeof ProtectedSettingsCrmConnectionIdMappingRouteImport
+      parentRoute: typeof ProtectedRoute
     }
     '/_protected/settings/mailboxes/$id/health': {
       id: '/_protected/settings/mailboxes/$id/health'
@@ -990,12 +983,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedSettingsMailboxesIdHealthRouteImport
       parentRoute: typeof ProtectedRoute
     }
-    '/_protected/settings/crm/$connectionId/mapping': {
-      id: '/_protected/settings/crm/$connectionId/mapping'
-      path: '/settings/crm/$connectionId/mapping'
-      fullPath: '/settings/crm/$connectionId/mapping'
-      preLoaderRoute: typeof ProtectedSettingsCrmConnectionIdMappingRouteImport
-      parentRoute: typeof ProtectedRoute
+    '/api/v1/sequences/$id/analytics': {
+      id: '/api/v1/sequences/$id/analytics'
+      path: '/api/v1/sequences/$id/analytics'
+      fullPath: '/api/v1/sequences/$id/analytics'
+      preLoaderRoute: typeof ApiV1SequencesIdAnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/webhooks/$id/deliveries': {
+      id: '/api/v1/webhooks/$id/deliveries'
+      path: '/deliveries'
+      fullPath: '/api/v1/webhooks/$id/deliveries'
+      preLoaderRoute: typeof ApiV1WebhooksIdDeliveriesRouteImport
+      parentRoute: typeof ApiV1WebhooksIdRoute
     }
   }
 }

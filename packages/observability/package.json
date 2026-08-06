@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@quiksend/config": "workspace:*",
-    "@sentry/node": "10.63.0",
-    "posthog-node": "5.39.2"
+    "@sentry/node": "10.69.0",
+    "posthog-node": "5.47.0"
   }
 }

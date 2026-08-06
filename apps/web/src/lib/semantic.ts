@@ -157,8 +157,9 @@ const SENTIMENT: Record<string, { tone: Tone; label: string }> = {
 };
 
 /** Tone and human label for an inbound reply sentiment. Returns null when the value is absent or unrecognised. */
-export const sentimentMeta = (s: string | null | undefined): { tone: Tone; label: string } | null =>
-  s ? (SENTIMENT[s] ?? null) : null;
+export const sentimentMeta = (
+  s: string | null | undefined,
+): { tone: Tone; label: string } | null => (s ? (SENTIMENT[s] ?? null) : null);
 
 /* ── Formatting ──────────────────────────────────────────────────────────── */
 

@@ -13,13 +13,13 @@
     "auth:generate": "dotenv -e ../../.env -- pnpm dlx @better-auth/cli@latest generate --config ./src/auth.ts --output ../db/src/schema/auth.ts -y"
   },
   "dependencies": {
-    "@better-auth/api-key": "1.6.23",
-    "@better-auth/drizzle-adapter": "1.6.23",
+    "@better-auth/api-key": "1.6.25",
+    "@better-auth/drizzle-adapter": "1.6.25",
     "@quiksend/config": "workspace:*",
     "@quiksend/db": "workspace:*",
     "@quiksend/mail": "workspace:*",
     "@quiksend/queue": "workspace:*",
-    "better-auth": "1.6.23",
+    "better-auth": "1.6.25",
     "drizzle-orm": "0.45.2"
   },
   "devDependencies": {
