@@ -222,4 +222,66 @@ describe("transition", () => {
     expect(result.nextState).toBe("waiting");
     expect(result.effects).toEqual([]);
   });
+
+  it("manual_skipped from waiting_manual advances and emits task.skipped", () => {
+    const snap = activeSnapshot({ state: "waiting_manual", nextStepKind: "manual_email" });
+    const result = transition(snap, { kind: "manual_skipped", at: new Date() });
+    expect(result.nextState).toBe("active");
+    expect(result.effects).toEqual([
+      { kind: "advance_step" },
+      { kind: "emit_event", type: "task.skipped" },
+    ]);
+  });
+
+  it("manual_skipped from waiting (generic task) also advances with task.skipped", () => {
+    const snap = activeSnapshot({ state: "waiting", nextStepKind: "task" });
+    const result = transition(snap, { kind: "manual_skipped", at: new Date() });
+    expect(result.nextState).toBe("active");
+    expect(result.effects).toEqual([
+      { kind: "advance_step" },
+      { kind: "emit_event", type: "task.skipped" },
+    ]);
+  });
+
+  it("manual_skipped from any other state is a no-op", () => {
+    for (const state of ["active", "paused", ...TERMINAL_STATES] as const) {
+      const result = transition(activeSnapshot({ state }), {
+        kind: "manual_skipped",
+        at: new Date(),
+      });
+      expect(result.nextState).toBe(state);
+      expect(result.effects).toEqual([]);
+    }
+  });
+
+  it("task_completed from waiting advances and emits task.completed", () => {
+    const snap = activeSnapshot({ state: "waiting", nextStepKind: "task" });
+    const result = transition(snap, { kind: "task_completed", at: new Date() });
+    expect(result.nextState).toBe("active");
+    expect(result.effects).toEqual([
+      { kind: "advance_step" },
+      { kind: "emit_event", type: "task.completed" },
+    ]);
+  });
+
+  it("task_completed from waiting_manual advances and emits task.completed", () => {
+    const snap = activeSnapshot({ state: "waiting_manual", nextStepKind: "manual_email" });
+    const result = transition(snap, { kind: "task_completed", at: new Date() });
+    expect(result.nextState).toBe("active");
+    expect(result.effects).toEqual([
+      { kind: "advance_step" },
+      { kind: "emit_event", type: "task.completed" },
+    ]);
+  });
+
+  it("task_completed from any other state is a no-op", () => {
+    for (const state of ["active", "paused", ...TERMINAL_STATES] as const) {
+      const result = transition(activeSnapshot({ state }), {
+        kind: "task_completed",
+        at: new Date(),
+      });
+      expect(result.nextState).toBe(state);
+      expect(result.effects).toEqual([]);
+    }
+  });
 });

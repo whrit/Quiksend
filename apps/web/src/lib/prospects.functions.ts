@@ -10,12 +10,62 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
 import { createProspectInputSchema, prospectStatusSchema } from "./schemas/prospect.ts";
 import { withAnalyticsTiming } from "./timing.ts";
+import { transition, type EnrollmentSnapshot, type StepKind } from "@quiksend/core/state-machine";
+import { applyWebEffects } from "./effect-executor.ts";
 
 type ProspectRow = typeof tables.prospect.$inferSelect;
 type CompanyRow = typeof tables.company.$inferSelect;
 type ListRow = typeof tables.list.$inferSelect;
 type ImportBatchRow = typeof tables.importBatch.$inferSelect;
 type ImportErrorRow = typeof tables.importError.$inferSelect;
+
+const NON_TERMINAL_ENROLLMENT_STATES = ["active", "waiting", "waiting_manual", "paused"];
+
+type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Stop nonterminal enrollments through core `stop` transition + web effect
+ * executor so events/effects/audit remain truthful. Called inside a transaction.
+ */
+async function stopEnrollmentsThroughTransition(
+  tx: DbTx,
+  enrollments: (typeof tables.enrollment.$inferSelect)[],
+  organizationId: string,
+  reason: string,
+): Promise<void> {
+  for (const enrollment of enrollments) {
+    const steps = await tx.query.sequenceStep.findMany({
+      where: and(
+        eq(tables.sequenceStep.sequenceId, enrollment.sequenceId),
+        eq(tables.sequenceStep.organizationId, organizationId),
+      ),
+      orderBy: asc(tables.sequenceStep.stepIndex),
+    });
+
+    const nextStep = steps.find((s) => s.stepIndex === enrollment.currentStepIndex);
+    const hasNext = steps.some((s) => s.stepIndex > enrollment.currentStepIndex);
+    const snapshot: EnrollmentSnapshot = {
+      state: enrollment.state as EnrollmentSnapshot["state"],
+      currentStepIndex: enrollment.currentStepIndex,
+      hasNextStep: hasNext,
+      nextStepKind: (nextStep?.stepType as StepKind) ?? null,
+      anchorMessageId: enrollment.anchorMessageId,
+      attemptCount: enrollment.attemptCount,
+    };
+
+    const result = transition(snapshot, { kind: "stop", reason });
+
+    if (result.effects.length > 0) {
+      await applyWebEffects(tx, enrollment.id, organizationId, result.effects, {
+        nextState: result.nextState,
+        emitContext: {
+          sequenceId: enrollment.sequenceId,
+          prospectId: enrollment.prospectId,
+        },
+      });
+    }
+  }
+}
 
 function serializeProspect(row: ProspectRow) {
   return {
@@ -455,20 +505,37 @@ export const deleteProspect = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
 
-    const [deleted] = await db
-      .update(tables.prospect)
-      .set({ deletedAt: new Date() })
-      .where(
-        and(
-          eq(tables.prospect.id, data.id),
-          eq(tables.prospect.organizationId, organizationId),
-          isNull(tables.prospect.deletedAt),
-        ),
-      )
-      .returning({ id: tables.prospect.id });
+    return db.transaction(async (tx) => {
+      const [deleted] = await tx
+        .update(tables.prospect)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            eq(tables.prospect.id, data.id),
+            eq(tables.prospect.organizationId, organizationId),
+            isNull(tables.prospect.deletedAt),
+          ),
+        )
+        .returning({ id: tables.prospect.id });
 
-    if (!deleted) notFound();
-    return { ok: true as const };
+      if (!deleted) notFound();
+
+      // Stop active enrollments through core transition + effects
+      const enrollments = await tx
+        .select()
+        .from(tables.enrollment)
+        .where(
+          and(
+            eq(tables.enrollment.prospectId, data.id),
+            eq(tables.enrollment.organizationId, organizationId),
+            inArray(tables.enrollment.state, NON_TERMINAL_ENROLLMENT_STATES),
+          ),
+        );
+
+      await stopEnrollmentsThroughTransition(tx, enrollments, organizationId, "prospect_deleted");
+
+      return { ok: true as const };
+    });
   });
 
 export const bulkDeleteProspects = createServerFn({ method: "POST" })
@@ -477,32 +544,48 @@ export const bulkDeleteProspects = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
 
-    const existing = await db
-      .select({ id: tables.prospect.id })
-      .from(tables.prospect)
-      .where(
-        and(
-          inArray(tables.prospect.id, data.ids),
-          eq(tables.prospect.organizationId, organizationId),
-          isNull(tables.prospect.deletedAt),
-        ),
-      );
+    return db.transaction(async (tx) => {
+      const existing = await tx
+        .select({ id: tables.prospect.id })
+        .from(tables.prospect)
+        .where(
+          and(
+            inArray(tables.prospect.id, data.ids),
+            eq(tables.prospect.organizationId, organizationId),
+            isNull(tables.prospect.deletedAt),
+          ),
+        );
 
-    if (existing.length !== data.ids.length) {
-      throw new Error("One or more prospects were not found in this workspace");
-    }
+      if (existing.length !== data.ids.length) {
+        throw new Error("One or more prospects were not found in this workspace");
+      }
 
-    await db
-      .update(tables.prospect)
-      .set({ deletedAt: new Date() })
-      .where(
-        and(
-          inArray(tables.prospect.id, data.ids),
-          eq(tables.prospect.organizationId, organizationId),
-        ),
-      );
+      await tx
+        .update(tables.prospect)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            inArray(tables.prospect.id, data.ids),
+            eq(tables.prospect.organizationId, organizationId),
+          ),
+        );
 
-    return { deleted: data.ids.length };
+      // Stop active enrollments through core transition + effects
+      const enrollments = await tx
+        .select()
+        .from(tables.enrollment)
+        .where(
+          and(
+            inArray(tables.enrollment.prospectId, data.ids),
+            eq(tables.enrollment.organizationId, organizationId),
+            inArray(tables.enrollment.state, NON_TERMINAL_ENROLLMENT_STATES),
+          ),
+        );
+
+      await stopEnrollmentsThroughTransition(tx, enrollments, organizationId, "prospect_deleted");
+
+      return { deleted: data.ids.length };
+    });
   });
 
 export const listCompanies = createServerFn({ method: "GET" })

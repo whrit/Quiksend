@@ -45,6 +45,7 @@ export function createFakeAdapter(initial?: Partial<FakeAdapterState>): {
         providerMessageId,
         providerThreadId: input.threading?.providerThreadId ?? null,
         sentAt: new Date(),
+        metadataReconciled: true,
       };
     },
     async listInbound(): Promise<readonly InboundEmail[]> {

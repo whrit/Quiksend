@@ -67,6 +67,7 @@ export function createGmailAdapter(config: GmailAdapterConfig): MailboxAdapter {
       const providerMessageId = sendData.id;
       const providerThreadId = sendData.threadId ?? null;
 
+      // POST accepted — provider metadata lookup is best-effort
       let metadataResponse: { data: unknown; status: number };
       try {
         metadataResponse = await nango.get({
@@ -78,8 +79,15 @@ export function createGmailAdapter(config: GmailAdapterConfig): MailboxAdapter {
             metadataHeaders: "Message-Id",
           },
         });
-      } catch (err) {
-        throw classifyGmailError(err);
+      } catch {
+        // Acceptance succeeded — metadata lookup failure is not a send failure
+        return {
+          messageId: normalizeMessageId(mime.messageId),
+          providerMessageId,
+          providerThreadId,
+          sentAt: new Date(),
+          metadataReconciled: false,
+        };
       }
 
       const metadata = metadataResponse.data as GmailMessageMetadata;
@@ -93,6 +101,7 @@ export function createGmailAdapter(config: GmailAdapterConfig): MailboxAdapter {
         providerMessageId,
         providerThreadId,
         sentAt: new Date(),
+        metadataReconciled: true,
       };
     },
     async listInbound(): Promise<[]> {

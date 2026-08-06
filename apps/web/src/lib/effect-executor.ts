@@ -35,6 +35,8 @@ const TRACKED_ENGINE_EVENTS = new Set([
   "enrollment.resumed",
   "enrollment.stopped",
   "enrollment.failed",
+  "task.completed",
+  "task.skipped",
 ]);
 
 const DELIVERABILITY_EVENTS = new Set([

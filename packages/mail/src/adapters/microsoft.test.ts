@@ -35,28 +35,18 @@ describe("createMicrosoftAdapter", () => {
 
   it("sends base64 MIME via sendMail and resolves Message-Id from sent items", async () => {
     const post = vi.fn<NangoProxyClient["post"]>().mockResolvedValue({ data: null, status: 202 });
-    const get = vi
-      .fn<NangoProxyClient["get"]>()
-      .mockResolvedValueOnce({
-        data: {
-          value: [
-            {
-              id: "graph-msg-1",
-              internetMessageId: "<graph-msg@outlook.com>",
-              conversationId: "conv-1",
-            },
-          ],
-        },
-        status: 200,
-      })
-      .mockResolvedValueOnce({
-        data: {
-          id: "graph-msg-1",
-          internetMessageId: "<graph-msg@outlook.com>",
-          conversationId: "conv-1",
-        },
-        status: 200,
-      });
+    const get = vi.fn<NangoProxyClient["get"]>().mockResolvedValueOnce({
+      data: {
+        value: [
+          {
+            id: "graph-msg-1",
+            internetMessageId: "<graph-msg@outlook.com>",
+            conversationId: "conv-1",
+          },
+        ],
+      },
+      status: 200,
+    });
 
     const adapter = createMicrosoftAdapter({
       nangoConnectionId: "conn-ms",
@@ -81,10 +71,40 @@ describe("createMicrosoftAdapter", () => {
     expect(postCall?.headers).toEqual({ "Content-Type": "text/plain" });
     expect(typeof postCall?.data).toBe("string");
 
-    expect(get).toHaveBeenCalledTimes(2);
+    expect(get).toHaveBeenCalledOnce();
     expect(result.messageId).toBe("<graph-msg@outlook.com>");
     expect(result.providerMessageId).toBe("graph-msg-1");
     expect(result.providerThreadId).toBe("conv-1");
+    expect(result.metadataReconciled).toBe(true);
+  });
+
+  it("resolves unreconciled when findSentMessage returns null after accepted POST", async () => {
+    const post = vi.fn<NangoProxyClient["post"]>().mockResolvedValue({ data: null, status: 202 });
+    const get = vi.fn<NangoProxyClient["get"]>().mockResolvedValue({
+      data: { value: [] },
+      status: 200,
+    });
+
+    const adapter = createMicrosoftAdapter({
+      nangoConnectionId: "conn-ms",
+      fromAddress: "sender@example.com",
+      compliance,
+      nango: createMockNango({ post, get }),
+    });
+
+    const result = await adapter.send({
+      from: { email: "sender@example.com" },
+      to: [{ email: "recipient@example.com" }],
+      subject: "Hello",
+      html: "<p>Hi</p>",
+      text: "Hi",
+    });
+
+    expect(post).toHaveBeenCalledOnce();
+    expect(result.metadataReconciled).toBe(false);
+    expect(result.messageId).toMatch(/^</);
+    expect(result.providerMessageId).toBeNull();
+    expect(result.providerThreadId).toBeNull();
   });
 
   it("maps 401 and InvalidAuthenticationToken to auth SendError", async () => {

@@ -1,0 +1,1 @@
+ALTER TABLE "message" ADD COLUMN "ingestion_complete" boolean DEFAULT false NOT NULL;

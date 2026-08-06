@@ -12,7 +12,7 @@ import {
   type SmtpConfigPlain,
 } from "@quiksend/mail";
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import {
   decryptSmtpConfigForMailbox,
@@ -20,6 +20,8 @@ import {
   resolveMailboxAdapter,
 } from "./mailboxes.server.ts";
 import { authMiddleware } from "./org-fn.ts";
+import { transition, type EnrollmentSnapshot, type StepKind } from "@quiksend/core/state-machine";
+import { applyWebEffects } from "./effect-executor.ts";
 
 class MailboxError extends Error {
   readonly code: "NOT_FOUND" | "FORBIDDEN" | "VALIDATION" | "CONFIG";
@@ -201,7 +203,10 @@ export const listMailboxes = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { organizationId } = context.orgContext;
     const rows = await db.query.mailbox.findMany({
-      where: eq(tables.mailbox.organizationId, organizationId),
+      where: and(
+        eq(tables.mailbox.organizationId, organizationId),
+        ne(tables.mailbox.status, "archived"),
+      ),
       orderBy: desc(tables.mailbox.createdAt),
     });
     return rows.map(toPublicMailbox);
@@ -323,17 +328,75 @@ export const deleteMailbox = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
-    const deleted = await db
-      .delete(tables.mailbox)
-      .where(
-        and(
-          eq(tables.mailbox.id, data.id),
-          eq(tables.mailbox.organizationId, context.orgContext.organizationId),
-        ),
-      )
-      .returning({ id: tables.mailbox.id });
-    if (deleted.length === 0) throw new MailboxError("NOT_FOUND", "Mailbox not found");
-    return { ok: true as const };
+    const { organizationId } = context.orgContext;
+    const NON_TERMINAL = ["active", "waiting", "waiting_manual", "paused"];
+
+    return db.transaction(async (tx) => {
+      const archived = await tx
+        .update(tables.mailbox)
+        .set({
+          status: "archived",
+          archivedAt: new Date(),
+          archivedByUserId: context.orgContext.userId,
+          archiveReason: "user_deleted",
+        })
+        .where(
+          and(
+            eq(tables.mailbox.id, data.id),
+            eq(tables.mailbox.organizationId, organizationId),
+            ne(tables.mailbox.status, "archived"),
+          ),
+        )
+        .returning({ id: tables.mailbox.id });
+      if (archived.length === 0) throw new MailboxError("NOT_FOUND", "Mailbox not found");
+
+      // Stop nonterminal enrollments through core transition + web effects
+      const enrollments = await tx
+        .select()
+        .from(tables.enrollment)
+        .where(
+          and(
+            eq(tables.enrollment.mailboxId, data.id),
+            eq(tables.enrollment.organizationId, organizationId),
+            inArray(tables.enrollment.state, NON_TERMINAL),
+          ),
+        );
+
+      for (const enrollment of enrollments) {
+        const steps = await tx.query.sequenceStep.findMany({
+          where: and(
+            eq(tables.sequenceStep.sequenceId, enrollment.sequenceId),
+            eq(tables.sequenceStep.organizationId, organizationId),
+          ),
+          orderBy: asc(tables.sequenceStep.stepIndex),
+        });
+
+        const nextStep = steps.find((s) => s.stepIndex === enrollment.currentStepIndex);
+        const hasNext = steps.some((s) => s.stepIndex > enrollment.currentStepIndex);
+        const snapshot: EnrollmentSnapshot = {
+          state: enrollment.state as EnrollmentSnapshot["state"],
+          currentStepIndex: enrollment.currentStepIndex,
+          hasNextStep: hasNext,
+          nextStepKind: (nextStep?.stepType as StepKind) ?? null,
+          anchorMessageId: enrollment.anchorMessageId,
+          attemptCount: enrollment.attemptCount,
+        };
+
+        const result = transition(snapshot, { kind: "stop", reason: "mailbox_archived" });
+
+        if (result.effects.length > 0) {
+          await applyWebEffects(tx, enrollment.id, organizationId, result.effects, {
+            nextState: result.nextState,
+            emitContext: {
+              sequenceId: enrollment.sequenceId,
+              prospectId: enrollment.prospectId,
+            },
+          });
+        }
+      }
+
+      return { ok: true as const };
+    });
   });
 
 export const checkMailboxHealth = createServerFn({ method: "POST" })

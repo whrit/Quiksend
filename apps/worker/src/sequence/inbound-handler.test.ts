@@ -123,7 +123,7 @@ describe("handleInboundBounce integration", () => {
         enrollmentId: enrollment.id,
       };
 
-      await handleInboundBounce(inbound, enrollment.id);
+      await db.transaction((tx) => handleInboundBounce(inbound, enrollment.id, tx));
 
       const updatedMessage = await db.query.message.findFirst({
         where: eq(tables.message.id, bounceMessage.id),
@@ -140,6 +140,140 @@ describe("handleInboundBounce integration", () => {
         where: eq(tables.prospect.id, prospect.id),
       });
       expect(updatedProspect?.status).toBe("bounced");
+
+      const suppression = await db.query.suppression.findFirst({
+        where: and(
+          eq(tables.suppression.organizationId, orgA.id),
+          eq(tables.suppression.value, prospect.email.toLowerCase()),
+        ),
+      });
+      expect(suppression).toBeDefined();
+      expect(suppression?.reason).toBe("bounce");
+    });
+  });
+
+  it("applies bounce effects within an outer transaction when outerTx is provided", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const [mailbox] = await db
+        .insert(tables.mailbox)
+        .values({
+          organizationId: orgA.id,
+          ownerUserId: orgA.userId,
+          provider: "smtp",
+          address: "sender@outer-tx.test",
+          dailyCap: 50,
+          throttleSeconds: 0,
+          sendWindow: WIDE_WINDOW,
+          status: "active",
+        })
+        .returning();
+      if (!mailbox) throw new Error("setup failed");
+
+      const [prospect] = await db
+        .insert(tables.prospect)
+        .values({
+          organizationId: orgA.id,
+          email: "bounced@outer-tx.test",
+          status: "active",
+        })
+        .returning();
+      if (!prospect) throw new Error("setup failed");
+
+      const [sequence] = await db
+        .insert(tables.sequence)
+        .values({
+          organizationId: orgA.id,
+          name: "outer-tx-seq",
+          status: "active",
+          createdByUserId: orgA.userId,
+          settings: {
+            timezone: "UTC",
+            business_days_only: false,
+            send_window: WIDE_WINDOW.window,
+          },
+        })
+        .returning();
+      if (!sequence) throw new Error("setup failed");
+
+      await db.insert(tables.sequenceStep).values({
+        organizationId: orgA.id,
+        sequenceId: sequence.id,
+        stepIndex: 0,
+        stepType: "auto_email",
+        delayMinutes: 0,
+        config: { subject: "Hi", body_template: "<p>Hi</p>", ai_generate: false },
+      });
+
+      const [enrollment] = await db
+        .insert(tables.enrollment)
+        .values({
+          organizationId: orgA.id,
+          sequenceId: sequence.id,
+          prospectId: prospect.id,
+          mailboxId: mailbox.id,
+          state: "active",
+          currentStepIndex: 0,
+          createdByUserId: orgA.userId,
+        })
+        .returning();
+      if (!enrollment) throw new Error("setup failed");
+
+      const receivedAt = new Date("2026-03-01T10:00:00Z");
+      const [bounceMessage] = await db
+        .insert(tables.message)
+        .values({
+          organizationId: orgA.id,
+          mailboxId: mailbox.id,
+          prospectId: prospect.id,
+          enrollmentId: enrollment.id,
+          direction: "inbound",
+          subject: "Delivery Status Notification (Failure)",
+          bodyText: "550 User unknown",
+          status: "bounced",
+          bounceType: "hard",
+          receivedAt,
+        })
+        .returning();
+      if (!bounceMessage) throw new Error("setup failed");
+
+      const inbound: InboundEmail = {
+        id: bounceMessage.id,
+        organizationId: orgA.id,
+        mailboxId: mailbox.id,
+        providerMessageId: "bounce-outer-tx-1",
+        providerThreadId: null,
+        messageIdHeader: "<bounce@outer-tx.test>",
+        inReplyTo: null,
+        references: null,
+        subject: bounceMessage.subject,
+        bodyHtml: null,
+        bodyText: bounceMessage.bodyText,
+        fromEmail: prospect.email,
+        bounceType: "hard",
+        receivedAt,
+        enrollmentId: enrollment.id,
+      };
+
+      // Call with an outer transaction — effects must be visible inside the tx
+      // but rolled back if the tx aborts
+      let enrollmentStateInsideTx: string | undefined;
+      await db.transaction(async (tx) => {
+        await handleInboundBounce(inbound, enrollment.id, tx);
+
+        // Within the same transaction, read the enrollment state
+        const updated = await tx.query.enrollment.findFirst({
+          where: eq(tables.enrollment.id, enrollment.id),
+        });
+        enrollmentStateInsideTx = updated?.state;
+      });
+
+      // Effects were applied within the outer tx and committed
+      expect(enrollmentStateInsideTx).toBe("bounced");
+
+      const updatedEnrollment = await db.query.enrollment.findFirst({
+        where: eq(tables.enrollment.id, enrollment.id),
+      });
+      expect(updatedEnrollment?.state).toBe("bounced");
 
       const suppression = await db.query.suppression.findFirst({
         where: and(

@@ -59,35 +59,30 @@ export function createMicrosoftAdapter(config: MicrosoftAdapterConfig): MailboxA
         throw classifyMicrosoftError(err);
       }
 
-      const sent = await findSentMessage(nango, config.nangoConnectionId, mime.messageId);
-      if (!sent) {
-        throw new SendError(
-          "transient",
-          "Message sent but could not resolve Graph message id from Sent Items",
-          null,
-        );
-      }
-
-      let detail: GraphMessageSummary;
+      // POST accepted — provider metadata lookup is best-effort
+      let sent: GraphMessageSummary | null = null;
       try {
-        const response = await nango.get({
-          endpoint: `/v1.0/me/messages/${sent.id}`,
-          providerConfigKey: MICROSOFT_PROVIDER_KEY,
-          connectionId: config.nangoConnectionId,
-          params: { $select: "internetMessageId,conversationId" },
-        });
-        detail = response.data as GraphMessageSummary;
-      } catch (err) {
-        throw classifyMicrosoftError(err);
+        sent = await findSentMessage(nango, config.nangoConnectionId, mime.messageId);
+      } catch {
+        // metadata lookup failed post-acceptance
       }
 
-      const messageId = normalizeMessageId(detail.internetMessageId ?? mime.messageId);
+      if (!sent) {
+        return {
+          messageId: normalizeMessageId(mime.messageId),
+          providerMessageId: null,
+          providerThreadId: null,
+          sentAt: new Date(),
+          metadataReconciled: false,
+        };
+      }
 
       return {
-        messageId,
+        messageId: normalizeMessageId(sent.internetMessageId ?? mime.messageId),
         providerMessageId: sent.id,
-        providerThreadId: detail.conversationId ?? sent.conversationId ?? null,
+        providerThreadId: sent.conversationId ?? null,
         sentAt: new Date(),
+        metadataReconciled: true,
       };
     },
     async listInbound(): Promise<[]> {

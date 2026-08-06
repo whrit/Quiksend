@@ -6,6 +6,7 @@ const mockSend = vi.fn<MailboxAdapter["send"]>(async () => ({
   providerMessageId: "prov-1",
   providerThreadId: "thread-1",
   sentAt: new Date("2026-01-01T00:00:00Z"),
+  metadataReconciled: true,
 }));
 
 vi.mock("@quiksend/mail", async (importOriginal) => {
@@ -75,6 +76,9 @@ describe("resolveMailboxAdapter", () => {
         enterpriseSafeDeclaredAt: null,
         enterpriseSafeAutoDowngraded: false,
         status: "active",
+        archivedAt: null,
+        archivedByUserId: null,
+        archiveReason: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       },

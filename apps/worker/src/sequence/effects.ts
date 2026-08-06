@@ -10,7 +10,12 @@ import { emailDomain } from "@quiksend/core";
 import { env } from "@quiksend/config";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
-import { buildUnsubscribeUrl, mintUnsubscribeToken, sanitizeForSeg } from "@quiksend/mail";
+import {
+  buildUnsubscribeUrl,
+  mintUnsubscribeToken,
+  resolvePostalAddress,
+  sanitizeForSeg,
+} from "@quiksend/mail";
 import { buildThreadingHeaders, normalizeMessageId } from "@quiksend/mail/threading";
 import type { ComplianceInput, OutboundEmail } from "@quiksend/mail";
 import { and, eq, or, sql } from "drizzle-orm";
@@ -33,7 +38,7 @@ import {
   reserveSendSlotInTx,
 } from "./reserve-slot.ts";
 import { handleEmitEvent } from "./execute-effects.ts";
-import { isProspectStatusSuppressed } from "./guards.ts";
+import { checkSendPreConditions } from "./guards.ts";
 import { getWorkspacePostalAddress } from "./workspace-postal.ts";
 import { selectMailboxForSend } from "./mailbox-router.ts";
 
@@ -362,7 +367,7 @@ async function handleSendAuto(
       const snapshot = toSnapshot(working);
       const result = transition(snapshot, {
         kind: "auto_sent",
-        providerMessageId: existing.providerMessageId ?? "",
+        providerMessageId: existing.providerMessageId ?? existing.messageIdHeader ?? idempotencyKey,
         at,
       });
       const updated = await applyTransitionEffects(
@@ -519,6 +524,7 @@ async function handleSendAuto(
     return await db.transaction(async (tx) => {
       const guard = await recheckSendAllowedInTx(tx, prep.working);
       const messageIdHeader = normalizeMessageId(sendResult.messageId);
+      const now = new Date();
 
       await tx
         .update(tables.message)
@@ -527,7 +533,12 @@ async function handleSendAuto(
           providerMessageId: sendResult.providerMessageId,
           providerThreadId: sendResult.providerThreadId ?? prep.working.enrollment.anchorThreadId,
           status: "sent",
+          acceptedAt: now,
           sentAt: sendResult.sentAt,
+          metadataReconciledAt: sendResult.metadataReconciled ? now : null,
+          reconciliationError: sendResult.metadataReconciled
+            ? null
+            : "metadata lookup failed post-acceptance",
         })
         .where(
           and(
@@ -543,14 +554,14 @@ async function handleSendAuto(
           phase: "post_send",
           at: sendResult.sentAt,
           attempt: prep.attempt,
-          providerMessageId: sendResult.providerMessageId,
+          providerMessageId: sendResult.providerMessageId ?? messageIdHeader,
         });
       }
 
       const snapshot = toSnapshot(prep.working);
       const result = transition(snapshot, {
         kind: "auto_sent",
-        providerMessageId: sendResult.providerMessageId,
+        providerMessageId: sendResult.providerMessageId ?? messageIdHeader,
         at: sendResult.sentAt,
       });
       return applyTransitionEffects(
@@ -618,6 +629,7 @@ async function hasReplyOnThreadInTx(tx: DbTx, ctx: EnrollmentContext): Promise<b
         and(
           ...conditions,
           eq(tables.message.direction, "inbound"),
+          eq(tables.message.isAutoReply, false),
           eq(tables.message.providerThreadId, threadId),
         ),
       )
@@ -630,6 +642,7 @@ async function hasReplyOnThreadInTx(tx: DbTx, ctx: EnrollmentContext): Promise<b
       select id from message
       where organization_id = ${ctx.organizationId}
         and direction = 'inbound'
+        and is_auto_reply = false
         and (
           in_reply_to = ${anchorId}
           or references_header ilike ${`%${anchorId}%`}
@@ -654,8 +667,12 @@ function sendGuardEvent(
       return { kind: "suppressed", at };
     case "reply_received":
       return { kind: "reply_received", at, stopOnReply: ctx.stopOnReply };
+    case "mailbox_archived":
+    case "prospect_deleted":
+    case "missing_postal_address":
+      return { kind: "stop", reason };
     case "enrollment_not_active":
-      if (phase === "post_send" && providerMessageId !== undefined) {
+      if (phase === "post_send" && providerMessageId) {
         return { kind: "auto_sent", providerMessageId, at };
       }
       return null;
@@ -733,7 +750,47 @@ async function recheckSendAllowedInTx(
   if (!enrollment) return { ok: false, reason: "enrollment_missing" };
   if (enrollment.state !== "active") return { ok: false, reason: "enrollment_not_active" };
 
-  if (isProspectStatusSuppressed(ctx.prospect.status)) return { ok: false, reason: "suppressed" };
+  const [mailbox, prospect] = await Promise.all([
+    tx.query.mailbox.findFirst({
+      where: and(
+        eq(tables.mailbox.id, ctx.mailbox.id),
+        eq(tables.mailbox.organizationId, ctx.organizationId),
+      ),
+      columns: { status: true },
+    }),
+    tx.query.prospect.findFirst({
+      where: and(
+        eq(tables.prospect.id, ctx.prospect.id),
+        eq(tables.prospect.organizationId, ctx.organizationId),
+      ),
+      columns: { deletedAt: true },
+    }),
+  ]);
+  if (!mailbox) return { ok: false, reason: "mailbox_archived" };
+  if (!prospect) return { ok: false, reason: "prospect_deleted" };
+
+  const sync = checkSendPreConditions({
+    mailboxStatus: mailbox.status,
+    prospectStatus: ctx.prospect.status,
+    prospectDeletedAt: prospect.deletedAt,
+    enrollmentState: null, // stricter active-only check handled above
+  });
+  if (!sync.ok) return sync;
+
+  // Fail-closed: missing CAN-SPAM postal address
+  const org = await tx.query.organization.findFirst({
+    where: eq(tables.organization.id, ctx.organizationId),
+    columns: { metadata: true },
+  });
+  try {
+    resolvePostalAddress({
+      organizationId: ctx.organizationId,
+      metadata: (org?.metadata as string) ?? null,
+    });
+  } catch {
+    return { ok: false, reason: "missing_postal_address" };
+  }
+
   if (await isSuppressionListedInTx(tx, ctx.organizationId, ctx.prospect.email)) {
     return { ok: false, reason: "suppressed" };
   }

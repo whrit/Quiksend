@@ -81,6 +81,7 @@ describe("createGmailAdapter", () => {
     expect(result.messageId).toBe("<provider-msg@google.com>");
     expect(result.providerMessageId).toBe("gmail-msg-1");
     expect(result.providerThreadId).toBe("thread-abc");
+    expect(result.metadataReconciled).toBe(true);
   });
 
   it("includes threadId when anchor providerThreadId is set", async () => {
@@ -115,6 +116,38 @@ describe("createGmailAdapter", () => {
     });
 
     expect(post.mock.calls[0]?.[0]?.data).toMatchObject({ threadId: "thread-xyz" });
+  });
+
+  it("resolves unreconciled when metadata GET fails after accepted POST", async () => {
+    const post = vi.fn<NangoProxyClient["post"]>().mockResolvedValue({
+      data: { id: "gmail-msg-3", threadId: "thread-fail" },
+      status: 200,
+    });
+    const get = vi.fn<NangoProxyClient["get"]>().mockRejectedValue({
+      response: { status: 500, data: { error: { message: "Internal error" } } },
+    });
+
+    const adapter = createGmailAdapter({
+      nangoConnectionId: "conn-1",
+      fromAddress: "sender@example.com",
+      compliance,
+      nango: createMockNango({ post, get }),
+    });
+
+    const result = await adapter.send({
+      from: { email: "sender@example.com" },
+      to: [{ email: "recipient@example.com" }],
+      subject: "Hello",
+      html: "<p>Hi</p>",
+      text: "Hi",
+    });
+
+    expect(post).toHaveBeenCalledOnce();
+    expect(get).toHaveBeenCalledOnce();
+    expect(result.metadataReconciled).toBe(false);
+    expect(result.messageId).toMatch(/^</);
+    expect(result.providerMessageId).toBe("gmail-msg-3");
+    expect(result.providerThreadId).toBe("thread-fail");
   });
 
   it("maps 401/403 to auth SendError", async () => {

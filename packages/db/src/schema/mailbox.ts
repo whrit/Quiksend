@@ -60,6 +60,11 @@ export const mailbox = pgTable(
     // CR-35 (PERF-014): enterprise_safe routing filter has no dedicated composite index;
     // scan-all-active-mailboxes is fine at <20 mailboxes/workspace.
     status: text("status").default("active").notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    archivedByUserId: text("archived_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    archiveReason: text("archive_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()

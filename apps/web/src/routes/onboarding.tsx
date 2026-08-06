@@ -4,9 +4,11 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth-client";
 import { getOnboardingContext } from "@/lib/auth.functions.ts";
 import { Tile } from "@/components/ui/primitives.tsx";
+import { setPostalAddress } from "@/lib/organization.functions.ts";
 
 const onboardingSearchSchema = z.object({
   removed: z.coerce.boolean().optional(),
@@ -28,7 +30,9 @@ function OnboardingPage() {
   const navigate = useNavigate();
   const { removed } = Route.useSearch();
   const routeContext = Route.useRouteContext();
+  const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
+  const [postalAddress, setPostalAddress_] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const removedFromWorkspace = routeContext.removedFromWorkspace || removed;
@@ -57,8 +61,26 @@ function OnboardingPage() {
         return;
       }
     }
-    await navigate({ to: "/dashboard" });
+    setCreating(false);
+    setError(null);
+    setStep(2);
   };
+
+  const savePostalAddress = async () => {
+    if (!postalAddress.trim()) return;
+    setCreating(true);
+    setError(null);
+    try {
+      await setPostalAddress({ data: { postalAddress: postalAddress.trim() } });
+      await navigate({ to: "/dashboard" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save address");
+      setCreating(false);
+    }
+  };
+
+  const nameErrorId = "workspace-name-error";
+  const addressErrorId = "postal-address-error";
 
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background p-6">
@@ -74,61 +96,134 @@ function OnboardingPage() {
           <span className="text-[0.9375rem] font-semibold tracking-[-0.015em]">Quiksend</span>
         </div>
 
-        {removedFromWorkspace && (
-          <div className="mb-4 rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-2 text-[0.75rem] leading-relaxed text-[color:var(--status-red-600)]">
+        {removedFromWorkspace && step === 1 && (
+          <div
+            role="alert"
+            className="mb-4 rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-2 text-[0.75rem] leading-relaxed text-[color:var(--status-red-600)]"
+          >
             You no longer have access to your previous workspace. Create a new one below or ask an
             admin to send you a fresh invite.
           </div>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" aria-live="polite">
           <Tile size="xs" hue="brand">
-            1
+            {step}
           </Tile>
-          <span className="micro-label">Step 1 of 1</span>
+          <span className="micro-label" aria-current="step">
+            Step {step} of 2
+          </span>
         </div>
-        <h1 className="mt-2 text-[1.375rem] font-semibold leading-tight tracking-[-0.015em]">
-          Name your workspace
-        </h1>
-        <p className="mt-2 text-[0.75rem] leading-relaxed text-muted-foreground">
-          Prospects, sequences, mailboxes, and the inbox all belong to one workspace. Most teams use
-          one per company or per product line.
-        </p>
 
-        <form
-          className="mt-6 flex flex-col gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void createWorkspace();
-          }}
-        >
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="workspace-name" className="text-[0.6875rem] font-medium">
-              Workspace name
-            </Label>
-            <Input
-              id="workspace-name"
-              // oxlint-disable-next-line jsx-a11y/no-autofocus
-              autoFocus
-              placeholder="Acme Q4 outbound"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          {error && (
-            <div className="rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-1.5 text-[0.6875rem] text-[color:var(--status-red-600)]">
-              {error}
-            </div>
-          )}
-          <Button
-            type="submit"
-            size="lg"
-            className="mt-1 w-full"
-            disabled={creating || !name.trim()}
-          >
-            {creating ? "Creating…" : "Continue"}
-          </Button>
-        </form>
+        {step === 1 ? (
+          <>
+            <h1 className="mt-2 text-[1.375rem] font-semibold leading-tight tracking-[-0.015em]">
+              Name your workspace
+            </h1>
+            <p className="mt-2 text-[0.75rem] leading-relaxed text-muted-foreground">
+              Prospects, sequences, mailboxes, and the inbox all belong to one workspace. Most teams
+              use one per company or per product line.
+            </p>
+
+            <form
+              className="mt-6 flex flex-col gap-3"
+              aria-busy={creating}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void createWorkspace();
+              }}
+            >
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="workspace-name" className="text-[0.6875rem] font-medium">
+                  Workspace name
+                </Label>
+                <Input
+                  id="workspace-name"
+                  required
+                  // oxlint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                  placeholder="Acme Q4 outbound"
+                  value={name}
+                  aria-invalid={error != null && step === 1}
+                  aria-describedby={error && step === 1 ? nameErrorId : undefined}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              {error && (
+                <div
+                  id={nameErrorId}
+                  role="alert"
+                  className="rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-1.5 text-[0.6875rem] text-[color:var(--status-red-600)]"
+                >
+                  {error}
+                </div>
+              )}
+              <Button
+                type="submit"
+                size="lg"
+                className="mt-1 w-full"
+                disabled={creating || !name.trim()}
+                aria-busy={creating}
+              >
+                {creating ? "Creating…" : "Continue"}
+              </Button>
+            </form>
+          </>
+        ) : (
+          <>
+            <h1 className="mt-2 text-[1.375rem] font-semibold leading-tight tracking-[-0.015em]">
+              Business mailing address
+            </h1>
+            <p className="mt-2 text-[0.75rem] leading-relaxed text-muted-foreground">
+              Required by CAN-SPAM. This address appears in every outbound email footer.
+            </p>
+
+            <form
+              className="mt-6 flex flex-col gap-3"
+              aria-busy={creating}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void savePostalAddress();
+              }}
+            >
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="postal-address" className="text-[0.6875rem] font-medium">
+                  Postal address
+                </Label>
+                <Textarea
+                  id="postal-address"
+                  required
+                  // oxlint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                  placeholder="123 Main St, Suite 100&#10;San Francisco, CA 94105"
+                  rows={3}
+                  value={postalAddress}
+                  aria-invalid={error != null && step === 2}
+                  aria-describedby={error && step === 2 ? addressErrorId : undefined}
+                  onChange={(e) => setPostalAddress_(e.target.value)}
+                />
+              </div>
+              {error && (
+                <div
+                  id={addressErrorId}
+                  role="alert"
+                  className="rounded-[4px] border border-[color:var(--status-red-600)]/30 bg-[color:var(--status-red-050)] px-2.5 py-1.5 text-[0.6875rem] text-[color:var(--status-red-600)]"
+                >
+                  {error}
+                </div>
+              )}
+              <Button
+                type="submit"
+                size="lg"
+                className="mt-1 w-full"
+                disabled={creating || !postalAddress.trim()}
+                aria-busy={creating}
+              >
+                {creating ? "Saving…" : "Finish setup"}
+              </Button>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );

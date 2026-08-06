@@ -183,3 +183,43 @@ export const getEnrollmentSegWarning = createServerFn({ method: "POST" })
   });
 
 export type { DeliverabilityPolicy, RoutingPolicy };
+
+export const getPostalAddress = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const metadata = await loadOrgMetadata(context.orgContext.organizationId);
+    if (!metadata) return { postalAddress: "" };
+    try {
+      const parsed = JSON.parse(metadata) as { postal_address?: string };
+      return { postalAddress: parsed.postal_address?.trim() ?? "" };
+    } catch {
+      return { postalAddress: "" };
+    }
+  });
+
+export const setPostalAddress = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((data: unknown) =>
+    z.object({ postalAddress: z.string().trim().min(1, "Postal address is required") }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    requireAdmin(context);
+    const { organizationId } = context.orgContext;
+    const raw = await loadOrgMetadata(organizationId);
+    let existing: Record<string, unknown> = {};
+    if (raw) {
+      try {
+        existing = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        // Corrupted metadata — start fresh but preserve nothing; the only safe
+        // option is to overwrite since we cannot merge into garbage.
+        existing = {};
+      }
+    }
+    const next = { ...existing, postal_address: data.postalAddress };
+    await db
+      .update(tables.organization)
+      .set({ metadata: JSON.stringify(next) })
+      .where(eq(tables.organization.id, organizationId));
+    return { postalAddress: data.postalAddress };
+  });
