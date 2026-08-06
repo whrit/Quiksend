@@ -1,6 +1,7 @@
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { enqueue, enqueueWithRetries } from "@quiksend/queue";
+import { getOrganizationLimits } from "@quiksend/db/organization-limits";
 import type { EmailGateway } from "@quiksend/mail/gateway-detect";
 import { isAdminOrOwner } from "@quiksend/core";
 import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
@@ -816,6 +817,12 @@ export const startImport = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { organizationId, userId } = context.orgContext;
 
+    const limits = await getOrganizationLimits(organizationId);
+    if (data.rows.length > limits.importRowsPerJob) {
+      throw new Error(
+        `Import exceeds this workspace's limit of ${limits.importRowsPerJob} rows per job`,
+      );
+    }
     const [batch] = await db
       .insert(tables.importBatch)
       .values({

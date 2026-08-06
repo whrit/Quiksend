@@ -84,9 +84,11 @@ export async function loadContext(
       })
     : null;
 
-  const createdBy = await executor.query.user.findFirst({
-    where: eq(tables.user.id, enrollment.createdByUserId),
-  });
+  const createdBy = enrollment.createdByUserId
+    ? await executor.query.user.findFirst({
+        where: eq(tables.user.id, enrollment.createdByUserId),
+      })
+    : null;
 
   let anchorMessage: EnrollmentContext["anchorMessage"] = null;
   if (enrollment.anchorMessageId) {

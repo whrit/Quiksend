@@ -72,11 +72,27 @@ export const EnvSchema = z
     // Mail (Phase 4). Local Mailpit values come from docker-compose.yml.
     SMTP_HOST: z.string().optional(),
     SMTP_PORT: z.coerce.number().int().positive().optional(),
+    // Optional relay auth — paired; both-or-neither is enforced below regardless of environment.
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    // TLS posture for the transactional relay. SMTP_SECURE = implicit TLS
+    // (typically port 465); SMTP_REQUIRE_TLS = upgrade via STARTTLS and refuse
+    // to send in the clear. Production requires at least one.
+    SMTP_SECURE: envBooleanFlag,
+    SMTP_REQUIRE_TLS: envBooleanFlag,
+    // Envelope/header From for transactional (reset/invitation) mail. Required
+    // in production so operator mail never falls back to the `*.local` dev address.
+    SMTP_FROM: z.string().email().optional(),
+    SMTP_FROM_NAME: z.string().optional(),
     // Encrypts SMTP mailbox credentials at rest (32-byte base64). Required once any SMTP mailbox is connected.
     MAILBOX_ENCRYPTION_KEY: z.string().optional(),
     // Encrypts provider-managed seed inbox IMAP credentials (Quiksend Systems infra only).
     SYSTEM_SEED_ENCRYPTION_KEY: z.string().optional(),
-    // Provider seed pool ops — optional alerts + event attribution (Quiksend Systems infra only).
+    // Bootstrap operator identity: the only account allowed to create the
+    // first organization / sign up outside an invitation. Required in
+    // production (every production deployment, including self-host, needs
+    // exactly one bootstrap admin instead of fully open signup); optional in
+    // development so local/self-host first-run stays a plain signup.
     SYSTEM_ADMIN_EMAIL: z.string().email().optional(),
     QUIKSEND_SYSTEM_ORG_ID: z.string().optional(),
 
@@ -119,10 +135,11 @@ export const EnvSchema = z
       (Boolean(env.BETTER_AUTH_SECRET && env.BETTER_AUTH_SECRET.length >= 32) &&
         Boolean(env.NANGO_WEBHOOK_SECRET) &&
         Boolean(env.MAILBOX_ENCRYPTION_KEY) &&
-        Boolean(env.UNSUBSCRIBE_TOKEN_SECRET)),
+        Boolean(env.UNSUBSCRIBE_TOKEN_SECRET) &&
+        Boolean(env.SYSTEM_ADMIN_EMAIL)),
     {
       message:
-        "BETTER_AUTH_SECRET (>=32 bytes), NANGO_WEBHOOK_SECRET, MAILBOX_ENCRYPTION_KEY, UNSUBSCRIBE_TOKEN_SECRET are all required in production",
+        "BETTER_AUTH_SECRET (>=32 bytes), NANGO_WEBHOOK_SECRET, MAILBOX_ENCRYPTION_KEY, UNSUBSCRIBE_TOKEN_SECRET, SYSTEM_ADMIN_EMAIL are all required in production",
     },
   )
   .refine(
@@ -148,6 +165,20 @@ export const EnvSchema = z
       message:
         "BETTER_AUTH_URL is required in production and must be a public HTTPS URL (no localhost, loopback, or unspecified addresses)",
     },
-  );
+  )
+  .refine(
+    (env) =>
+      env.NODE_ENV !== "production" ||
+      (Boolean(env.SMTP_HOST) &&
+        Boolean(env.SMTP_FROM) &&
+        (env.SMTP_SECURE || env.SMTP_REQUIRE_TLS)),
+    {
+      message:
+        "SMTP_HOST, SMTP_FROM, and TLS (SMTP_SECURE or SMTP_REQUIRE_TLS) are all required in production — transactional mail never falls back to a *.local address or an unencrypted relay",
+    },
+  )
+  .refine((env) => Boolean(env.SMTP_USER) === Boolean(env.SMTP_PASS), {
+    message: "SMTP_USER and SMTP_PASS must be set together, or not at all",
+  });
 
 export type Env = z.infer<typeof EnvSchema>;

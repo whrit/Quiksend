@@ -183,6 +183,13 @@
       "when": 1785974400000,
       "tag": "0026_ingestion_complete",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786047263512,
+      "tag": "0027_identity_security",
+      "breakpoints": true
     }
   ]
 }

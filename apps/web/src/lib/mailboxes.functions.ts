@@ -2,6 +2,11 @@ import { env } from "@quiksend/config";
 import { isAdminOrOwner } from "@quiksend/core";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
+import {
+  consumePeriodicQuota,
+  releaseMailboxSlotInTx,
+  reserveMailboxSlotInTx,
+} from "@quiksend/db/organization-limits";
 import { getNango } from "@quiksend/integrations";
 import {
   buildUnsubscribeUrl,
@@ -238,22 +243,29 @@ export const createSmtpMailbox = createServerFn({ method: "POST" })
       secure: data.secure,
       auth: data.auth,
     };
-    const [row] = await db
-      .insert(tables.mailbox)
-      .values({
-        organizationId: context.orgContext.organizationId,
-        ownerUserId: context.orgContext.userId,
-        provider: "smtp",
-        address: data.address.toLowerCase(),
-        fromName: data.fromName,
-        smtpConfig: encryptSmtpConfig(smtpPlain, key),
-        dailyCap: data.dailyCap,
-        throttleSeconds: data.throttleSeconds,
-        sendWindow: data.sendWindow,
-        signatureHtml: data.signatureHtml,
-      })
-      .returning();
-    if (!row) throw new MailboxError("VALIDATION", "Failed to create mailbox");
+    const row = await db.transaction(async (tx) => {
+      const reserved = await reserveMailboxSlotInTx(tx, context.orgContext.organizationId);
+      if (!reserved) {
+        throw new MailboxError("FORBIDDEN", "Mailbox limit reached for this workspace");
+      }
+      const [inserted] = await tx
+        .insert(tables.mailbox)
+        .values({
+          organizationId: context.orgContext.organizationId,
+          ownerUserId: context.orgContext.userId,
+          provider: "smtp",
+          address: data.address.toLowerCase(),
+          fromName: data.fromName,
+          smtpConfig: encryptSmtpConfig(smtpPlain, key),
+          dailyCap: data.dailyCap,
+          throttleSeconds: data.throttleSeconds,
+          sendWindow: data.sendWindow,
+          signatureHtml: data.signatureHtml,
+        })
+        .returning();
+      if (!inserted) throw new MailboxError("VALIDATION", "Failed to create mailbox");
+      return inserted;
+    });
 
     // Mirror finalizeGmailMailbox / finalizeMicrosoftMailbox: run SPF/DKIM/DMARC
     // right after insert so the row shows sensible health dots on first load.
@@ -350,6 +362,10 @@ export const deleteMailbox = createServerFn({ method: "POST" })
         .returning({ id: tables.mailbox.id });
       if (archived.length === 0) throw new MailboxError("NOT_FOUND", "Mailbox not found");
 
+      // Release the mailbox slot back to the entitlement pool — the archived
+      // mailbox no longer counts toward the org's active-mailbox quota.
+      await releaseMailboxSlotInTx(tx, organizationId);
+
       // Stop nonterminal enrollments through core transition + web effects
       const enrollments = await tx
         .select()
@@ -411,7 +427,9 @@ export const checkMailboxHealth = createServerFn({ method: "POST" })
       ),
     });
     if (!mailbox) throw new MailboxError("NOT_FOUND", "Mailbox not found");
-
+    if (!(await consumePeriodicQuota(context.orgContext.organizationId, "dnsCheck"))) {
+      throw new MailboxError("FORBIDDEN", "Daily DNS check limit reached for this workspace");
+    }
     const domain = domainFromAddress(mailbox.address);
     const auth = await checkDomainAuth(domain);
     const healthNotes = {
@@ -720,18 +738,25 @@ export const finalizeGmailMailbox = createServerFn({ method: "POST" })
     requireAdmin({ orgContext: context.orgContext });
     // Trust the OAuth-verified address from Gmail, not user input.
     const address = await fetchGmailAddressFromNango(data.nangoConnectionId);
-    const [row] = await db
-      .insert(tables.mailbox)
-      .values({
-        organizationId: context.orgContext.organizationId,
-        ownerUserId: context.orgContext.userId,
-        provider: "gmail",
-        address,
-        fromName: data.fromName,
-        nangoConnectionId: data.nangoConnectionId,
-      })
-      .returning();
-    if (!row) throw new MailboxError("VALIDATION", "Failed to create mailbox");
+    const row = await db.transaction(async (tx) => {
+      const reserved = await reserveMailboxSlotInTx(tx, context.orgContext.organizationId);
+      if (!reserved) {
+        throw new MailboxError("FORBIDDEN", "Mailbox limit reached for this workspace");
+      }
+      const [inserted] = await tx
+        .insert(tables.mailbox)
+        .values({
+          organizationId: context.orgContext.organizationId,
+          ownerUserId: context.orgContext.userId,
+          provider: "gmail",
+          address,
+          fromName: data.fromName,
+          nangoConnectionId: data.nangoConnectionId,
+        })
+        .returning();
+      if (!inserted) throw new MailboxError("VALIDATION", "Failed to create mailbox");
+      return inserted;
+    });
 
     const domain = domainFromAddress(row.address);
     const auth = await checkDomainAuth(domain);
@@ -759,18 +784,25 @@ export const finalizeMicrosoftMailbox = createServerFn({ method: "POST" })
     requireAdmin({ orgContext: context.orgContext });
     // Trust the OAuth-verified address from Microsoft Graph, not user input.
     const address = await fetchMicrosoftAddressFromNango(data.nangoConnectionId);
-    const [row] = await db
-      .insert(tables.mailbox)
-      .values({
-        organizationId: context.orgContext.organizationId,
-        ownerUserId: context.orgContext.userId,
-        provider: "microsoft",
-        address,
-        fromName: data.fromName,
-        nangoConnectionId: data.nangoConnectionId,
-      })
-      .returning();
-    if (!row) throw new MailboxError("VALIDATION", "Failed to create mailbox");
+    const row = await db.transaction(async (tx) => {
+      const reserved = await reserveMailboxSlotInTx(tx, context.orgContext.organizationId);
+      if (!reserved) {
+        throw new MailboxError("FORBIDDEN", "Mailbox limit reached for this workspace");
+      }
+      const [inserted] = await tx
+        .insert(tables.mailbox)
+        .values({
+          organizationId: context.orgContext.organizationId,
+          ownerUserId: context.orgContext.userId,
+          provider: "microsoft",
+          address,
+          fromName: data.fromName,
+          nangoConnectionId: data.nangoConnectionId,
+        })
+        .returning();
+      if (!inserted) throw new MailboxError("VALIDATION", "Failed to create mailbox");
+      return inserted;
+    });
 
     const domain = domainFromAddress(row.address);
     const auth = await checkDomainAuth(domain);

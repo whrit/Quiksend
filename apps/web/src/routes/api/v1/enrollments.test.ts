@@ -1,26 +1,19 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { auth } from "@quiksend/auth";
+import { asOrganizationId, asUserId, type OrgContext } from "@quiksend/core";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 import { describe, expect, it } from "vitest";
+import { createApiKeyForOrg } from "../../../lib/api-keys.functions.ts";
 import { resolveApiKey } from "../../../lib/api/v1/middleware.ts";
 
-async function createOrgApiKey(orgId: string, userId: string): Promise<string> {
-  const created = await auth.api.createApiKey({
-    body: {
-      name: "Org test key",
-      userId,
-      prefix: "qsk",
-    },
-  });
-  if (!created.key || !created.id) throw new Error("API key creation failed");
-
-  await db
-    .update(tables.apikey)
-    .set({ metadata: JSON.stringify({ organizationId: orgId }) })
-    .where(eq(tables.apikey.id, created.id));
-
+async function createOrgApiKey(org: { id: string; userId: string }): Promise<string> {
+  const orgContext: OrgContext = {
+    userId: asUserId(org.userId),
+    organizationId: asOrganizationId(org.id),
+    role: "owner",
+  };
+  const created = await createApiKeyForOrg(orgContext, { name: "Org test key" });
   return created.key;
 }
 
@@ -60,7 +53,7 @@ describe("POST /api/v1/enrollments API key scoping", () => {
         .returning();
       if (!sequenceB) throw new Error("setup failed");
 
-      const apiKey = await createOrgApiKey(orgA.id, orgA.userId);
+      const apiKey = await createOrgApiKey(orgA);
       const request = new Request("http://localhost/api/v1/enrollments", {
         method: "POST",
         headers: {
@@ -133,7 +126,7 @@ describe("POST /api/v1/enrollments API key scoping", () => {
         config: { minutes: 60 },
       });
 
-      const apiKey = await createOrgApiKey(orgA.id, orgA.userId);
+      const apiKey = await createOrgApiKey(orgA);
       const request = new Request("http://localhost/api/v1/enrollments", {
         method: "POST",
         headers: {
@@ -148,6 +141,7 @@ describe("POST /api/v1/enrollments API key scoping", () => {
 
       const ctx = await resolveApiKey(request);
       expect(ctx).not.toBeNull();
+      expect(ctx!.userId).toBeNull();
 
       const seq = await db.query.sequence.findFirst({
         where: and(
@@ -159,6 +153,23 @@ describe("POST /api/v1/enrollments API key scoping", () => {
 
       expect(seq).toBeDefined();
       expect(seq!.status).toBe("active");
+
+      // Mirrors the exact write `apps/web/src/routes/api/v1/enrollments.ts`
+      // makes on a successful enrollment — `ctx.userId` is truthfully `null`
+      // (org-owned keys have no human creator), never a synthetic owner.
+      const [enrolled] = await db
+        .insert(tables.enrollment)
+        .values({
+          organizationId: ctx!.orgId,
+          sequenceId: sequenceA.id,
+          prospectId: prospectA.id,
+          mailboxId: mailboxA.id,
+          state: "active",
+          currentStepIndex: 0,
+          createdByUserId: ctx!.userId,
+        })
+        .returning();
+      expect(enrolled?.createdByUserId).toBeNull();
     });
   });
 });

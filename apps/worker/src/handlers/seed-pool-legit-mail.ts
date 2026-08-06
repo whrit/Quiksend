@@ -83,13 +83,6 @@ export async function runSeedPoolLegitMail(): Promise<number> {
     host: env.SMTP_HOST,
     port: env.SMTP_PORT ?? 1025,
     secure: false,
-    fromAddress: "seed-pool@quiksend.systems",
-    fromName: "Seed Pool",
-    compliance: {
-      unsubscribeUrl: env.BETTER_AUTH_URL ?? "http://localhost:3000",
-      senderPostalAddress: "Quiksend Systems",
-      senderOrgName: "Quiksend",
-    },
   });
 
   let sent = 0;

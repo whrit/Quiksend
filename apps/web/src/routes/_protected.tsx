@@ -13,6 +13,7 @@ import {
   Settings,
   Shield,
   Sparkles,
+  UserPlus,
   Users,
   Webhook,
 } from "lucide-react";
@@ -146,6 +147,7 @@ const SETTINGS_NAV: NavItem[] = [
   { to: "/settings/crm", label: "CRM", Icon: Building2 },
   { to: "/settings/webhooks", label: "Webhooks", Icon: Webhook },
   { to: "/settings/api-keys", label: "API keys", Icon: KeyRound },
+  { to: "/settings/members", label: "Members", Icon: UserPlus },
   { to: "/settings/value-props", label: "Value props", Icon: Sparkles },
   { to: "/settings/deliverability", label: "Deliverability rules", Icon: Shield },
   { to: "/settings/suppression", label: "Suppression", Icon: Settings },

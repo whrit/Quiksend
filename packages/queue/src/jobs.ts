@@ -206,6 +206,22 @@ export type MailboxPollTickPayload = Record<string, never>;
 export const nangoWebhookSweepSchema = z.object({});
 export type NangoWebhookSweepPayload = Record<string, never>;
 
+// ── mail.send_transactional — durable transactional email delivery (auth) ──────
+// Payload carries only message content, never SMTP credentials — the worker
+// reads relay auth from its own env at send time.
+export const mailSendTransactionalSchema = z.object({
+  to: z.string().email(),
+  subject: z.string().min(1),
+  text: z.string().min(1),
+  html: z.string().min(1),
+});
+export interface MailSendTransactionalPayload {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+}
+
 export interface JobPayloadMap {
   "hello.ping": HelloPingPayload;
   "sequence.tick": SequenceTickPayload;
@@ -229,6 +245,7 @@ export interface JobPayloadMap {
   "seed_pool.generate_legit_mail": SeedPoolGenerateLegitMailPayload;
   "mailbox.poll.tick": MailboxPollTickPayload;
   "nango.webhook.sweep": NangoWebhookSweepPayload;
+  "mail.send_transactional": MailSendTransactionalPayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -256,6 +273,7 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "seed_pool.generate_legit_mail": seedPoolGenerateLegitMailSchema,
   "mailbox.poll.tick": mailboxPollTickSchema,
   "nango.webhook.sweep": nangoWebhookSweepSchema,
+  "mail.send_transactional": mailSendTransactionalSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];

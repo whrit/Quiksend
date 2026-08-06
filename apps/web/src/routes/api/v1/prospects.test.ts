@@ -1,9 +1,10 @@
-import { auth } from "@quiksend/auth";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 import { and, eq, isNull } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { asOrganizationId, asUserId, type OrgContext } from "@quiksend/core";
+import { createApiKeyForOrg } from "../../../lib/api-keys.functions.ts";
 import { resolveApiKey } from "../../../lib/api/v1/middleware.ts";
 
 describe("GET /api/v1/prospects/:id API key scoping", () => {
@@ -19,19 +20,12 @@ describe("GET /api/v1/prospects/:id API key scoping", () => {
         .returning();
       if (!prospectB) throw new Error("setup failed");
 
-      const created = await auth.api.createApiKey({
-        body: {
-          name: "Org A test key",
-          userId: orgA.userId,
-          prefix: "qsk",
-        },
-      });
-      if (!created.key || !created.id) throw new Error("API key creation failed");
-
-      await db
-        .update(tables.apikey)
-        .set({ metadata: JSON.stringify({ organizationId: orgA.id }) })
-        .where(eq(tables.apikey.id, created.id));
+      const orgContext: OrgContext = {
+        userId: asUserId(orgA.userId),
+        organizationId: asOrganizationId(orgA.id),
+        role: "owner",
+      };
+      const created = await createApiKeyForOrg(orgContext, { name: "Org A test key" });
 
       const request = new Request(`http://localhost/api/v1/prospects/${prospectB.id}`, {
         headers: { Authorization: `Bearer ${created.key}` },

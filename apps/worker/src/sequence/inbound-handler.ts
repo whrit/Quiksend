@@ -125,7 +125,7 @@ async function emitProductEvents(
       "enrollment event",
     );
     posthog?.capture({
-      distinctId: ctx.enrollment.createdByUserId,
+      distinctId: ctx.enrollment.createdByUserId ?? `org:${ctx.organizationId}`,
       event: effect.type,
       properties: {
         organizationId: ctx.organizationId,

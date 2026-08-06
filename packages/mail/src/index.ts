@@ -46,3 +46,8 @@ export { createAdapterForMailbox, createFakeAdapter } from "./adapters/index.ts"
 export { createSmtpTransport, sendMime } from "./adapters/smtp.ts";
 export type { EmailGateway, GatewayEvidence } from "./gateway-detect.ts";
 export { detectEmailGateway } from "./gateway-detect.ts";
+export {
+  sendTransactionalEmail,
+  escapeHtml,
+  type TransactionalEmailInput,
+} from "./transactional.ts";

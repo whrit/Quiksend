@@ -1,26 +1,19 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { auth } from "@quiksend/auth";
+import { asOrganizationId, asUserId, type OrgContext } from "@quiksend/core";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
 import { describe, expect, it } from "vitest";
+import { createApiKeyForOrg } from "../../../lib/api-keys.functions.ts";
 import { resolveApiKey } from "../../../lib/api/v1/middleware.ts";
 
-async function createOrgApiKey(orgId: string, userId: string): Promise<string> {
-  const created = await auth.api.createApiKey({
-    body: {
-      name: "Org test key",
-      userId,
-      prefix: "qsk",
-    },
-  });
-  if (!created.key || !created.id) throw new Error("API key creation failed");
-
-  await db
-    .update(tables.apikey)
-    .set({ metadata: JSON.stringify({ organizationId: orgId }) })
-    .where(eq(tables.apikey.id, created.id));
-
+async function createOrgApiKey(org: { id: string; userId: string }): Promise<string> {
+  const orgContext: OrgContext = {
+    userId: asUserId(org.userId),
+    organizationId: asOrganizationId(org.id),
+    role: "owner",
+  };
+  const created = await createApiKeyForOrg(orgContext, { name: "Org test key" });
   return created.key;
 }
 
@@ -38,7 +31,7 @@ describe("GET /api/v1/sequences/:id/analytics API key scoping", () => {
         .returning();
       if (!sequenceB) throw new Error("setup failed");
 
-      const apiKey = await createOrgApiKey(orgA.id, orgA.userId);
+      const apiKey = await createOrgApiKey(orgA);
       const request = new Request(`http://localhost/api/v1/sequences/${sequenceB.id}/analytics`, {
         headers: { Authorization: `Bearer ${apiKey}` },
       });
@@ -72,7 +65,7 @@ describe("GET /api/v1/sequences/:id/analytics API key scoping", () => {
         .returning();
       if (!sequenceA) throw new Error("setup failed");
 
-      const apiKey = await createOrgApiKey(orgA.id, orgA.userId);
+      const apiKey = await createOrgApiKey(orgA);
       const request = new Request(`http://localhost/api/v1/sequences/${sequenceA.id}/analytics`, {
         headers: { Authorization: `Bearer ${apiKey}` },
       });

@@ -8,6 +8,7 @@ import {
 } from "@quiksend/core/deliverability";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
+import { stripProtectedMetadataKeys } from "@quiksend/db/organization-limits";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
@@ -55,11 +56,17 @@ export const setWorkspaceDeliverabilityPolicy = createServerFn({ method: "POST" 
     requireAdmin({ orgContext: context.orgContext });
     const organizationId = context.orgContext.organizationId;
     const metadata = await loadOrgMetadata(organizationId);
-    const nextMetadata = mergeDeliverabilityPolicy(metadata, {
-      routingPolicy: data.routingPolicy,
-      contentSanitizerEnabled: data.contentSanitizerEnabled,
-      changedBy: context.orgContext.userId,
-    });
+    const nextMetadata = JSON.stringify(
+      stripProtectedMetadataKeys(
+        JSON.parse(
+          mergeDeliverabilityPolicy(metadata, {
+            routingPolicy: data.routingPolicy,
+            contentSanitizerEnabled: data.contentSanitizerEnabled,
+            changedBy: context.orgContext.userId,
+          }),
+        ) as Record<string, unknown>,
+      ),
+    );
 
     await db
       .update(tables.organization)

@@ -12,7 +12,11 @@ import { tables } from "@quiksend/db/tables";
 import type { EmailGateway } from "@quiksend/mail";
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { isDeliverabilityProEntitled, parseWorkspaceCanaryConfig } from "./canary-injection.ts";
+import { parseWorkspaceCanaryConfig } from "./canary-injection.ts";
+import {
+  getOrganizationLimits,
+  stripProtectedMetadataKeys,
+} from "@quiksend/db/organization-limits";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
 
@@ -204,10 +208,10 @@ export const setWorkspaceCanaryConfig = createServerFn({ method: "POST" })
       typeof org?.metadata === "string"
         ? (JSON.parse(org.metadata) as Record<string, unknown>)
         : ((org?.metadata as Record<string, unknown> | null) ?? {});
-    const next = {
+    const next = stripProtectedMetadataKeys({
       ...metadata,
       canary_defaults: { ...(metadata.canary_defaults as object), ...data },
-    };
+    });
     await db
       .update(tables.organization)
       .set({ metadata: JSON.stringify(next) })
@@ -218,18 +222,15 @@ export const setWorkspaceCanaryConfig = createServerFn({ method: "POST" })
 export const getProviderManagedSeedGateways = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
-    const org = await db.query.organization.findFirst({
-      where: eq(tables.organization.id, context.orgContext.organizationId),
-      columns: { metadata: true },
-    });
-    const entitled = isDeliverabilityProEntitled(org?.metadata);
+    const { deliverabilityPro: entitled } = await getOrganizationLimits(
+      context.orgContext.organizationId,
+    );
     const seeds = entitled
       ? await db.query.seedInbox.findMany({
           where: isNull(tables.seedInbox.organizationId),
           columns: { gateway: true },
         })
       : [];
-
     const counts = new Map<EmailGateway, number>();
     for (const seed of seeds) {
       counts.set(seed.gateway, (counts.get(seed.gateway) ?? 0) + 1);
