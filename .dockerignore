@@ -1,16 +1,40 @@
 # Keep the build context small and free of host artifacts/secrets.
-**/node_modules
-.git
-.github
+**/.git
+**/.github
 **/.turbo
 **/.output
 **/.nitro
-out
 **/dist
-.env
-.env.*
-!.env.example
-**/*.tsbuildinfo
+**/.tsbuildinfo
 **/*.log
-.DS_Store
-.vscode
+**/.DS_Store
+**/.vscode
+**/.env
+**/.env.*
+!.env.example
+
+# Development dependencies and caches
+**/node_modules
+**/.pnpm-store
+**/.npm
+
+# Test and coverage
+**/coverage
+**/.vitest
+**/*.test.*
+**/__tests__
+**/*.spec.*
+
+# IDE and editor
+**/.idea
+**/*.swp
+**/*.swo
+*~
+**/.nvmrc
+**/.eslintcache
+
+# OS
+**/Thumbs.db
+
+# Build artifacts
+**/out

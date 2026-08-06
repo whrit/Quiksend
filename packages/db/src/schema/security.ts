@@ -1,5 +1,14 @@
-import { index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
-import { organization } from "./auth.ts";
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
+import { organization, user } from "./auth.ts";
 
 /** Per-IP leaky-bucket counter for unauthenticated auth endpoint rate limiting. */
 export const authRateBucket = pgTable("auth_rate_bucket", {
@@ -69,3 +78,55 @@ export const organizationUsage = pgTable(
     index("organization_usage_org_idx").on(table.organizationId),
   ],
 );
+
+/**
+ * Append-only, organization-scoped audit trail for privileged mutations
+ * (authentication reauthentication, API keys, invitations/members, mailbox
+ * credentials, entitlements, data export, organization deletion). Rows are
+ * written once and never updated or deleted by app code — the retention
+ * purge only trims rows past the documented compliance window.
+ *
+ * `metadata` MUST be redacted before insert (see `redactAuditMetadata` in
+ * `packages/db/src/audit.ts`) — this table must never receive secrets,
+ * password material, tokens, or message bodies.
+ */
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    actorType: text("actor_type").notNull(), // "user" | "api_key" | "system"
+    actorId: text("actor_id"),
+    action: text("action").notNull(), // e.g. "api_key.create", "organization.delete_requested"
+    entityType: text("entity_type").notNull(), // e.g. "api_key", "mailbox", "organization"
+    entityId: text("entity_id"),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("audit_log_org_created_idx").on(table.organizationId, table.createdAt.desc()),
+    index("audit_log_org_action_idx").on(table.organizationId, table.action),
+  ],
+);
+
+/**
+ * Server-owned organization lifecycle state — deletion request + immediate
+ * send-disable flag + purge progress. One row per organization, created on
+ * first deletion request (`organization-delete.ts`). `sendingDisabledAt` is
+ * checked by `isSendSuppressed` (`packages/db/src/suppression.ts`), the
+ * single chokepoint every send path already shares, so deletion blocks
+ * sending immediately with no per-caller changes required.
+ */
+export const organizationLifecycle = pgTable("organization_lifecycle", {
+  organizationId: text("organization_id")
+    .primaryKey()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  deletionRequestedAt: timestamp("deletion_requested_at", { withTimezone: true }),
+  deletionRequestedByUserId: text("deletion_requested_by_user_id").references(() => user.id, {
+    onDelete: "set null",
+  }),
+  sendingDisabledAt: timestamp("sending_disabled_at", { withTimezone: true }),
+  purgeCompletedAt: timestamp("purge_completed_at", { withTimezone: true }),
+});

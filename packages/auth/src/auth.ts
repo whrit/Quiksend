@@ -16,6 +16,7 @@ import {
 } from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, gt } from "drizzle-orm";
+import { auditAfterHook, auditBeforeHook } from "./audit-hooks.ts";
 
 /**
  * Look up the workspace the user should land in on a fresh session. Prefers a
@@ -255,6 +256,11 @@ export const auth = betterAuth({
         },
       },
     },
+  },
+  // Task 5 audit trail — see packages/auth/src/audit-hooks.ts.
+  hooks: {
+    before: auditBeforeHook,
+    after: auditAfterHook,
   },
   plugins: [
     organization({

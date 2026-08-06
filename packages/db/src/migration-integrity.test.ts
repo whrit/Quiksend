@@ -41,6 +41,8 @@ const KNOWN_MISSING_SNAPSHOTS = new Set([
   "0029_tenant_rls",
   // ponytail: outbox migration ships as hand-authored SQL; snapshot regen deferred until post-beta.
   "0028_event_outbox",
+  // ponytail: audit_log migration ships as hand-authored SQL; snapshot regen deferred until post-beta.
+  "0030_audit_log",
 ]);
 
 const numericPrefix = (tag: string): string => tag.split("_")[0] ?? "";

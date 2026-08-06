@@ -1,6 +1,6 @@
 import { env } from "@quiksend/config";
 import { isAdminOrOwner } from "@quiksend/core";
-import { db } from "@quiksend/db";
+import { db, recordAudit } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import {
   consumePeriodicQuota,
@@ -285,6 +285,15 @@ export const createSmtpMailbox = createServerFn({ method: "POST" })
       .where(eq(tables.mailbox.id, row.id))
       .returning();
     if (!updated) throw new MailboxError("NOT_FOUND", "Mailbox not found");
+    await recordAudit({
+      organizationId: context.orgContext.organizationId,
+      actorType: "user",
+      actorId: context.orgContext.userId,
+      action: "mailbox.create",
+      entityType: "mailbox",
+      entityId: updated.id,
+      metadata: { provider: "smtp", address: updated.address },
+    });
     return toPublicMailbox(updated);
   });
 
@@ -332,6 +341,15 @@ export const updateMailbox = createServerFn({ method: "POST" })
       )
       .returning();
     if (!row) throw new MailboxError("NOT_FOUND", "Mailbox not found");
+    await recordAudit({
+      organizationId: context.orgContext.organizationId,
+      actorType: "user",
+      actorId: context.orgContext.userId,
+      action: "mailbox.update",
+      entityType: "mailbox",
+      entityId: row.id,
+      metadata: { changedFields: Object.keys(data.patch) },
+    });
     return toPublicMailbox(row);
   });
 
@@ -365,6 +383,15 @@ export const deleteMailbox = createServerFn({ method: "POST" })
       // Release the mailbox slot back to the entitlement pool — the archived
       // mailbox no longer counts toward the org's active-mailbox quota.
       await releaseMailboxSlotInTx(tx, organizationId);
+
+      await recordAudit({
+        organizationId,
+        actorType: "user",
+        actorId: context.orgContext.userId,
+        action: "mailbox.archive",
+        entityType: "mailbox",
+        entityId: data.id,
+      });
 
       // Stop nonterminal enrollments through core transition + web effects
       const enrollments = await tx

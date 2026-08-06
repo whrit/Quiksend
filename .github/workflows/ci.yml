@@ -30,11 +30,11 @@ jobs:
       LOG_LEVEL: silent
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@a5ac7e51b41094c7418c8a1a6dad1e1c1351ff8c
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@fe02b34ef7850416f4b6b88b77e8793898fad5dd
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@60edb5dd545a775178fac7f3aaac4f1b9cbf7b4a
         with:
           node-version-file: ".nvmrc"
           cache: "pnpm"
@@ -57,12 +57,122 @@ jobs:
       - name: Test
         run: pnpm test
 
-      # Runs the real client/SSR bundle. lint+typecheck+test all pass on a
-      # codebase whose production build fails import protection, so this step
-      # is the only thing that catches a server-only module leaking into the
-      # client graph.
       - name: Build
         run: pnpm build
 
       - name: Engine load test
         run: pnpm tsx scripts/load-test-engine.ts --workspaces=2 --enrollments=20 --workers=2 --duration=30
+
+  # Build and smoke-test Docker images. Acts as CI gate for release workflow:
+  # if this job fails, release-please.yml will not build identical Dockerfiles
+  # (release workflow builds its own images only on version bump). Smoke tests
+  # verify both web and worker images start healthily with their respective
+  # startup contracts (HTTP /api/health for web, /tmp/worker-ready heartbeat
+  # for worker). See RELEASING.md for image build and deployment flow.
+  build-images:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: quiksend-web
+            dockerfile: apps/web/Dockerfile
+          - image: quiksend-worker
+            dockerfile: apps/worker/Dockerfile
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c7418c8a1a6dad1e1c1351ff8c
+
+      - uses: docker/setup-buildx-action@4fd812986e6c8f30e2cda3675a10d5bac4212fb0
+
+      - name: Build image
+        id: build
+        uses: docker/build-push-action@5176660c9b1c65c38bf0d11d19d7d8ac1d8ba5c7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false
+          load: true
+          tags: ${{ matrix.image }}:ci
+          cache-from: type=gha
+
+      - name: Health smoke test (quiksend-web)
+        if: matrix.image == 'quiksend-web'
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          trap 'docker rm -f quiksend-web-smoke 2>/dev/null || true' EXIT
+
+          # Start web container with minimal env
+          docker run -d \
+            --name quiksend-web-smoke \
+            -p 3000:3000 \
+            -e NODE_ENV=production \
+            -e PORT=3000 \
+            quiksend-web:ci
+
+          # Wait for container to be healthy (bounded by Docker HEALTHCHECK)
+          # Check status every 1s, timeout 30s
+          for i in {0..30}; do
+            if docker inspect quiksend-web-smoke --format='{{.State.Health.Status}}' 2>/dev/null | grep -q healthy; then
+              echo "✓ quiksend-web container healthy"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "✗ quiksend-web failed to reach healthy state"
+          docker logs quiksend-web-smoke || true
+          exit 1
+
+      - name: Health smoke test (quiksend-worker)
+        if: matrix.image == 'quiksend-worker'
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          trap 'docker rm -f quiksend-worker-smoke 2>/dev/null || true' EXIT
+
+          # Start worker container with minimal env
+          docker run -d \
+            --name quiksend-worker-smoke \
+            -e NODE_ENV=production \
+            quiksend-worker:ci
+
+          # Worker uses file-based heartbeat: /tmp/worker-ready should be created
+          # Check that container stays running and ready file exists
+          # Wait up to 30s for container to signal ready
+          for i in {0..30}; do
+            if docker exec quiksend-worker-smoke test -f /tmp/worker-ready 2>/dev/null; then
+              # Verify file is recent (heartbeat < 90s old, per Dockerfile HEALTHCHECK)
+              docker exec quiksend-worker-smoke node -e "
+                const fs = require('fs');
+                const stat = fs.statSync('/tmp/worker-ready');
+                const age = (Date.now() - stat.mtimeMs) / 1000;
+                if (age > 90) throw new Error('heartbeat stale: ' + age + 's');
+                console.log('✓ quiksend-worker container healthy (heartbeat: ' + age.toFixed(1) + 's)');
+              " && exit 0
+            fi
+            sleep 1
+          done
+
+          echo "✗ quiksend-worker failed to reach ready state"
+          docker logs quiksend-worker-smoke || true
+          exit 1
+
+  # Scan dependencies for vulnerabilities
+  scan-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c7418c8a1a6dad1e1c1351ff8c
+
+      - uses: pnpm/action-setup@fe02b34ef7850416f4b6b88b77e8793898fad5dd
+
+      - uses: actions/setup-node@60edb5dd545a775178fac7f3aaac4f1b9cbf7b4a
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies (error on critical/high)
+        run: pnpm audit --audit-level=moderate --prod

@@ -207,6 +207,16 @@ export type MailboxPollTickPayload = Record<string, never>;
 // ── nango.webhook.sweep — cron cleanup of processed Nango webhook markers ──────
 export const nangoWebhookSweepSchema = z.object({});
 export type NangoWebhookSweepPayload = Record<string, never>;
+// ── health.reconcile — idempotent stale-state reconciliation (Operations) ──────
+export const healthReconcileSchema = z.object({});
+export type HealthReconcilePayload = Record<string, never>;
+// ── ops.snapshot — periodic operational metrics snapshot (Operations) ──────
+export const opsSnapshotSchema = z.object({});
+export type OpsSnapshotPayload = Record<string, never>;
+
+// ── retention.purge — nightly bounded, resumable data lifecycle purge (Operations) ──
+export const retentionPurgeSchema = z.object({});
+export type RetentionPurgePayload = Record<string, never>;
 
 // ── mail.send_transactional — durable transactional email delivery (auth) ──────
 // Payload carries only message content, never SMTP credentials — the worker
@@ -226,7 +236,6 @@ export interface MailSendTransactionalPayload {
 // ── outbox.dispatch — process transactional outbox intents ─────────────────────
 export const outboxDispatchSchema = z.object({});
 export type OutboxDispatchPayload = Record<string, never>;
-
 export interface JobPayloadMap {
   "hello.ping": HelloPingPayload;
   "sequence.tick": SequenceTickPayload;
@@ -252,6 +261,9 @@ export interface JobPayloadMap {
   "nango.webhook.sweep": NangoWebhookSweepPayload;
   "mail.send_transactional": MailSendTransactionalPayload;
   "outbox.dispatch": OutboxDispatchPayload;
+  "health.reconcile": HealthReconcilePayload;
+  "ops.snapshot": OpsSnapshotPayload;
+  "retention.purge": RetentionPurgePayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -281,11 +293,9 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "nango.webhook.sweep": nangoWebhookSweepSchema,
   "mail.send_transactional": mailSendTransactionalSchema,
   "outbox.dispatch": outboxDispatchSchema,
+  "health.reconcile": healthReconcileSchema,
+  "ops.snapshot": opsSnapshotSchema,
+  "retention.purge": retentionPurgeSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];
-/**
- * Mapping from job name → concrete payload type. Consumers use this to look up
- * a payload interface by job name at the type level; runtime code uses
- * `JobSchemas[name]` for validation.
- */

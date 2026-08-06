@@ -24,10 +24,14 @@ import { Route as ProtectedAnalyticsIndexRouteImport } from './routes/_protected
 import { Route as ApiV1WebhooksRouteImport } from './routes/api/v1/webhooks'
 import { Route as ApiV1UnsubscribeRouteImport } from './routes/api/v1/unsubscribe'
 import { Route as ApiV1ProspectsRouteImport } from './routes/api/v1/prospects'
+import { Route as ApiV1OrganizationDeleteRouteImport } from './routes/api/v1/organization-delete'
 import { Route as ApiV1OpenapiDotjsonRouteImport } from './routes/api/v1/openapi[.]json'
 import { Route as ApiV1MessagesRouteImport } from './routes/api/v1/messages'
+import { Route as ApiV1ExportRouteImport } from './routes/api/v1/export'
 import { Route as ApiV1EnrollmentsRouteImport } from './routes/api/v1/enrollments'
 import { Route as ApiNangoWebhookRouteImport } from './routes/api/nango/webhook'
+import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
+import { Route as ApiHealthLiveRouteImport } from './routes/api/health/live'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ProtectedSettingsSuppressionRouteImport } from './routes/_protected/settings/suppression'
 import { Route as ProtectedSettingsMembersRouteImport } from './routes/_protected/settings/members'
@@ -130,6 +134,11 @@ const ApiV1ProspectsRoute = ApiV1ProspectsRouteImport.update({
   path: '/api/v1/prospects',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1OrganizationDeleteRoute = ApiV1OrganizationDeleteRouteImport.update({
+  id: '/api/v1/organization-delete',
+  path: '/api/v1/organization-delete',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1OpenapiDotjsonRoute = ApiV1OpenapiDotjsonRouteImport.update({
   id: '/api/v1/openapi.json',
   path: '/api/v1/openapi.json',
@@ -140,6 +149,11 @@ const ApiV1MessagesRoute = ApiV1MessagesRouteImport.update({
   path: '/api/v1/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1ExportRoute = ApiV1ExportRouteImport.update({
+  id: '/api/v1/export',
+  path: '/api/v1/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1EnrollmentsRoute = ApiV1EnrollmentsRouteImport.update({
   id: '/api/v1/enrollments',
   path: '/api/v1/enrollments',
@@ -148,6 +162,16 @@ const ApiV1EnrollmentsRoute = ApiV1EnrollmentsRouteImport.update({
 const ApiNangoWebhookRoute = ApiNangoWebhookRouteImport.update({
   id: '/api/nango/webhook',
   path: '/api/nango/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthReadyRoute = ApiHealthReadyRouteImport.update({
+  id: '/api/health/ready',
+  path: '/api/health/ready',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthLiveRoute = ApiHealthLiveRouteImport.update({
+  id: '/api/health/live',
+  path: '/api/health/live',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -316,10 +340,14 @@ export interface FileRoutesByFullPath {
   '/settings/members': typeof ProtectedSettingsMembersRoute
   '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/health/live': typeof ApiHealthLiveRoute
+  '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/api/v1/enrollments': typeof ApiV1EnrollmentsRoute
+  '/api/v1/export': typeof ApiV1ExportRoute
   '/api/v1/messages': typeof ApiV1MessagesRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
+  '/api/v1/organization-delete': typeof ApiV1OrganizationDeleteRoute
   '/api/v1/prospects': typeof ApiV1ProspectsRouteWithChildren
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRouteWithChildren
@@ -362,10 +390,14 @@ export interface FileRoutesByTo {
   '/settings/members': typeof ProtectedSettingsMembersRoute
   '/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/health/live': typeof ApiHealthLiveRoute
+  '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/api/v1/enrollments': typeof ApiV1EnrollmentsRoute
+  '/api/v1/export': typeof ApiV1ExportRoute
   '/api/v1/messages': typeof ApiV1MessagesRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
+  '/api/v1/organization-delete': typeof ApiV1OrganizationDeleteRoute
   '/api/v1/prospects': typeof ApiV1ProspectsRouteWithChildren
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRouteWithChildren
@@ -410,10 +442,14 @@ export interface FileRoutesById {
   '/_protected/settings/members': typeof ProtectedSettingsMembersRoute
   '/_protected/settings/suppression': typeof ProtectedSettingsSuppressionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/health/live': typeof ApiHealthLiveRoute
+  '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/nango/webhook': typeof ApiNangoWebhookRoute
   '/api/v1/enrollments': typeof ApiV1EnrollmentsRoute
+  '/api/v1/export': typeof ApiV1ExportRoute
   '/api/v1/messages': typeof ApiV1MessagesRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
+  '/api/v1/organization-delete': typeof ApiV1OrganizationDeleteRoute
   '/api/v1/prospects': typeof ApiV1ProspectsRouteWithChildren
   '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRouteWithChildren
@@ -458,10 +494,14 @@ export interface FileRouteTypes {
     | '/settings/members'
     | '/settings/suppression'
     | '/api/auth/$'
+    | '/api/health/live'
+    | '/api/health/ready'
     | '/api/nango/webhook'
     | '/api/v1/enrollments'
+    | '/api/v1/export'
     | '/api/v1/messages'
     | '/api/v1/openapi.json'
+    | '/api/v1/organization-delete'
     | '/api/v1/prospects'
     | '/api/v1/unsubscribe'
     | '/api/v1/webhooks'
@@ -504,10 +544,14 @@ export interface FileRouteTypes {
     | '/settings/members'
     | '/settings/suppression'
     | '/api/auth/$'
+    | '/api/health/live'
+    | '/api/health/ready'
     | '/api/nango/webhook'
     | '/api/v1/enrollments'
+    | '/api/v1/export'
     | '/api/v1/messages'
     | '/api/v1/openapi.json'
+    | '/api/v1/organization-delete'
     | '/api/v1/prospects'
     | '/api/v1/unsubscribe'
     | '/api/v1/webhooks'
@@ -551,10 +595,14 @@ export interface FileRouteTypes {
     | '/_protected/settings/members'
     | '/_protected/settings/suppression'
     | '/api/auth/$'
+    | '/api/health/live'
+    | '/api/health/ready'
     | '/api/nango/webhook'
     | '/api/v1/enrollments'
+    | '/api/v1/export'
     | '/api/v1/messages'
     | '/api/v1/openapi.json'
+    | '/api/v1/organization-delete'
     | '/api/v1/prospects'
     | '/api/v1/unsubscribe'
     | '/api/v1/webhooks'
@@ -590,10 +638,14 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiHealthLiveRoute: typeof ApiHealthLiveRoute
+  ApiHealthReadyRoute: typeof ApiHealthReadyRoute
   ApiNangoWebhookRoute: typeof ApiNangoWebhookRoute
   ApiV1EnrollmentsRoute: typeof ApiV1EnrollmentsRoute
+  ApiV1ExportRoute: typeof ApiV1ExportRoute
   ApiV1MessagesRoute: typeof ApiV1MessagesRoute
   ApiV1OpenapiDotjsonRoute: typeof ApiV1OpenapiDotjsonRoute
+  ApiV1OrganizationDeleteRoute: typeof ApiV1OrganizationDeleteRoute
   ApiV1ProspectsRoute: typeof ApiV1ProspectsRouteWithChildren
   ApiV1UnsubscribeRoute: typeof ApiV1UnsubscribeRoute
   ApiV1WebhooksRoute: typeof ApiV1WebhooksRouteWithChildren
@@ -707,6 +759,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1ProspectsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/organization-delete': {
+      id: '/api/v1/organization-delete'
+      path: '/api/v1/organization-delete'
+      fullPath: '/api/v1/organization-delete'
+      preLoaderRoute: typeof ApiV1OrganizationDeleteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/openapi.json': {
       id: '/api/v1/openapi.json'
       path: '/api/v1/openapi.json'
@@ -721,6 +780,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/export': {
+      id: '/api/v1/export'
+      path: '/api/v1/export'
+      fullPath: '/api/v1/export'
+      preLoaderRoute: typeof ApiV1ExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/enrollments': {
       id: '/api/v1/enrollments'
       path: '/api/v1/enrollments'
@@ -733,6 +799,20 @@ declare module '@tanstack/react-router' {
       path: '/api/nango/webhook'
       fullPath: '/api/nango/webhook'
       preLoaderRoute: typeof ApiNangoWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/ready': {
+      id: '/api/health/ready'
+      path: '/api/health/ready'
+      fullPath: '/api/health/ready'
+      preLoaderRoute: typeof ApiHealthReadyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/live': {
+      id: '/api/health/live'
+      path: '/api/health/live'
+      fullPath: '/api/health/live'
+      preLoaderRoute: typeof ApiHealthLiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -1041,10 +1121,14 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiHealthLiveRoute: ApiHealthLiveRoute,
+  ApiHealthReadyRoute: ApiHealthReadyRoute,
   ApiNangoWebhookRoute: ApiNangoWebhookRoute,
   ApiV1EnrollmentsRoute: ApiV1EnrollmentsRoute,
+  ApiV1ExportRoute: ApiV1ExportRoute,
   ApiV1MessagesRoute: ApiV1MessagesRoute,
   ApiV1OpenapiDotjsonRoute: ApiV1OpenapiDotjsonRoute,
+  ApiV1OrganizationDeleteRoute: ApiV1OrganizationDeleteRoute,
   ApiV1ProspectsRoute: ApiV1ProspectsRouteWithChildren,
   ApiV1UnsubscribeRoute: ApiV1UnsubscribeRoute,
   ApiV1WebhooksRoute: ApiV1WebhooksRouteWithChildren,

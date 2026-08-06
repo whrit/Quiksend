@@ -1,143 +1,119 @@
-# Releasing Quiksend
+# Release Procedures
 
-Quiksend versions **the whole app as one unit** using
-[Release Please](https://github.com/googleapis/release-please) driven by
-[Conventional Commits](https://www.conventionalcommits.org/). Versioning and the
-changelog are automated from commit history — you never bump a version or edit
-`CHANGELOG.md` by hand.
+**Release Cycle:** Continuous (main → automated releases)  
+**Approval:** GitHub CODEOWNERS + peer review
 
-## Why this method (and not Changesets)
+## Release Process
 
-Changesets is built for publishing independently-versioned **npm packages**.
-Every package here is `private: true` and ships as source inside the app — nothing
-is published to a registry — so the release unit is the application (a Git tag +
-GitHub Release + image), not a package. Release Please fits that exactly.
+### 1. Automatic Release PR (release-please)
 
-If a genuinely public package appears later (a Logo API SDK, an extracted
-`packages/ui`), add Changesets **scoped to that package** and keep Release Please
-for the app. They coexist.
+Conventional commits (`feat:`, `fix:`, etc.) on `main` trigger a release PR with version bump, CHANGELOG, and git tag.
 
-## The loop
-
-1. Open PRs with Conventional Commit **titles** (`feat: …`, `fix: …`). The
-   `lint-pr` workflow enforces this.
-2. Merge them to `main` (see merge strategy below).
-3. Release Please keeps an open **release PR** titled `chore(main): release X.Y.Z`,
-   accumulating the changelog and the version bump as more PRs land.
-4. When you want to ship, **merge the release PR**. That is the release: Release
-   Please tags `vX.Y.Z`, publishes a GitHub Release with notes, and updates
-   `CHANGELOG.md` + `.github/.release-please-manifest.json` + root `package.json`.
-
-## Commit types → changelog
-
-| Type                              | Bump  | Changelog section |
-| --------------------------------- | ----- | ----------------- |
-| `feat`                            | minor | Features          |
-| `fix`                             | patch | Bug Fixes         |
-| `perf`                            | patch | Performance       |
-| `deps`                            | patch | Dependencies      |
-| `refactor`                        | patch | Refactors         |
-| `docs`                            | patch | Documentation     |
-| `build` / `ci` / `test` / `chore` | patch | hidden            |
-
-A breaking change (`feat!:` / `fix!:`, or a `BREAKING CHANGE:` footer) bumps the
-minor while pre-1.0 (configured via `bump-minor-pre-major`), and the major once
-you're at 1.0+.
-
-## Versioning scheme
-
-SemVer, starting in `0.x`. The manifest starts at `0.0.0`; the first release PR
-proposes the first real version from the commits it finds (a `feat` history →
-`0.1.0`). Force a specific version with a `Release-As` footer, e.g. a commit:
-
-```
-chore: cut first stable
-
-Release-As: 1.0.0
-```
-
-## Merge strategy (important)
-
-Use **Squash & merge**, and in repo Settings → General → Pull Requests, enable
-**"Default to PR title for squash merge commits."** Then the squashed commit that
-lands on `main` is the (already-linted) PR title, which is what Release Please
-reads. If you use merge commits instead, make sure every individual commit is
-conventional.
-
-## First-time setup
-
-1. Commit these files to `main`.
-2. Settings → Actions → General → **Workflow permissions**: allow
-   "Read and write permissions" and "Allow GitHub Actions to create and approve
-   pull requests" (Release Please opens the release PR).
-3. Push a `feat:`/`fix:` commit (or open+merge a PR). Release Please opens the
-   release PR within a minute.
-
-## Tokens: GITHUB_TOKEN vs PAT
-
-The default `GITHUB_TOKEN` creates the release PR, tag, and GitHub Release — enough
-for the common case. Two known limitations, both by GitHub's anti-recursion design:
-
-- Other workflows' `on: pull_request` **won't run on the release PR**, so the CI
-  gate is skipped there. That's usually fine (it only bumps version + changelog).
-- A tag pushed by `GITHUB_TOKEN` **won't trigger a separate `on: push: tags`**
-  workflow.
-
-If you want CI on the release PR, or tag-triggered workflows, create a fine-grained
-PAT with `contents: write` + `pull-requests: write`, store it as
-`RELEASE_PLEASE_TOKEN`, and uncomment the `token:` line in `release-please.yml`.
-Otherwise, **chain CD inside `release-please.yml`** gated on
-`needs.release-please.outputs.release_created` (the commented `release-artifacts`
-job is the placeholder) — that path needs no PAT.
-
-## Optional: enforce commits locally
-
-The CI `lint-pr` check is the source of truth. If you also want fast local
-feedback, add commitlint + a git hook:
+### 2. Merge Release PR
 
 ```bash
-pnpm add -Dw @commitlint/cli @commitlint/config-conventional
-echo "export default { extends: ['@commitlint/config-conventional'] };" > commitlint.config.js
-# then wire a commit-msg hook (husky, lefthook, or a plain .git/hooks script)
+git fetch origin
+git log origin/main..origin/release-please-*   # review changes
+gh pr merge --auto --squash                     # tag created on merge
 ```
 
-## Container images (CD)
+### 3. Container Images (automatic on tag)
 
-On every release, the `release-images` job in `release-please.yml` builds and
-pushes two images to GitHub Container Registry (GHCR):
+Built and pushed to GHCR: `vX.Y.Z`, `latest`, `sha-XXXXXX`.
 
-- `ghcr.io/<owner>/quiksend-web` — the TanStack Start app (Nitro node-server;
-  `.output` is self-contained). Listens on `PORT` (default 3000).
-- `ghcr.io/<owner>/quiksend-worker` — the background worker (runs the TS source
-  via `tsx`).
+### 4. Image Signing
 
-Each is tagged with the release tag (e.g. `v0.1.0`), `latest`, and `sha-<short>`.
-Both build from a `turbo prune`d subset of the monorepo, so each image only
-contains the workspace packages it actually needs.
+Cosign keyless via GitHub OIDC. Verify with:
 
 ```bash
-docker pull ghcr.io/<owner>/quiksend-web:v0.1.0
-docker run --rm -p 3000:3000 \
-  -e DATABASE_URL=... -e BETTER_AUTH_SECRET=... -e BETTER_AUTH_URL=... \
-  ghcr.io/<owner>/quiksend-web:v0.1.0
+cosign verify ghcr.io/$OWNER/quiksend-web:vX.Y.Z \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity https://github.com/$OWNER/quiksend/.github/workflows/release-please.yml@refs/heads/main
 ```
 
-Notes:
+## Pinned Actions
 
-- GHCR packages are **private** by default. Make them public, or grant pull
-  access, under the package settings / repo → Packages.
-- No PAT needed — the job pushes with the built-in `GITHUB_TOKEN` (it has
-  `packages: write`).
-- Both images are single-arch (`linux/amd64`). For arm64 too, add
-  `docker/setup-qemu-action@v4` and `platforms: linux/amd64,linux/arm64`.
-- **Migrations are not run by these images.** Apply `pnpm db:migrate` (or a
-  one-off job/`release-images`-adjacent step) against your database before/at
-  deploy — the web/worker containers assume the schema already exists.
+All third-party GitHub Actions pinned by immutable SHA, never mutable tags or branches.
 
-### Deploy (the remaining hop)
+## Rollback Procedures
 
-Deployment is intentionally not wired yet (chosen: publish images for now). When
-ready, add a `deploy` job with `needs: release-images` that pulls the tagged
-images onto the target (DigitalOcean droplet via SSH + compose, DO App Platform,
-etc.). The worker is a long-running process; the web image is a standard Node
-server behind whatever ingress you choose.
+### Level 1: Revert (Code)
+
+```bash
+git revert <commit-sha>
+git push origin HEAD          # triggers new patch release
+```
+
+### Level 2: Roll Back Image
+
+```bash
+PREV=$(git describe --tags --abbrev=0 HEAD~1)
+kubectl set image deployment/quiksend-web web=ghcr.io/$OWNER/quiksend-web:$PREV
+kubectl rollout status deployment/quiksend-web
+curl -s https://api.quiksend.com/health | jq .
+```
+
+### Level 3: Restore from Database Backup
+
+See [internal-runbooks/backup-restore.md](./internal-runbooks/backup-restore.md).
+
+## Manual Release (if automated fails)
+
+```bash
+jq .version package.json
+git checkout -b chore/release-vX.Y.Z
+# bump package.json version, update CHANGELOG.md
+git commit -am "chore: release vX.Y.Z"
+git push origin chore/release-vX.Y.Z
+gh pr create --title "chore: release vX.Y.Z" --draft
+gh pr merge --auto --squash
+```
+
+## Emergency Release
+
+```bash
+git checkout main && git pull
+git checkout -b fix/security-vuln
+# apply ONLY the security patch
+git commit -am "fix: close vulnerability CVE-2026-XXXXX"
+git push origin fix/security-vuln
+# release-please auto-bumps patch on merge
+```
+
+## Deployment
+
+```bash
+TAG=$(git describe --tags --abbrev=0 HEAD)
+kubectl set image deployment/quiksend-web web=ghcr.io/$OWNER/quiksend-web:$TAG
+kubectl rollout status deployment/quiksend-web
+curl -I https://api.quiksend.com/health
+# monitor error rates 15 min — alert if >1% or P95 >2s
+```
+
+## Release Checklist
+
+- [ ] CHANGELOG reviewed
+- [ ] CI passes
+- [ ] Images built, scanned, signed, SBOM attached
+- [ ] Rollback command documented
+- [ ] On-call DBA notified
+
+## See Also
+
+- [backup-restore.md](./internal-runbooks/backup-restore.md) — Database restore runbook
+- `.github/workflows/release-please.yml` — Release automation
+- `.github/release-please-config.json` — Release config
+
+## CI Gate and Image Build Flow
+
+The `.github/workflows/ci.yml` `build-images` job acts as a CI gate for releases:
+
+1. **On every push to main:** CI builds both `quiksend-web` and `quiksend-worker` images and runs health smoke tests:
+   - **quiksend-web**: Verifies HTTP GET `/api/health` returns 200 (via Docker HEALTHCHECK)
+   - **quiksend-worker**: Verifies `/tmp/worker-ready` heartbeat file exists and is < 90s old
+
+2. **If CI passes:** Images are considered production-ready. Release workflow reuses the same Dockerfiles to build release images (identical SHA, no rebuild needed).
+
+3. **If CI fails:** Release workflow is blocked (no duplicate builds).
+
+This ensures release images are proven healthy before shipping. See `.github/workflows/ci.yml` `build-images` job for smoke test implementation.

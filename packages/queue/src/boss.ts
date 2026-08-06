@@ -98,6 +98,7 @@ export async function enqueue<N extends JobName>(
   const schema = JobSchemas[job];
   const validated = schema.parse(payload);
   const boss = await getBoss();
+  await boss.createQueue(job).catch(() => {}); // idempotent — queue already exists on subsequent calls
   const id = await boss.send(job, validated as object, options);
   logger.debug({ job, id }, "job enqueued");
   return id;

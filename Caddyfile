@@ -1,0 +1,7 @@
+# Caddy TLS configuration for production
+# Reverse proxies HTTPS traffic to internal web service
+# Automatically obtains and renews Let's Encrypt certificates
+
+{$QUIKSEND_DOMAIN} {
+    reverse_proxy web:3000
+}

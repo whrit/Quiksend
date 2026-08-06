@@ -110,6 +110,14 @@ export const EnvSchema = z
     POSTHOG_KEY: z.string().optional(),
     POSTHOG_HOST: z.string().url().default("https://us.i.posthog.com"),
 
+    // Data lifecycle retention (Operations, Task 5). Backups (30d) are
+    // documented in internal-runbooks/backup-restore.md — Task 4 owns that
+    // script, there's no DB row to purge for it. Logs (14d) are retained by
+    // the log aggregator/Sentry, not a DB table here.
+    RETENTION_EVENT_DAYS: z.coerce.number().int().positive().default(180),
+    RETENTION_WEBHOOK_ATTEMPT_DAYS: z.coerce.number().int().positive().default(30),
+    RETENTION_DELETED_MESSAGE_DAYS: z.coerce.number().int().positive().default(365),
+
     // Worker test / load-test hooks — default off; forcibly disabled in production.
     QUIKSEND_ENGINE_FAKE_MAIL: envBooleanFlag,
     QUIKSEND_ENGINE_FORCE_OUTER_ROLLBACK: envBooleanFlag,
@@ -164,6 +172,9 @@ export const EnvSchema = z
         "BETTER_AUTH_URL is required in production and must be a public HTTPS URL (no localhost, loopback, or unspecified addresses)",
     },
   )
+  .refine((env) => env.NODE_ENV !== "production" || !env.BETTER_AUTH_URL?.includes("localhost"), {
+    message: "BETTER_AUTH_URL must not be localhost in production",
+  })
   .refine(
     (env) =>
       env.NODE_ENV !== "production" ||
@@ -177,6 +188,53 @@ export const EnvSchema = z
   )
   .refine((env) => Boolean(env.SMTP_USER) === Boolean(env.SMTP_PASS), {
     message: "SMTP_USER and SMTP_PASS must be set together, or not at all",
-  });
+  })
+  .refine(
+    (env) => env.NODE_ENV !== "production" || !env.DATABASE_URL?.includes("quiksend:quiksend@"),
+    {
+      message: "DATABASE_URL must not use default credentials (quiksend:quiksend) in production",
+    },
+  )
+  .refine((env) => env.NODE_ENV !== "production" || env.SMTP_HOST !== "mailpit", {
+    message: 'SMTP_HOST must not be "mailpit" in production; set to a real SMTP provider',
+  })
+  .refine(
+    (env) => {
+      if (env.NODE_ENV !== "production") return true;
+      if (!env.MAILBOX_ENCRYPTION_KEY) return true;
+
+      try {
+        // Validate base64 and check decoded length is 32 bytes
+        const decoded = Buffer.from(env.MAILBOX_ENCRYPTION_KEY, "base64");
+        return decoded.length === 32;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message: "MAILBOX_ENCRYPTION_KEY must be valid base64 that decodes to exactly 32 bytes",
+    },
+  )
+  .refine(
+    (env) => {
+      if (env.NODE_ENV !== "production") return true;
+      if (!env.UNSUBSCRIBE_TOKEN_SECRET) return true;
+
+      // Validate either raw string >= 32 bytes OR base64 that decodes to >= 32 bytes
+      if (env.UNSUBSCRIBE_TOKEN_SECRET.length >= 32) {
+        return true; // Assume raw string
+      }
+
+      try {
+        const decoded = Buffer.from(env.UNSUBSCRIBE_TOKEN_SECRET, "base64");
+        return decoded.length >= 32;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message: "UNSUBSCRIBE_TOKEN_SECRET must be >= 32 bytes (raw or base64-decoded)",
+    },
+  );
 
 export type Env = z.infer<typeof EnvSchema>;

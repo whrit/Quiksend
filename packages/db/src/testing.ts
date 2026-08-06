@@ -58,6 +58,8 @@ export const APP_SCOPED_TABLES_TO_TRUNCATE: readonly string[] = [
   "deliverability_snapshot",
   "organization_usage",
   "organization_limit",
+  "audit_log",
+  "organization_lifecycle",
 ];
 
 /**
