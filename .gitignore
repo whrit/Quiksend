@@ -25,11 +25,5 @@ internal-runbooks/seed-pool-config.json
 .idea/
 *.tsbuildinfo
 
-# drizzle (keep committed migrations; ignore local meta scratch if any)
-# packages/db/drizzle/  <- migrations ARE committed; do not ignore
-wave*/logs/
-RESULT.json
-NEEDS.md
-wave5/logs/
-phase11-review/logs/
-wave8/logs/
+# git worktrees (local scratch)
+.worktrees/
