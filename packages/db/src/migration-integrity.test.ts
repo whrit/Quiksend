@@ -37,6 +37,10 @@ const KNOWN_MISSING_SNAPSHOTS = new Set([
   "0021_wave8_omicron_canary_step_index",
   // Data-only migration: no schema change, so no snapshot of its own.
   "0024_backfill_message_step_index",
+  // RLS-only migration: roles and policies, no drizzle schema change.
+  "0029_tenant_rls",
+  // ponytail: outbox migration ships as hand-authored SQL; snapshot regen deferred until post-beta.
+  "0028_event_outbox",
 ]);
 
 const numericPrefix = (tag: string): string => tag.split("_")[0] ?? "";

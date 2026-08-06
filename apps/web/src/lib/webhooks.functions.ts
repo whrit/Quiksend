@@ -1,5 +1,5 @@
 import { isAdminOrOwner } from "@quiksend/core";
-import { db } from "@quiksend/db";
+import { withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { SUPPORTED_WEBHOOK_EVENTS } from "@quiksend/db/schema";
 import { and, desc, eq } from "drizzle-orm";
@@ -57,11 +57,13 @@ export const listWebhookEndpoints = createServerFn({ method: "GET" })
   .validator(z.object({}))
   .handler(async ({ context }) => {
     const { organizationId } = context.orgContext;
-    const rows = await db.query.webhookEndpoint.findMany({
-      where: eq(tables.webhookEndpoint.organizationId, organizationId),
-      orderBy: desc(tables.webhookEndpoint.createdAt),
+    return withTenantTransaction(organizationId, async (tx) => {
+      const rows = await tx.query.webhookEndpoint.findMany({
+        where: eq(tables.webhookEndpoint.organizationId, organizationId),
+        orderBy: desc(tables.webhookEndpoint.createdAt),
+      });
+      return rows.map(serializeEndpoint);
     });
-    return rows.map(serializeEndpoint);
   });
 
 export const createWebhookEndpoint = createServerFn({ method: "POST" })
@@ -76,19 +78,21 @@ export const createWebhookEndpoint = createServerFn({ method: "POST" })
       throw new Error("Webhook URL is not allowed");
     }
 
-    const [created] = await db
-      .insert(tables.webhookEndpoint)
-      .values({
-        organizationId,
-        url: data.url,
-        secret: generateWebhookSecret(),
-        events: data.events,
-        status: "active",
-        createdByUserId: userId,
-      })
-      .returning();
+    return withTenantTransaction(organizationId, async (tx) => {
+      const [created] = await tx
+        .insert(tables.webhookEndpoint)
+        .values({
+          organizationId,
+          url: data.url,
+          secret: generateWebhookSecret(),
+          events: data.events,
+          status: "active",
+          createdByUserId: userId,
+        })
+        .returning();
 
-    return serializeEndpoint(created!);
+      return serializeEndpoint(created!);
+    });
   });
 
 export const updateWebhookEndpoint = createServerFn({ method: "POST" })
@@ -108,19 +112,21 @@ export const updateWebhookEndpoint = createServerFn({ method: "POST" })
       throw new Error("Webhook URL is not allowed");
     }
 
-    const [updated] = await db
-      .update(tables.webhookEndpoint)
-      .set(data.patch)
-      .where(
-        and(
-          eq(tables.webhookEndpoint.id, data.id),
-          eq(tables.webhookEndpoint.organizationId, organizationId),
-        ),
-      )
-      .returning();
+    return withTenantTransaction(organizationId, async (tx) => {
+      const [updated] = await tx
+        .update(tables.webhookEndpoint)
+        .set(data.patch)
+        .where(
+          and(
+            eq(tables.webhookEndpoint.id, data.id),
+            eq(tables.webhookEndpoint.organizationId, organizationId),
+          ),
+        )
+        .returning();
 
-    if (!updated) throw new Error("Webhook endpoint not found");
-    return serializeEndpoint(updated);
+      if (!updated) throw new Error("Webhook endpoint not found");
+      return serializeEndpoint(updated);
+    });
   });
 
 export const deleteWebhookEndpoint = createServerFn({ method: "POST" })
@@ -131,18 +137,20 @@ export const deleteWebhookEndpoint = createServerFn({ method: "POST" })
       throw new Error("Admin or owner role required to manage webhook endpoints");
     }
     const { organizationId } = context.orgContext;
-    const [deleted] = await db
-      .delete(tables.webhookEndpoint)
-      .where(
-        and(
-          eq(tables.webhookEndpoint.id, data.id),
-          eq(tables.webhookEndpoint.organizationId, organizationId),
-        ),
-      )
-      .returning({ id: tables.webhookEndpoint.id });
+    return withTenantTransaction(organizationId, async (tx) => {
+      const [deleted] = await tx
+        .delete(tables.webhookEndpoint)
+        .where(
+          and(
+            eq(tables.webhookEndpoint.id, data.id),
+            eq(tables.webhookEndpoint.organizationId, organizationId),
+          ),
+        )
+        .returning({ id: tables.webhookEndpoint.id });
 
-    if (!deleted) throw new Error("Webhook endpoint not found");
-    return { ok: true as const };
+      if (!deleted) throw new Error("Webhook endpoint not found");
+      return { ok: true as const };
+    });
   });
 
 export const listWebhookDeliveries = createServerFn({ method: "GET" })
@@ -155,25 +163,26 @@ export const listWebhookDeliveries = createServerFn({ method: "GET" })
   )
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
+    return withTenantTransaction(organizationId, async (tx) => {
+      const endpoint = await tx.query.webhookEndpoint.findFirst({
+        where: and(
+          eq(tables.webhookEndpoint.id, data.endpointId),
+          eq(tables.webhookEndpoint.organizationId, organizationId),
+        ),
+      });
+      if (!endpoint) throw new Error("Webhook endpoint not found");
 
-    const endpoint = await db.query.webhookEndpoint.findFirst({
-      where: and(
-        eq(tables.webhookEndpoint.id, data.endpointId),
-        eq(tables.webhookEndpoint.organizationId, organizationId),
-      ),
+      const rows = await tx.query.webhookDelivery.findMany({
+        where: and(
+          eq(tables.webhookDelivery.endpointId, data.endpointId),
+          eq(tables.webhookDelivery.organizationId, organizationId),
+        ),
+        orderBy: desc(tables.webhookDelivery.createdAt),
+        limit: data.limit,
+      });
+
+      return rows.map(serializeDelivery);
     });
-    if (!endpoint) throw new Error("Webhook endpoint not found");
-
-    const rows = await db.query.webhookDelivery.findMany({
-      where: and(
-        eq(tables.webhookDelivery.endpointId, data.endpointId),
-        eq(tables.webhookDelivery.organizationId, organizationId),
-      ),
-      orderBy: desc(tables.webhookDelivery.createdAt),
-      limit: data.limit,
-    });
-
-    return rows.map(serializeDelivery);
   });
 
 export const triggerTestWebhookEvent = createServerFn({ method: "POST" })
@@ -186,6 +195,7 @@ export const triggerTestWebhookEvent = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { organizationId } = context.orgContext;
+    // insertDomainEventAndFanout manages its own transaction + outbox dispatch
     const payload = {
       test: true,
       organizationId,

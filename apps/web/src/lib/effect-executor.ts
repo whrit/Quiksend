@@ -1,17 +1,16 @@
 import "@tanstack/react-start/server-only";
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { logger } from "@quiksend/config";
 import { computeSchedule } from "@quiksend/core/schedule";
 import type { MailboxSchedule, SendingWindow, StepKind, Weekday } from "@quiksend/core/schedule";
 import type { Effect, EnrollmentState } from "@quiksend/core/state-machine";
-import { db } from "@quiksend/db";
+import { db, insertOutbox } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import type * as schema from "@quiksend/db/schema";
 import { enqueue } from "@quiksend/queue";
 import { and, desc, eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { fanoutWebhookEvent } from "./api/v1/helpers.ts";
 
 export type DrizzleTransaction = PostgresJsDatabase<typeof schema>;
 
@@ -292,10 +291,13 @@ async function handleWebEmitEvent(
     if (engineType === "enrollment.no_safe_mailbox_for_gateway") {
       payload.reason = "no_safe_mailbox_for_gateway";
     }
-    await fanoutWebhookEvent({
+    await insertOutbox(tx, {
       organizationId,
       eventType: engineType,
+      aggregateType: entityType,
+      aggregateId: entityId,
       payload,
+      idempotencyKey: `${engineType}:${enrollmentId}:${entityId}:${randomUUID()}`,
     });
   }
 

@@ -1,6 +1,6 @@
 import { env } from "@quiksend/config";
 import { isAdminOrOwner } from "@quiksend/core";
-import { db } from "@quiksend/db";
+import { withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { enqueue } from "@quiksend/queue";
 import type { EmailGateway } from "@quiksend/mail";
@@ -110,24 +110,26 @@ export const listSeedInboxes = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const { organizationId } = context.orgContext;
-    const { entitled: pro } = await getDeliverabilityProStatus(organizationId);
+    return withTenantTransaction(organizationId, async (tx) => {
+      const { entitled: pro } = await getDeliverabilityProStatus(organizationId, tx);
 
-    const userSeeds = await db.query.seedInbox.findMany({
-      where: eq(tables.seedInbox.organizationId, organizationId),
-      orderBy: (s, { desc }) => [desc(s.createdAt)],
+      const userSeeds = await tx.query.seedInbox.findMany({
+        where: eq(tables.seedInbox.organizationId, organizationId),
+        orderBy: (s, { desc }) => [desc(s.createdAt)],
+      });
+
+      const providerSeeds = pro
+        ? await tx.query.seedInbox.findMany({
+            where: isNull(tables.seedInbox.organizationId),
+            orderBy: (s, { asc }) => [asc(s.gateway), asc(s.email)],
+          })
+        : [];
+
+      return [
+        ...userSeeds.map(toUserListItem),
+        ...summarizeProviderPools(providerSeeds),
+      ] satisfies SeedInboxListItem[];
     });
-
-    const providerSeeds = pro
-      ? await db.query.seedInbox.findMany({
-          where: isNull(tables.seedInbox.organizationId),
-          orderBy: (s, { asc }) => [asc(s.gateway), asc(s.email)],
-        })
-      : [];
-
-    return [
-      ...userSeeds.map(toUserListItem),
-      ...summarizeProviderPools(providerSeeds),
-    ] satisfies SeedInboxListItem[];
   });
 
 export const createUserSeedInbox = createServerFn({ method: "POST" })
@@ -152,21 +154,23 @@ export const createUserSeedInbox = createServerFn({ method: "POST" })
       secure: data.useSsl,
     };
 
-    const [row] = await db
-      .insert(tables.seedInbox)
-      .values({
-        organizationId,
-        email: data.email.toLowerCase(),
-        gateway: data.gateway as EmailGateway,
-        provider: data.provider,
-        imapConfig: encryptSeedImapConfig(imap, organizationId),
-        notes: data.notes ?? null,
-      })
-      .returning();
+    return withTenantTransaction(organizationId, async (tx) => {
+      const [row] = await tx
+        .insert(tables.seedInbox)
+        .values({
+          organizationId,
+          email: data.email.toLowerCase(),
+          gateway: data.gateway as EmailGateway,
+          provider: data.provider,
+          imapConfig: encryptSeedImapConfig(imap, organizationId),
+          notes: data.notes ?? null,
+        })
+        .returning();
 
-    if (!row) throw new SeedInboxError("VALIDATION", "Failed to create seed inbox");
-    await enqueue("seed_inbox.verify", { seedInboxId: row.id, organizationId });
-    return toPublic(row);
+      if (!row) throw new SeedInboxError("VALIDATION", "Failed to create seed inbox");
+      await enqueue("seed_inbox.verify", { seedInboxId: row.id, organizationId });
+      return toPublic(row);
+    });
   });
 
 export const verifySeedInbox = createServerFn({ method: "POST" })
@@ -175,15 +179,17 @@ export const verifySeedInbox = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     requireAdmin(context);
     const { organizationId } = context.orgContext;
-    const seed = await db.query.seedInbox.findFirst({
-      where: and(
-        eq(tables.seedInbox.id, data.seedInboxId),
-        eq(tables.seedInbox.organizationId, organizationId),
-      ),
+    return withTenantTransaction(organizationId, async (tx) => {
+      const seed = await tx.query.seedInbox.findFirst({
+        where: and(
+          eq(tables.seedInbox.id, data.seedInboxId),
+          eq(tables.seedInbox.organizationId, organizationId),
+        ),
+      });
+      if (!seed) throw new SeedInboxError("NOT_FOUND", "Seed inbox not found");
+      await enqueue("seed_inbox.verify", { seedInboxId: seed.id, organizationId });
+      return { ok: true };
     });
-    if (!seed) throw new SeedInboxError("NOT_FOUND", "Seed inbox not found");
-    await enqueue("seed_inbox.verify", { seedInboxId: seed.id, organizationId });
-    return { ok: true };
   });
 
 export const deleteSeedInbox = createServerFn({ method: "POST" })
@@ -192,15 +198,17 @@ export const deleteSeedInbox = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     requireAdmin(context);
     const { organizationId } = context.orgContext;
-    const seed = await db.query.seedInbox.findFirst({
-      where: and(
-        eq(tables.seedInbox.id, data.seedInboxId),
-        eq(tables.seedInbox.organizationId, organizationId),
-      ),
+    return withTenantTransaction(organizationId, async (tx) => {
+      const seed = await tx.query.seedInbox.findFirst({
+        where: and(
+          eq(tables.seedInbox.id, data.seedInboxId),
+          eq(tables.seedInbox.organizationId, organizationId),
+        ),
+      });
+      if (!seed) throw new SeedInboxError("NOT_FOUND", "Seed inbox not found");
+      await tx.delete(tables.seedInbox).where(eq(tables.seedInbox.id, seed.id));
+      return { ok: true };
     });
-    if (!seed) throw new SeedInboxError("NOT_FOUND", "Seed inbox not found");
-    await db.delete(tables.seedInbox).where(eq(tables.seedInbox.id, seed.id));
-    return { ok: true };
   });
 
 export const toggleSeedInboxActive = createServerFn({ method: "POST" })
@@ -211,25 +219,30 @@ export const toggleSeedInboxActive = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     requireAdmin(context);
     const { organizationId } = context.orgContext;
-    const [row] = await db
-      .update(tables.seedInbox)
-      .set({ active: data.active })
-      .where(
-        and(
-          eq(tables.seedInbox.id, data.seedInboxId),
-          eq(tables.seedInbox.organizationId, organizationId),
-        ),
-      )
-      .returning();
-    if (!row) throw new SeedInboxError("NOT_FOUND", "Seed inbox not found");
-    return toPublic(row);
+    return withTenantTransaction(organizationId, async (tx) => {
+      const [row] = await tx
+        .update(tables.seedInbox)
+        .set({ active: data.active })
+        .where(
+          and(
+            eq(tables.seedInbox.id, data.seedInboxId),
+            eq(tables.seedInbox.organizationId, organizationId),
+          ),
+        )
+        .returning();
+      if (!row) throw new SeedInboxError("NOT_FOUND", "Seed inbox not found");
+      return toPublic(row);
+    });
   });
 
 export const isEntitledToProviderSeeds = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
-    const { entitled, expiresAt } = await getDeliverabilityProStatus(
-      context.orgContext.organizationId,
-    );
-    return { entitled, expiresAt };
+    return withTenantTransaction(context.orgContext.organizationId, async (tx) => {
+      const { entitled, expiresAt } = await getDeliverabilityProStatus(
+        context.orgContext.organizationId,
+        tx,
+      );
+      return { entitled, expiresAt };
+    });
   });

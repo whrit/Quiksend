@@ -1,11 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type {
-  IdentityHealth,
-  InboundEmail,
-  MailboxAdapter,
-  OutboundEmail,
-  SendResult,
-} from "../adapter.ts";
+import type { IdentityHealth, MailboxAdapter, OutboundEmail, SendResult } from "../adapter.ts";
 
 /**
  * In-memory adapter for unit tests. Records every send so tests can assert on
@@ -15,7 +9,6 @@ import type {
  */
 export interface FakeAdapterState {
   readonly sent: OutboundEmail[];
-  readonly inboundQueue: InboundEmail[];
   identity: IdentityHealth;
 }
 
@@ -25,7 +18,6 @@ export function createFakeAdapter(initial?: Partial<FakeAdapterState>): {
 } {
   const state: FakeAdapterState = {
     sent: [...(initial?.sent ?? [])],
-    inboundQueue: [...(initial?.inboundQueue ?? [])],
     identity: initial?.identity ?? {
       domain: "example.com",
       spf: { pass: true, reason: null },
@@ -47,11 +39,6 @@ export function createFakeAdapter(initial?: Partial<FakeAdapterState>): {
         sentAt: new Date(),
         metadataReconciled: true,
       };
-    },
-    async listInbound(): Promise<readonly InboundEmail[]> {
-      const drained = [...state.inboundQueue];
-      state.inboundQueue.length = 0;
-      return drained;
     },
     async verifyIdentity(): Promise<IdentityHealth> {
       return state.identity;

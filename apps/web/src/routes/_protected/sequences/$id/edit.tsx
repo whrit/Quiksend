@@ -562,7 +562,11 @@ function SequenceBuilderPage() {
             {sequence.name}
           </h1>
           <p className="mt-1 text-[0.75rem] text-muted-foreground">
-            {isDraft ? "Draft — add steps and activate when ready." : "Active sequence"}
+            {isDraft
+              ? "Draft — add steps and activate when ready."
+              : sequence.status === "archived"
+                ? "Archived — no new enrollments. Active enrollments continue to completion. Pausing stops progress."
+                : "Active sequence"}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">

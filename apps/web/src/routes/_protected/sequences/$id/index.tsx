@@ -124,14 +124,26 @@ function SequenceDetailPage() {
         >
           Analytics
         </Link>
-        <Link
-          to="/sequences/$id/enroll"
-          params={{ id: sequence.id }}
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          Enroll prospects
-        </Link>
+        {sequence.status === "active" && (
+          <Link
+            to="/sequences/$id/enroll"
+            params={{ id: sequence.id }}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            Enroll prospects
+          </Link>
+        )}
       </div>
+
+      {sequence.status === "archived" && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Archived</AlertTitle>
+          <AlertDescription>
+            No new enrollments. Active enrollments continue to completion. Pausing stops progress.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {liveDeliverability.autoPaused && !autoPauseDismissed && (
         <Alert variant="destructive">

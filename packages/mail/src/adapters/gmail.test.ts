@@ -216,16 +216,6 @@ describe("createGmailAdapter", () => {
       (err: unknown) => err instanceof SendError && err.kind === "permanent",
     );
   });
-
-  it("listInbound returns empty array without throwing", async () => {
-    const adapter = createGmailAdapter({
-      nangoConnectionId: "conn-1",
-      fromAddress: "sender@example.com",
-      compliance,
-      nango: createMockNango({}),
-    });
-    await expect(adapter.listInbound(new Date())).resolves.toEqual([]);
-  });
 });
 
 async function sendMinimal(adapter: ReturnType<typeof createGmailAdapter>): Promise<void> {

@@ -1,17 +1,18 @@
 export type { ModelProviderId, ModelSpec } from "./model/types.ts";
 export { getDefaultModel, resolveModel } from "./model/provider.ts";
-export { embedText } from "./model/embed.ts";
+export { embedText, EMBEDDING_DIMENSIONS } from "./model/embed.ts";
 export type { FetchedPage } from "./fetch/extract.ts";
 export { extractMainTextFromHtml, fetchAndExtract } from "./fetch/extract.ts";
 export type { SearchProvider, SearchResult } from "./search/types.ts";
 export { createSearchProvider } from "./search/provider.ts";
 export { createFakeSearchProvider } from "./search/fake.ts";
 export { BraveRateLimitError, createBraveSearchProvider } from "./search/brave.ts";
-export { buildProfile } from "./research/build-profile.ts";
+export { buildProfile, normalizeSourceUrl, validateCitations } from "./research/build-profile.ts";
 export type { BuildProfileOptions } from "./research/build-profile.ts";
 export { fetchCrmContext } from "./research/fetch-crm-context.ts";
 export { searchWeb } from "./research/search-web.ts";
 export { fetchAndSummarize } from "./research/fetch-and-summarize.ts";
+export type { SummarizeResult } from "./research/fetch-and-summarize.ts";
 export { buildPrompt, retrieveValueProps } from "./generation/prompt-builder.ts";
 export type {
   BuiltPrompt,

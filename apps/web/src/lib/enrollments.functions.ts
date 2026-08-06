@@ -1,6 +1,6 @@
 import { computeSchedule } from "@quiksend/core/schedule";
 import type { MailboxSchedule, SendingWindow, StepKind, Weekday } from "@quiksend/core/schedule";
-import { db } from "@quiksend/db";
+import { withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
@@ -84,95 +84,96 @@ export const enrollWithExistingAnchor = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { organizationId, userId } = context.orgContext;
+    return withTenantTransaction(organizationId, async (tx) => {
+      const message = await tx.query.message.findFirst({
+        where: and(
+          eq(tables.message.id, data.existingMessageId),
+          eq(tables.message.organizationId, organizationId),
+          eq(tables.message.direction, "outbound"),
+        ),
+      });
+      if (!message?.messageIdHeader || !message.sentAt) {
+        throw new Error("Anchor message not found or missing send metadata");
+      }
 
-    const message = await db.query.message.findFirst({
-      where: and(
-        eq(tables.message.id, data.existingMessageId),
-        eq(tables.message.organizationId, organizationId),
-        eq(tables.message.direction, "outbound"),
-      ),
+      const sequence = await tx.query.sequence.findFirst({
+        where: and(
+          eq(tables.sequence.id, data.sequenceId),
+          eq(tables.sequence.organizationId, organizationId),
+        ),
+      });
+      if (!sequence || sequence.status !== "active") {
+        throw new Error("Sequence not found or not active");
+      }
+
+      const steps = await tx.query.sequenceStep.findMany({
+        where: and(
+          eq(tables.sequenceStep.sequenceId, sequence.id),
+          eq(tables.sequenceStep.organizationId, organizationId),
+        ),
+        orderBy: asc(tables.sequenceStep.stepIndex),
+      });
+      const firstStep = steps[0];
+      if (!firstStep) throw new Error("Sequence has no steps");
+
+      const settings = parseSettings(sequence.settings);
+      const mailboxId = message.mailboxId ?? settings.mailbox_ids?.[0];
+      if (!mailboxId) throw new Error("No mailbox available for enrollment");
+
+      const mailbox = await tx.query.mailbox.findFirst({
+        where: and(
+          eq(tables.mailbox.id, mailboxId),
+          eq(tables.mailbox.organizationId, organizationId),
+        ),
+      });
+      if (!mailbox) throw new Error("Mailbox not found for enrollment");
+
+      const prospect = await tx.query.prospect.findFirst({
+        where: and(
+          eq(tables.prospect.id, data.prospectId),
+          eq(tables.prospect.organizationId, organizationId),
+          isNull(tables.prospect.deletedAt),
+        ),
+      });
+      if (!prospect) throw new Error("Prospect not found");
+
+      const existingEnrollment = await tx.query.enrollment.findFirst({
+        where: and(
+          eq(tables.enrollment.sequenceId, data.sequenceId),
+          eq(tables.enrollment.organizationId, organizationId),
+          eq(tables.enrollment.prospectId, data.prospectId),
+        ),
+      });
+      if (existingEnrollment) {
+        throw new Error("Prospect is already enrolled in this sequence");
+      }
+
+      const nextRunAt = computeNextRunAt(steps, settings, mailbox, 0, message.sentAt);
+      if (!nextRunAt) throw new Error("Could not compute next run time for enrollment");
+
+      const [enrollment] = await tx
+        .insert(tables.enrollment)
+        .values({
+          organizationId,
+          sequenceId: data.sequenceId,
+          prospectId: data.prospectId,
+          mailboxId,
+          state: "active",
+          currentStepIndex: 0,
+          nextRunAt,
+          anchorMessageId: message.messageIdHeader,
+          anchorThreadId: message.providerThreadId,
+          createdByUserId: userId,
+        })
+        .returning();
+
+      if (!enrollment) throw new Error("Failed to create enrollment");
+
+      await tx
+        .update(tables.message)
+        .set({ enrollmentId: enrollment.id })
+        .where(eq(tables.message.id, message.id));
+
+      return { enrollmentId: enrollment.id };
     });
-    if (!message?.messageIdHeader || !message.sentAt) {
-      throw new Error("Anchor message not found or missing send metadata");
-    }
-
-    const sequence = await db.query.sequence.findFirst({
-      where: and(
-        eq(tables.sequence.id, data.sequenceId),
-        eq(tables.sequence.organizationId, organizationId),
-      ),
-    });
-    if (!sequence || sequence.status !== "active") {
-      throw new Error("Sequence not found or not active");
-    }
-
-    const steps = await db.query.sequenceStep.findMany({
-      where: and(
-        eq(tables.sequenceStep.sequenceId, sequence.id),
-        eq(tables.sequenceStep.organizationId, organizationId),
-      ),
-      orderBy: asc(tables.sequenceStep.stepIndex),
-    });
-    const firstStep = steps[0];
-    if (!firstStep) throw new Error("Sequence has no steps");
-
-    const settings = parseSettings(sequence.settings);
-    const mailboxId = message.mailboxId ?? settings.mailbox_ids?.[0];
-    if (!mailboxId) throw new Error("No mailbox available for enrollment");
-
-    const mailbox = await db.query.mailbox.findFirst({
-      where: and(
-        eq(tables.mailbox.id, mailboxId),
-        eq(tables.mailbox.organizationId, organizationId),
-      ),
-    });
-    if (!mailbox) throw new Error("Mailbox not found for enrollment");
-
-    const prospect = await db.query.prospect.findFirst({
-      where: and(
-        eq(tables.prospect.id, data.prospectId),
-        eq(tables.prospect.organizationId, organizationId),
-        isNull(tables.prospect.deletedAt),
-      ),
-    });
-    if (!prospect) throw new Error("Prospect not found");
-
-    const existingEnrollment = await db.query.enrollment.findFirst({
-      where: and(
-        eq(tables.enrollment.sequenceId, data.sequenceId),
-        eq(tables.enrollment.organizationId, organizationId),
-        eq(tables.enrollment.prospectId, data.prospectId),
-      ),
-    });
-    if (existingEnrollment) {
-      throw new Error("Prospect is already enrolled in this sequence");
-    }
-
-    const nextRunAt = computeNextRunAt(steps, settings, mailbox, 0, message.sentAt);
-    if (!nextRunAt) throw new Error("Could not compute next run time for enrollment");
-
-    const [enrollment] = await db
-      .insert(tables.enrollment)
-      .values({
-        organizationId,
-        sequenceId: data.sequenceId,
-        prospectId: data.prospectId,
-        mailboxId,
-        state: "active",
-        currentStepIndex: 0,
-        nextRunAt,
-        anchorMessageId: message.messageIdHeader,
-        anchorThreadId: message.providerThreadId,
-        createdByUserId: userId,
-      })
-      .returning();
-
-    if (!enrollment) throw new Error("Failed to create enrollment");
-
-    await db
-      .update(tables.message)
-      .set({ enrollmentId: enrollment.id })
-      .where(eq(tables.message.id, message.id));
-
-    return { enrollmentId: enrollment.id };
   });

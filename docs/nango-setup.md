@@ -12,7 +12,6 @@ self-host Nango instead; the integration keys below must match what Quiksend exp
    ```bash
    NANGO_SECRET_KEY=nango_secret_...
    NANGO_WEBHOOK_SECRET=...
-   NANGO_PUBLIC_URL=https://your-quiksend-domain.com   # optional redirect base
    ```
 
 3. Register Quiksend's Nango webhook URL in the Nango dashboard:

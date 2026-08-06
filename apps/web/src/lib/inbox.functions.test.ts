@@ -13,7 +13,6 @@ vi.mock("./mailbox-adapter.ts", () => ({
   getMailboxAdapter: vi.fn<() => MailboxAdapter>(() => ({
     provider: "gmail",
     send: mockSend,
-    listInbound: vi.fn<MailboxAdapter["listInbound"]>(),
     verifyIdentity: vi.fn<MailboxAdapter["verifyIdentity"]>(),
   })),
 }));

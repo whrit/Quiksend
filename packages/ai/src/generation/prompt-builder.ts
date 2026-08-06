@@ -1,6 +1,6 @@
 import { db, tables } from "@quiksend/db";
 import type { ResearchFact } from "@quiksend/db/schema";
-import { and, cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
+import { and, cosineDistance, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { embedText } from "../model/embed.ts";
 import {
   UNTRUSTED_SOURCE_SYSTEM_GUARD,
@@ -62,7 +62,13 @@ export async function retrieveValueProps(
       similarity,
     })
     .from(tables.valueProp)
-    .where(and(eq(tables.valueProp.organizationId, organizationId), gt(similarity, 0)))
+    .where(
+      and(
+        eq(tables.valueProp.organizationId, organizationId),
+        isNotNull(tables.valueProp.embedding),
+        gt(similarity, 0),
+      ),
+    )
     .orderBy((t) => desc(t.similarity))
     .limit(limit);
 

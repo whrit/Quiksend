@@ -10,16 +10,12 @@ import type { ThreadingHeaders } from "./threading.ts";
  *     it as the manual-first anchor for follow-ups.
  *   • `send()` MUST throw a `SendError` classified as `permanent` for hard
  *     failures (invalid recipient, revoked auth) and `transient` for retryable
- *     failures (rate limit, transient 5xx). Phase-6 retries only `transient`.
- *   • `listInbound()` is provider-polling for Phase 7. Idempotent — the caller
- *     dedupes by `providerMessageId`.
  *   • `verifyIdentity()` runs DNS + provider auth checks for the SPF/DKIM/DMARC
  *     health card (Phase 4 R-044).
  */
 export interface MailboxAdapter {
   readonly provider: MailProvider;
   send(input: OutboundEmail): Promise<SendResult>;
-  listInbound(since: Date): Promise<readonly InboundEmail[]>;
   verifyIdentity(): Promise<IdentityHealth>;
 }
 
@@ -56,29 +52,6 @@ export interface SendResult {
   readonly sentAt: Date;
   /** True when all provider metadata was successfully retrieved after acceptance. */
   readonly metadataReconciled: boolean;
-}
-
-export interface InboundEmail {
-  readonly providerMessageId: string;
-  readonly messageId: string;
-  readonly inReplyTo: readonly string[];
-  readonly references: readonly string[];
-  readonly providerThreadId: string | null;
-  readonly from: EmailAddress;
-  readonly to: readonly EmailAddress[];
-  readonly subject: string;
-  readonly html: string | null;
-  readonly text: string | null;
-  readonly receivedAt: Date;
-  /** Populated when the message is a DSN/bounce — see `parseBounce()` in Phase 7. */
-  readonly bounce: InboundBounce | null;
-}
-
-export interface InboundBounce {
-  readonly type: "hard" | "soft";
-  readonly statusCode: string | null;
-  readonly recipient: string | null;
-  readonly diagnostic: string | null;
 }
 
 export interface IdentityHealth {

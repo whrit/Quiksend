@@ -16,7 +16,6 @@ vi.mock("@quiksend/mail", async (importOriginal) => {
     createAdapterForMailbox: vi.fn<typeof createAdapterForMailboxStub>(() => ({
       provider: "gmail" as const,
       send: mockSend,
-      listInbound: vi.fn<MailboxAdapter["listInbound"]>(),
       verifyIdentity: vi.fn<MailboxAdapter["verifyIdentity"]>(),
     })),
   };
@@ -26,7 +25,6 @@ function createAdapterForMailboxStub(): MailboxAdapter {
   return {
     provider: "gmail",
     send: mockSend,
-    listInbound: vi.fn<MailboxAdapter["listInbound"]>(),
     verifyIdentity: vi.fn<MailboxAdapter["verifyIdentity"]>(),
   };
 }

@@ -29,6 +29,17 @@ export interface StepContext {
   readonly delayMinutes: number;
   readonly businessDaysOnly: boolean;
   readonly config: EmailStepConfig | TaskStepConfig | { minutes: number };
+  readonly variantB: (EmailStepConfig | TaskStepConfig) | null;
+}
+
+export function effectiveStepConfig(
+  ctx: EnrollmentContext,
+  step: StepContext,
+): EmailStepConfig | TaskStepConfig | { minutes: number } {
+  if (ctx.enrollment.abBucket === "B" && step.variantB) {
+    return step.variantB;
+  }
+  return step.config;
 }
 
 export interface EnrollmentContext {

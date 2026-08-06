@@ -10,16 +10,25 @@ const MAX_VERIFY_ATTEMPTS = 3;
 
 export async function registerSeedInboxVerifyHandler(): Promise<void> {
   await registerHandler("seed_inbox.verify", async ({ seedInboxId, organizationId }) => {
+    // Fail closed: org scope is required for tenant seed inboxes.
+    // System-pool seeds (organizationId=null) are verified by seed_pool.health_check instead.
+    if (!organizationId) {
+      logger.warn({ seedInboxId }, "seed_inbox.verify: missing organizationId, skipping");
+      return;
+    }
+    const seedScope = and(
+      eq(tables.seedInbox.id, seedInboxId),
+      eq(tables.seedInbox.organizationId, organizationId),
+    );
+
     const seed = await db.query.seedInbox.findFirst({
-      where: organizationId
-        ? and(
-            eq(tables.seedInbox.id, seedInboxId),
-            eq(tables.seedInbox.organizationId, organizationId),
-          )
-        : eq(tables.seedInbox.id, seedInboxId),
+      where: seedScope,
     });
     if (!seed) {
-      logger.warn({ seedInboxId, organizationId }, "seed_inbox.verify: seed not found");
+      logger.warn(
+        { seedInboxId, organizationId },
+        "seed_inbox.verify: seed not found or org mismatch",
+      );
       return;
     }
 
@@ -34,14 +43,11 @@ export async function registerSeedInboxVerifyHandler(): Promise<void> {
       await db
         .update(tables.seedInbox)
         .set({ verifiedAt: new Date(), active: true })
-        .where(eq(tables.seedInbox.id, seedInboxId));
-      logger.info({ seedInboxId }, "seed_inbox.verify succeeded");
+        .where(seedScope);
+      logger.info({ seedInboxId, organizationId }, "seed_inbox.verify succeeded");
     } catch (err) {
-      logger.error({ err, seedInboxId }, "seed_inbox.verify failed");
-      await db
-        .update(tables.seedInbox)
-        .set({ active: false })
-        .where(eq(tables.seedInbox.id, seedInboxId));
+      logger.error({ err, seedInboxId, organizationId }, "seed_inbox.verify failed");
+      await db.update(tables.seedInbox).set({ active: false }).where(seedScope);
       throw err;
     }
   });

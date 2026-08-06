@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { logger } from "@quiksend/config";
-import { db } from "@quiksend/db";
+import { db, insertOutbox } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { getProviderConfig, verifyNangoWebhook } from "@quiksend/integrations";
 import type { CrmProvider } from "@quiksend/integrations/providers";
@@ -109,28 +109,6 @@ function resolveNangoEventId(input: {
   return createHash("sha256").update(key).digest("hex");
 }
 
-async function claimOrRejectDuplicate(
-  eventId: string,
-  connectionId: string,
-  kind: "sync" | "auth",
-): Promise<Response | null> {
-  const claimed = await claimNangoWebhook(eventId, connectionId);
-  if (!claimed) {
-    logger.info({ eventId, connectionId }, `duplicate Nango ${kind} webhook`);
-    return Response.json({ duplicate: true });
-  }
-  return null;
-}
-
-async function claimNangoWebhook(eventId: string, connectionId: string): Promise<boolean> {
-  const [row] = await db
-    .insert(tables.nangoWebhookProcessed)
-    .values({ eventId, connectionId })
-    .onConflictDoNothing()
-    .returning({ eventId: tables.nangoWebhookProcessed.eventId });
-  return row !== undefined;
-}
-
 export const Route = createFileRoute("/api/nango/webhook")({
   server: {
     handlers: {
@@ -169,30 +147,74 @@ export const Route = createFileRoute("/api/nango/webhook")({
             model: payload.model,
             modifiedAfter: payload.modifiedAfter,
           });
-          const duplicate = await claimOrRejectDuplicate(eventId, payload.connectionId, "sync");
-          if (duplicate) return duplicate;
 
           const connection = await db.query.crmConnection.findFirst({
             where: eq(tables.crmConnection.nangoConnectionId, payload.connectionId),
           });
 
-          if (connection) {
-            const organizationId = connection.organizationId;
-            const model =
-              payload.model === "Company" || payload.model === "Account"
-                ? payload.model
-                : "Contact";
-            await enqueue("crm.sync", { connectionId: connection.id, model });
-            logger.info(
-              { organizationId, connectionId: connection.id, model },
-              "enqueued crm.sync",
-            );
-          } else {
+          if (!connection) {
+            // No connection — still claim to prevent retries, but no outbox
+            const [claimed] = await db
+              .insert(tables.nangoWebhookProcessed)
+              .values({ eventId, connectionId: payload.connectionId })
+              .onConflictDoNothing()
+              .returning({ eventId: tables.nangoWebhookProcessed.eventId });
+            if (!claimed) {
+              logger.info(
+                { eventId, connectionId: payload.connectionId },
+                "duplicate Nango sync webhook",
+              );
+              return Response.json({ duplicate: true });
+            }
             logger.info(
               { connectionId: payload.connectionId },
               "Nango sync webhook for unknown connection",
             );
+            return Response.json({ received: true });
           }
+
+          const model =
+            payload.model === "Company" || payload.model === "Account" ? payload.model : "Contact";
+
+          // Claim + outbox in one tx: claim is not terminal until outbox commits
+          const claimed = await db.transaction(async (tx) => {
+            const [row] = await tx
+              .insert(tables.nangoWebhookProcessed)
+              .values({ eventId, connectionId: payload.connectionId })
+              .onConflictDoNothing()
+              .returning({ eventId: tables.nangoWebhookProcessed.eventId });
+            if (!row) return false;
+
+            await insertOutbox(tx, {
+              organizationId: connection.organizationId,
+              eventType: "crm.sync",
+              aggregateType: "crm_connection",
+              aggregateId: connection.id,
+              payload: { connectionId: connection.id, model },
+              idempotencyKey: eventId,
+            });
+            return true;
+          });
+
+          if (!claimed) {
+            logger.info(
+              { eventId, connectionId: payload.connectionId },
+              "duplicate Nango sync webhook",
+            );
+            return Response.json({ duplicate: true });
+          }
+
+          // Best-effort enqueue — sweep recovers on failure
+          try {
+            await enqueue("outbox.dispatch", {});
+          } catch {
+            // ponytail: sweep recovers
+          }
+
+          logger.info(
+            { organizationId: connection.organizationId, connectionId: connection.id, model },
+            "nango sync outbox committed",
+          );
 
           return Response.json({ received: true });
         }
@@ -207,8 +229,6 @@ export const Route = createFileRoute("/api/nango/webhook")({
             operation: payload.operation,
             success: payload.success,
           });
-          const duplicate = await claimOrRejectDuplicate(eventId, payload.connectionId, "auth");
-          if (duplicate) return duplicate;
 
           const provider = payload.providerConfigKey as CrmProvider;
           const status: "active" | "error" | "disconnected" = payload.success ? "active" : "error";
@@ -219,10 +239,29 @@ export const Route = createFileRoute("/api/nango/webhook")({
             return Response.json({ received: true });
           }
 
-          await db
-            .update(tables.crmConnection)
-            .set({ status })
-            .where(eq(tables.crmConnection.nangoConnectionId, payload.connectionId));
+          // Claim + source mutation in one tx
+          const claimed = await db.transaction(async (tx) => {
+            const [row] = await tx
+              .insert(tables.nangoWebhookProcessed)
+              .values({ eventId, connectionId: payload.connectionId })
+              .onConflictDoNothing()
+              .returning({ eventId: tables.nangoWebhookProcessed.eventId });
+            if (!row) return false;
+
+            await tx
+              .update(tables.crmConnection)
+              .set({ status })
+              .where(eq(tables.crmConnection.nangoConnectionId, payload.connectionId));
+            return true;
+          });
+
+          if (!claimed) {
+            logger.info(
+              { eventId, connectionId: payload.connectionId },
+              "duplicate Nango auth webhook",
+            );
+            return Response.json({ duplicate: true });
+          }
 
           return Response.json({ received: true });
         }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isAdminOrOwner } from "@quiksend/core";
-import { db } from "@quiksend/db";
+import { withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { getNango, getProviderConfig } from "@quiksend/integrations";
 import type { CrmProvider, FieldMapping } from "@quiksend/integrations/providers";
@@ -55,12 +55,15 @@ function requireAdmin(ctx: { orgContext: { role: string } }): void {
 export const listCrmConnections = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
-    const rows = await db
-      .select()
-      .from(tables.crmConnection)
-      .where(eq(tables.crmConnection.organizationId, context.orgContext.organizationId))
-      .orderBy(desc(tables.crmConnection.createdAt));
-    return rows.map(toDto);
+    const { organizationId } = context.orgContext;
+    return withTenantTransaction(organizationId, async (tx) => {
+      const rows = await tx
+        .select()
+        .from(tables.crmConnection)
+        .where(eq(tables.crmConnection.organizationId, organizationId))
+        .orderBy(desc(tables.crmConnection.createdAt));
+      return rows.map(toDto);
+    });
   });
 
 export const createCrmConnectSession = createServerFn({ method: "POST" })
@@ -96,32 +99,30 @@ async function createCrmReconnectSession(
   organizationId: string,
   userId: string,
 ): Promise<{ sessionToken: string; connectUrl: string }> {
-  const connection = await db.query.crmConnection.findFirst({
-    where: and(
-      eq(tables.crmConnection.id, connectionId),
-      eq(tables.crmConnection.organizationId, organizationId),
-    ),
+  return withTenantTransaction(organizationId, async (tx) => {
+    const connection = await tx.query.crmConnection.findFirst({
+      where: and(
+        eq(tables.crmConnection.id, connectionId),
+        eq(tables.crmConnection.organizationId, organizationId),
+      ),
+    });
+    if (!connection) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
+    if (connection.provider !== expectedProvider) {
+      throw new TenancyError("NOT_A_MEMBER", `Connection is not a ${expectedProvider} connection`);
+    }
+    const cfg = getProviderConfig(expectedProvider);
+    const nango = getNango();
+    const session = await nango.createReconnectSession({
+      connection_id: connection.nangoConnectionId,
+      integration_id: cfg.nangoIntegrationId,
+      end_user: { id: userId },
+      organization: { id: organizationId },
+    });
+    return {
+      sessionToken: session.data.token,
+      connectUrl: session.data.connect_link,
+    };
   });
-  if (!connection) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
-  if (connection.provider !== expectedProvider) {
-    throw new TenancyError("NOT_A_MEMBER", `Connection is not a ${expectedProvider} connection`);
-  }
-  const cfg = getProviderConfig(expectedProvider);
-  const nango = getNango();
-  const session = await nango.createReconnectSession({
-    connection_id: connection.nangoConnectionId,
-    integration_id: cfg.nangoIntegrationId,
-    end_user: {
-      id: userId,
-    },
-    organization: {
-      id: organizationId,
-    },
-  });
-  return {
-    sessionToken: session.data.token,
-    connectUrl: session.data.connect_link,
-  };
 }
 
 const reconnectCrmSchema = z.object({
@@ -164,39 +165,42 @@ export const finalizeCrmConnection = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
-    const cfg = getProviderConfig(data.provider);
-    const [row] = await db
-      .insert(tables.crmConnection)
-      .values({
-        organizationId: context.orgContext.organizationId,
-        provider: data.provider,
-        nangoConnectionId: data.nangoConnectionId,
-        status: "active",
-        fieldMapping: cfg.defaultFieldMapping,
-        createdByUserId: context.orgContext.userId,
-      })
-      .onConflictDoUpdate({
-        target: [tables.crmConnection.organizationId, tables.crmConnection.provider],
-        set: {
+    const { organizationId, userId } = context.orgContext;
+    return withTenantTransaction(organizationId, async (tx) => {
+      const cfg = getProviderConfig(data.provider);
+      const [row] = await tx
+        .insert(tables.crmConnection)
+        .values({
+          organizationId,
+          provider: data.provider,
           nangoConnectionId: data.nangoConnectionId,
           status: "active",
           fieldMapping: cfg.defaultFieldMapping,
-          lastError: null,
-        },
-      })
-      .returning();
+          createdByUserId: userId,
+        })
+        .onConflictDoUpdate({
+          target: [tables.crmConnection.organizationId, tables.crmConnection.provider],
+          set: {
+            nangoConnectionId: data.nangoConnectionId,
+            status: "active",
+            fieldMapping: cfg.defaultFieldMapping,
+            lastError: null,
+          },
+        })
+        .returning();
 
-    if (!row) throw new TenancyError("NOT_A_MEMBER", "Failed to save CRM connection");
+      if (!row) throw new TenancyError("NOT_A_MEMBER", "Failed to save CRM connection");
 
-    const models: Array<"Contact" | "Account" | "Company"> = [
-      "Contact",
-      data.provider === "hubspot" ? "Company" : "Account",
-    ];
-    for (const model of models) {
-      await enqueue("crm.sync", { connectionId: row.id, model });
-    }
+      const models: Array<"Contact" | "Account" | "Company"> = [
+        "Contact",
+        data.provider === "hubspot" ? "Company" : "Account",
+      ];
+      for (const model of models) {
+        await enqueue("crm.sync", { connectionId: row.id, model });
+      }
 
-    return toDto(row);
+      return toDto(row);
+    });
   });
 
 export const updateFieldMapping = createServerFn({ method: "POST" })
@@ -209,18 +213,21 @@ export const updateFieldMapping = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
-    const [row] = await db
-      .update(tables.crmConnection)
-      .set({ fieldMapping: data.mapping as FieldMapping })
-      .where(
-        and(
-          eq(tables.crmConnection.id, data.connectionId),
-          eq(tables.crmConnection.organizationId, context.orgContext.organizationId),
-        ),
-      )
-      .returning();
-    if (!row) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
-    return toDto(row);
+    const { organizationId } = context.orgContext;
+    return withTenantTransaction(organizationId, async (tx) => {
+      const [row] = await tx
+        .update(tables.crmConnection)
+        .set({ fieldMapping: data.mapping as FieldMapping })
+        .where(
+          and(
+            eq(tables.crmConnection.id, data.connectionId),
+            eq(tables.crmConnection.organizationId, organizationId),
+          ),
+        )
+        .returning();
+      if (!row) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
+      return toDto(row);
+    });
   });
 
 export const disconnectCrm = createServerFn({ method: "POST" })
@@ -228,30 +235,33 @@ export const disconnectCrm = createServerFn({ method: "POST" })
   .validator(z.object({ connectionId: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
-    const connection = await db.query.crmConnection.findFirst({
-      where: and(
-        eq(tables.crmConnection.id, data.connectionId),
-        eq(tables.crmConnection.organizationId, context.orgContext.organizationId),
-      ),
-    });
-    if (!connection) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
-
-    const cfg = getProviderConfig(connection.provider as CrmProvider);
-    const nango = getNango();
-    await nango.deleteConnection(cfg.nangoIntegrationId, connection.nangoConnectionId);
-
-    const [row] = await db
-      .update(tables.crmConnection)
-      .set({ status: "disconnected" })
-      .where(
-        and(
-          eq(tables.crmConnection.id, connection.id),
-          eq(tables.crmConnection.organizationId, context.orgContext.organizationId),
+    const { organizationId } = context.orgContext;
+    return withTenantTransaction(organizationId, async (tx) => {
+      const connection = await tx.query.crmConnection.findFirst({
+        where: and(
+          eq(tables.crmConnection.id, data.connectionId),
+          eq(tables.crmConnection.organizationId, organizationId),
         ),
-      )
-      .returning();
-    if (!row) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
-    return toDto(row);
+      });
+      if (!connection) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
+
+      const cfg = getProviderConfig(connection.provider as CrmProvider);
+      const nango = getNango();
+      await nango.deleteConnection(cfg.nangoIntegrationId, connection.nangoConnectionId);
+
+      const [row] = await tx
+        .update(tables.crmConnection)
+        .set({ status: "disconnected" })
+        .where(
+          and(
+            eq(tables.crmConnection.id, connection.id),
+            eq(tables.crmConnection.organizationId, organizationId),
+          ),
+        )
+        .returning();
+      if (!row) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
+      return toDto(row);
+    });
   });
 
 export const triggerCrmSync = createServerFn({ method: "POST" })
@@ -268,20 +278,23 @@ export const triggerCrmSync = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     requireAdmin({ orgContext: context.orgContext });
-    const connection = await db.query.crmConnection.findFirst({
-      where: and(
-        eq(tables.crmConnection.id, data.connectionId),
-        eq(tables.crmConnection.organizationId, context.orgContext.organizationId),
-      ),
+    const { organizationId } = context.orgContext;
+    return withTenantTransaction(organizationId, async (tx) => {
+      const connection = await tx.query.crmConnection.findFirst({
+        where: and(
+          eq(tables.crmConnection.id, data.connectionId),
+          eq(tables.crmConnection.organizationId, organizationId),
+        ),
+      });
+      if (!connection) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
+      await enqueue("crm.sync", {
+        connectionId: data.connectionId,
+        model: data.model,
+        targetListId: data.targetListId,
+        filter: data.filter,
+        modifiedSinceDays: data.modifiedSinceDays,
+        tag: data.tag,
+      });
+      return { enqueued: true };
     });
-    if (!connection) throw new TenancyError("NOT_A_MEMBER", "Connection not found");
-    await enqueue("crm.sync", {
-      connectionId: data.connectionId,
-      model: data.model,
-      targetListId: data.targetListId,
-      filter: data.filter,
-      modifiedSinceDays: data.modifiedSinceDays,
-      tag: data.tag,
-    });
-    return { enqueued: true };
   });

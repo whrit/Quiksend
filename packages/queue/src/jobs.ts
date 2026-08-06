@@ -87,10 +87,12 @@ export interface WebhookDeliverPayload {
 // ── ai.research — research a prospect (Phase 8) ─────────────────────────────
 export const aiResearchSchema = z.object({
   prospectId: z.string().uuid(),
+  organizationId: z.string(),
   forceRefresh: z.boolean().default(false),
 });
 export interface AiResearchPayload {
   prospectId: string;
+  organizationId: string;
   forceRefresh: boolean;
 }
 
@@ -221,6 +223,9 @@ export interface MailSendTransactionalPayload {
   text: string;
   html: string;
 }
+// ── outbox.dispatch — process transactional outbox intents ─────────────────────
+export const outboxDispatchSchema = z.object({});
+export type OutboxDispatchPayload = Record<string, never>;
 
 export interface JobPayloadMap {
   "hello.ping": HelloPingPayload;
@@ -246,6 +251,7 @@ export interface JobPayloadMap {
   "mailbox.poll.tick": MailboxPollTickPayload;
   "nango.webhook.sweep": NangoWebhookSweepPayload;
   "mail.send_transactional": MailSendTransactionalPayload;
+  "outbox.dispatch": OutboxDispatchPayload;
 }
 
 export type JobName = keyof JobPayloadMap;
@@ -274,6 +280,7 @@ export const JobSchemas: Readonly<Record<JobName, z.ZodTypeAny>> = {
   "mailbox.poll.tick": mailboxPollTickSchema,
   "nango.webhook.sweep": nangoWebhookSweepSchema,
   "mail.send_transactional": mailSendTransactionalSchema,
+  "outbox.dispatch": outboxDispatchSchema,
 };
 
 export const JOB_NAMES: readonly JobName[] = Object.keys(JobSchemas) as JobName[];

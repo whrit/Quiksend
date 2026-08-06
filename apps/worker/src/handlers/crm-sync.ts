@@ -63,10 +63,23 @@ export async function registerCrmSyncHandler(): Promise<void> {
       await db
         .update(tables.syncState)
         .set({ status: "running", error: null })
-        .where(eq(tables.syncState.id, syncRow.id));
+        .where(
+          and(
+            eq(tables.syncState.id, syncRow.id),
+            eq(tables.syncState.organizationId, organizationId),
+          ),
+        );
     }
 
     const syncStateId = syncRow.id;
+    const syncStateScope = and(
+      eq(tables.syncState.id, syncStateId),
+      eq(tables.syncState.organizationId, organizationId),
+    );
+    const connectionScope = and(
+      eq(tables.crmConnection.id, connectionId),
+      eq(tables.crmConnection.organizationId, organizationId),
+    );
     const fieldMapping = connection.fieldMapping as FieldMapping;
     const ctx = {
       organizationId,
@@ -139,7 +152,7 @@ export async function registerCrmSyncHandler(): Promise<void> {
         await db
           .update(tables.syncState)
           .set({ cursor: nextCursor, lastRunAt: new Date() })
-          .where(eq(tables.syncState.id, syncStateId));
+          .where(syncStateScope);
 
         logger.info({ organizationId, connectionId, model, page }, "crm.sync page processed");
 
@@ -151,22 +164,22 @@ export async function registerCrmSyncHandler(): Promise<void> {
       await db
         .update(tables.crmConnection)
         .set({ lastSyncAt: new Date(), lastError: null, status: "active" })
-        .where(eq(tables.crmConnection.id, connectionId));
+        .where(connectionScope);
 
       await db
         .update(tables.syncState)
         .set({ status: "idle", lastRunAt: new Date(), error: null })
-        .where(eq(tables.syncState.id, syncStateId));
+        .where(syncStateScope);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await db
         .update(tables.syncState)
         .set({ status: "error", error: message, lastRunAt: new Date() })
-        .where(eq(tables.syncState.id, syncStateId));
+        .where(syncStateScope);
       await db
         .update(tables.crmConnection)
         .set({ lastError: message, status: "error" })
-        .where(eq(tables.crmConnection.id, connectionId));
+        .where(connectionScope);
       logger.error({ err, organizationId, connectionId, model }, "crm.sync failed");
       throw err;
     }

@@ -14,6 +14,7 @@ import { registerWebhookFanoutHandler } from "./handlers/webhook-fanout.ts";
 import { registerCrmWritebackHandler } from "./handlers/crm-writeback.ts";
 import { registerMailboxPollHandler, registerMailboxPollTick } from "./handlers/mailbox-poll.ts";
 import { registerNangoWebhookSweep } from "./handlers/nango-webhook-sweep.ts";
+import { registerOutboxDispatchHandler } from "./handlers/outbox-dispatch.ts";
 import { registerSequenceHandlers } from "./sequence/register.ts";
 import { registerCanaryCheckHandler } from "./handlers/canary-check.ts";
 import { registerCanaryRecoverHandler } from "./handlers/canary-recover.ts";
@@ -79,6 +80,7 @@ async function main(): Promise<void> {
   await registerMailboxPollTick();
   await registerNangoWebhookSweep();
   await registerMailTransactionalSendHandler();
+  await registerOutboxDispatchHandler();
 
   if (env.NODE_ENV !== "production") {
     await enqueue("hello.ping", { message: "worker boot smoke test" });
