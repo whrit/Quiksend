@@ -218,7 +218,7 @@ describe("research profile tenancy", () => {
 describe("value prop embedding persistence", () => {
   /** Deterministic 1536-dim vector: all zeros except index i = 1.0 */
   function deterministicVector(i: number): number[] {
-    const v = new Array<number>(EMBEDDING_DIMENSIONS).fill(0);
+    const v = Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0);
     v[i % EMBEDDING_DIMENSIONS] = 1.0;
     return v;
   }

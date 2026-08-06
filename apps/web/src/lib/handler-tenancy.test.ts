@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { db, withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { withTestOrgs } from "@quiksend/db/testing";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 /**
  * Representative handler-level tenancy tests. These exercise the
@@ -29,7 +29,13 @@ describe("withTenantTransaction handler isolation", () => {
           organizationId: orgB.id,
           name: "Secret Sequence",
           status: "draft",
-          settings: { timezone: "UTC", throttle_seconds: 90, mailbox_ids: [], stop_on_reply: true, business_days_only: true },
+          settings: {
+            timezone: "UTC",
+            throttle_seconds: 90,
+            mailbox_ids: [],
+            stop_on_reply: true,
+            business_days_only: true,
+          },
           createdByUserId: orgB.userId,
         })
         .returning();
@@ -38,10 +44,7 @@ describe("withTenantTransaction handler isolation", () => {
       // Act: org A's tenant transaction tries to read it
       const result = await withTenantTransaction(orgA.id, async (tx) => {
         return tx.query.sequence.findFirst({
-          where: and(
-            eq(tables.sequence.id, seqB.id),
-            eq(tables.sequence.organizationId, orgA.id),
-          ),
+          where: and(eq(tables.sequence.id, seqB.id), eq(tables.sequence.organizationId, orgA.id)),
         });
       });
 
@@ -68,10 +71,7 @@ describe("withTenantTransaction handler isolation", () => {
           .update(tables.prospect)
           .set({ status: "do_not_contact" })
           .where(
-            and(
-              eq(tables.prospect.id, prospectB.id),
-              eq(tables.prospect.organizationId, orgA.id),
-            ),
+            and(eq(tables.prospect.id, prospectB.id), eq(tables.prospect.organizationId, orgA.id)),
           )
           .returning();
       });
@@ -126,7 +126,7 @@ describe("withTenantTransaction handler isolation", () => {
   it("concurrent tenant transactions are isolated from each other", async () => {
     await withTestOrgs(async ({ orgA, orgB }) => {
       // Each org creates a sequence inside its own tenant transaction
-      const [seqA, seqB] = await Promise.all([
+      const [_seqA, _seqB] = await Promise.all([
         withTenantTransaction(orgA.id, async (tx) => {
           const [row] = await tx
             .insert(tables.sequence)
@@ -134,7 +134,13 @@ describe("withTenantTransaction handler isolation", () => {
               organizationId: orgA.id,
               name: "Org A Campaign",
               status: "draft",
-              settings: { timezone: "UTC", throttle_seconds: 90, mailbox_ids: [], stop_on_reply: true, business_days_only: true },
+              settings: {
+                timezone: "UTC",
+                throttle_seconds: 90,
+                mailbox_ids: [],
+                stop_on_reply: true,
+                business_days_only: true,
+              },
               createdByUserId: orgA.userId,
             })
             .returning();
@@ -147,7 +153,13 @@ describe("withTenantTransaction handler isolation", () => {
               organizationId: orgB.id,
               name: "Org B Campaign",
               status: "draft",
-              settings: { timezone: "UTC", throttle_seconds: 90, mailbox_ids: [], stop_on_reply: true, business_days_only: true },
+              settings: {
+                timezone: "UTC",
+                throttle_seconds: 90,
+                mailbox_ids: [],
+                stop_on_reply: true,
+                business_days_only: true,
+              },
               createdByUserId: orgB.userId,
             })
             .returning();
@@ -187,7 +199,13 @@ describe("withTenantTransaction handler isolation", () => {
             organizationId: orgA.id,
             name: "Should Not Persist",
             status: "draft",
-            settings: { timezone: "UTC", throttle_seconds: 90, mailbox_ids: [], stop_on_reply: true, business_days_only: true },
+            settings: {
+              timezone: "UTC",
+              throttle_seconds: 90,
+              mailbox_ids: [],
+              stop_on_reply: true,
+              business_days_only: true,
+            },
             createdByUserId: orgA.userId,
           });
           throw new Error("Simulated handler error");

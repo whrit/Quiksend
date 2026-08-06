@@ -19,9 +19,7 @@ export async function withTenantTransaction<T>(
 ): Promise<T> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL ROLE quiksend_app`);
-    await tx.execute(
-      sql`SELECT set_config('app.organization_id', ${organizationId}, true)`,
-    );
+    await tx.execute(sql`SELECT set_config('app.organization_id', ${organizationId}, true)`);
     return fn(tx);
   });
 }

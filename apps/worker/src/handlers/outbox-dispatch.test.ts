@@ -4,7 +4,7 @@ import { db } from "@quiksend/db";
 import { insertOutbox } from "@quiksend/db";
 import { eventOutbox, webhookDelivery, webhookEndpoint } from "@quiksend/db/schema";
 import { truncateAppTables, withTestOrgs } from "@quiksend/db/testing";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   claimAndDispatchBatch,
   computeOutboxBackoff,
@@ -13,11 +13,15 @@ import {
 } from "./outbox-dispatch.ts";
 
 // Mock enqueue so we don't need pg-boss running
-const mockEnqueue = vi.fn().mockResolvedValue("mock-job-id");
+const mockEnqueue = vi
+  .fn<(...args: unknown[]) => Promise<string>>()
+  .mockResolvedValue("mock-job-id");
 vi.mock("@quiksend/queue", () => ({
   enqueue: (...args: unknown[]) => mockEnqueue(...args),
-  getBoss: vi.fn().mockResolvedValue({ schedule: vi.fn() }),
-  registerHandler: vi.fn().mockResolvedValue(undefined),
+  getBoss: vi
+    .fn<() => Promise<{ schedule: () => Promise<unknown> }>>()
+    .mockResolvedValue({ schedule: vi.fn<() => Promise<unknown>>() }),
+  registerHandler: vi.fn<() => Promise<undefined>>().mockResolvedValue(undefined),
 }));
 
 function makeIntent(orgId: string, overrides?: Partial<Parameters<typeof insertOutbox>[1]>) {
@@ -63,10 +67,7 @@ describe("outbox dispatch", () => {
         await insertOutbox(tx, makeIntent(orgA.id));
       });
 
-      const [a, b] = await Promise.all([
-        claimAndDispatchBatch(),
-        claimAndDispatchBatch(),
-      ]);
+      const [a, b] = await Promise.all([claimAndDispatchBatch(), claimAndDispatchBatch()]);
 
       // Exactly one processes the row
       expect(a + b).toBe(1);
@@ -99,10 +100,7 @@ describe("outbox dispatch", () => {
       const dispatched = await claimAndDispatchBatch();
       expect(dispatched).toBe(0);
 
-      const [row] = await db
-        .select()
-        .from(eventOutbox)
-        .where(eq(eventOutbox.idempotencyKey, key));
+      const [row] = await db.select().from(eventOutbox).where(eq(eventOutbox.idempotencyKey, key));
       expect(row!.status).toBe("processing");
     });
   });
@@ -130,10 +128,7 @@ describe("outbox dispatch", () => {
       const dispatched = await claimAndDispatchBatch();
       expect(dispatched).toBe(1);
 
-      const [row] = await db
-        .select()
-        .from(eventOutbox)
-        .where(eq(eventOutbox.idempotencyKey, key));
+      const [row] = await db.select().from(eventOutbox).where(eq(eventOutbox.idempotencyKey, key));
       expect(row!.status).toBe("dispatched");
       expect(row!.attempts).toBe(2); // was 1, re-claimed increments to 2
     });
@@ -170,10 +165,7 @@ describe("outbox dispatch", () => {
       // Now sweep recovers it
       expect(await claimAndDispatchBatch()).toBe(1);
 
-      const [row] = await db
-        .select()
-        .from(eventOutbox)
-        .where(eq(eventOutbox.idempotencyKey, key));
+      const [row] = await db.select().from(eventOutbox).where(eq(eventOutbox.idempotencyKey, key));
       expect(row!.status).toBe("dispatched");
     });
   });
@@ -192,7 +184,7 @@ describe("outbox dispatch", () => {
         .where(eq(eventOutbox.idempotencyKey, key));
 
       // Backoff hasn't elapsed — updated_at is very recent
-      const skipped = await claimAndDispatchBatch();
+      await claimAndDispatchBatch();
       // May or may not claim depending on exact timing; force-expire backoff
       await db
         .update(eventOutbox)
@@ -202,10 +194,7 @@ describe("outbox dispatch", () => {
       const retried = await claimAndDispatchBatch();
       expect(retried).toBe(1);
 
-      const [row] = await db
-        .select()
-        .from(eventOutbox)
-        .where(eq(eventOutbox.idempotencyKey, key));
+      const [row] = await db.select().from(eventOutbox).where(eq(eventOutbox.idempotencyKey, key));
       expect(row!.status).toBe("dispatched");
     });
   });
@@ -224,10 +213,7 @@ describe("outbox dispatch", () => {
 
       expect(await claimAndDispatchBatch()).toBe(0);
 
-      const [row] = await db
-        .select()
-        .from(eventOutbox)
-        .where(eq(eventOutbox.idempotencyKey, key));
+      const [row] = await db.select().from(eventOutbox).where(eq(eventOutbox.idempotencyKey, key));
       expect(row!.status).toBe("failed");
     });
   });
@@ -236,10 +222,13 @@ describe("outbox dispatch", () => {
     await withTestOrgs(async ({ orgA }) => {
       const key = randomUUID();
       await db.transaction(async (tx) => {
-        await insertOutbox(tx, makeIntent(orgA.id, {
-          eventType: "prospect.unsubscribed",
-          idempotencyKey: key,
-        }));
+        await insertOutbox(
+          tx,
+          makeIntent(orgA.id, {
+            eventType: "prospect.unsubscribed",
+            idempotencyKey: key,
+          }),
+        );
       });
 
       // Create a webhook endpoint that subscribes to this event
@@ -315,7 +304,10 @@ describe("outbox dispatch", () => {
 
       // First dispatch succeeds
       expect(await claimAndDispatchBatch()).toBe(1);
-      const [dispatched] = await db.select().from(eventOutbox).where(eq(eventOutbox.idempotencyKey, key));
+      const [dispatched] = await db
+        .select()
+        .from(eventOutbox)
+        .where(eq(eventOutbox.idempotencyKey, key));
       expect(dispatched!.status).toBe("dispatched");
 
       // Simulate: revert to processing as if the status=dispatched update never happened
@@ -332,7 +324,10 @@ describe("outbox dispatch", () => {
 
       // Recovery sweep re-dispatches (idempotent downstream)
       expect(await claimAndDispatchBatch()).toBe(1);
-      const [recovered] = await db.select().from(eventOutbox).where(eq(eventOutbox.idempotencyKey, key));
+      const [recovered] = await db
+        .select()
+        .from(eventOutbox)
+        .where(eq(eventOutbox.idempotencyKey, key));
       expect(recovered!.status).toBe("dispatched");
     });
   });

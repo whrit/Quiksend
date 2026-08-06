@@ -15,12 +15,18 @@ import { and, eq } from "drizzle-orm";
 import { claimAndDispatchBatch } from "./outbox-dispatch.ts";
 
 // Mock pg-boss / network deps
-const mockEnqueue = vi.fn().mockResolvedValue("mock-job-id");
+const mockEnqueue = vi
+  .fn<(...args: unknown[]) => Promise<string>>()
+  .mockResolvedValue("mock-job-id");
 vi.mock("@quiksend/queue", () => ({
   enqueue: (...args: unknown[]) => mockEnqueue(...args),
-  enqueueWithRetries: vi.fn().mockResolvedValue("mock-job-id"),
-  getBoss: vi.fn().mockResolvedValue({ schedule: vi.fn() }),
-  registerHandler: vi.fn().mockResolvedValue(undefined),
+  enqueueWithRetries: vi
+    .fn<(...args: unknown[]) => Promise<string>>()
+    .mockResolvedValue("mock-job-id"),
+  getBoss: vi
+    .fn<() => Promise<{ schedule: () => Promise<unknown> }>>()
+    .mockResolvedValue({ schedule: vi.fn<() => Promise<unknown>>() }),
+  registerHandler: vi.fn<() => Promise<undefined>>().mockResolvedValue(undefined),
 }));
 
 function makeIntent(orgId: string, overrides?: Partial<Parameters<typeof insertOutbox>[1]>) {
@@ -133,16 +139,14 @@ describe("worker tenancy", () => {
           .returning();
 
         // Create profile for orgA (as buildProfile does)
-        await db
-          .insert(researchProfile)
-          .values({
-            organizationId: orgA.id,
-            prospectId: prospectA!.id,
-            status: "ready",
-            facts: [],
-            sources: [],
-            summary: "test summary",
-          });
+        await db.insert(researchProfile).values({
+          organizationId: orgA.id,
+          prospectId: prospectA!.id,
+          status: "ready",
+          facts: [],
+          sources: [],
+          summary: "test summary",
+        });
 
         // Update with wrong org → 0 rows affected
         const crossResult = await db
@@ -212,12 +216,7 @@ describe("worker tenancy", () => {
         const crossOrgResult = await db
           .update(webhookDelivery)
           .set({ status: "succeeded", attempts: 1 })
-          .where(
-            and(
-              eq(webhookDelivery.id, delA!.id),
-              eq(webhookDelivery.organizationId, orgB.id),
-            ),
-          )
+          .where(and(eq(webhookDelivery.id, delA!.id), eq(webhookDelivery.organizationId, orgB.id)))
           .returning();
         expect(crossOrgResult).toHaveLength(0);
 
@@ -225,12 +224,7 @@ describe("worker tenancy", () => {
         const sameOrgResult = await db
           .update(webhookDelivery)
           .set({ status: "succeeded", attempts: 1 })
-          .where(
-            and(
-              eq(webhookDelivery.id, delA!.id),
-              eq(webhookDelivery.organizationId, orgA.id),
-            ),
-          )
+          .where(and(eq(webhookDelivery.id, delA!.id), eq(webhookDelivery.organizationId, orgA.id)))
           .returning();
         expect(sameOrgResult).toHaveLength(1);
         expect(sameOrgResult[0]!.status).toBe("succeeded");
@@ -292,12 +286,7 @@ describe("worker tenancy", () => {
         const result = await db
           .update(seedInbox)
           .set({ active: true, verifiedAt: new Date() })
-          .where(
-            and(
-              eq(seedInbox.id, seedA!.id),
-              eq(seedInbox.organizationId, orgB.id),
-            ),
-          )
+          .where(and(eq(seedInbox.id, seedA!.id), eq(seedInbox.organizationId, orgB.id)))
           .returning();
         expect(result).toHaveLength(0);
 

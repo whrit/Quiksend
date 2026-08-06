@@ -93,7 +93,12 @@ export async function claimAndDispatchBatch(): Promise<number> {
           status: "dispatched",
           dispatchedAt: new Date(),
         })
-        .where(and(eq(tables.eventOutbox.id, row.id), eq(tables.eventOutbox.organizationId, row.organization_id)));
+        .where(
+          and(
+            eq(tables.eventOutbox.id, row.id),
+            eq(tables.eventOutbox.organizationId, row.organization_id),
+          ),
+        );
 
       dispatched++;
     } catch (err) {
@@ -107,7 +112,12 @@ export async function claimAndDispatchBatch(): Promise<number> {
           lastError: errorMessage,
           status: row.attempts >= MAX_OUTBOX_ATTEMPTS ? "failed" : "pending",
         })
-        .where(and(eq(tables.eventOutbox.id, row.id), eq(tables.eventOutbox.organizationId, row.organization_id)));
+        .where(
+          and(
+            eq(tables.eventOutbox.id, row.id),
+            eq(tables.eventOutbox.organizationId, row.organization_id),
+          ),
+        );
 
       logger.warn(
         { outboxId: row.id, eventType: row.event_type, attempt: row.attempts, err: errorMessage },

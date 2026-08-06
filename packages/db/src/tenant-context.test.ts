@@ -21,15 +21,11 @@ describe("withTenantTransaction", () => {
         name: "Org B Corp",
       });
 
-      const orgARows = await withTenantTransaction(orgA.id, (tx) =>
-        tx.select().from(company),
-      );
+      const orgARows = await withTenantTransaction(orgA.id, (tx) => tx.select().from(company));
       expect(orgARows).toHaveLength(1);
       expect(orgARows[0]!.name).toBe("Org A Corp");
 
-      const orgBRows = await withTenantTransaction(orgB.id, (tx) =>
-        tx.select().from(company),
-      );
+      const orgBRows = await withTenantTransaction(orgB.id, (tx) => tx.select().from(company));
       expect(orgBRows).toHaveLength(1);
       expect(orgBRows[0]!.name).toBe("Org B Corp");
     });
@@ -72,14 +68,11 @@ describe("withTenantTransaction", () => {
       });
 
       // Run a scoped tenant transaction
-      const rows = await withTenantTransaction(orgA.id, (tx) =>
-        tx.select().from(company),
-      );
+      const rows = await withTenantTransaction(orgA.id, (tx) => tx.select().from(company));
       expect(rows).toHaveLength(1);
 
       // After the transaction, the config reverts — should be null or empty
-      const result =
-        await client`SELECT current_setting('app.organization_id', true) AS val`;
+      const result = await client`SELECT current_setting('app.organization_id', true) AS val`;
       const val = result[0]?.["val"] as string | null;
       expect(val ?? "").toBe("");
 

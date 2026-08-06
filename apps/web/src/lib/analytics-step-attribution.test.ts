@@ -137,7 +137,7 @@ describe("per-step message attribution", () => {
         .returning();
 
       // Step with both config (control) and variantB (variant)
-      const [step] = await db
+      const [_step] = await db
         .insert(tables.sequenceStep)
         .values({
           organizationId: orgA.id,
@@ -215,10 +215,7 @@ describe("per-step message attribution", () => {
         .select()
         .from(tables.message)
         .where(
-          and(
-            eq(tables.message.organizationId, orgA.id),
-            eq(tables.message.direction, "outbound"),
-          ),
+          and(eq(tables.message.organizationId, orgA.id), eq(tables.message.direction, "outbound")),
         )
         .orderBy(tables.message.subject);
 
@@ -253,7 +250,11 @@ describe("per-step message attribution", () => {
 
       const [sequence] = await db
         .insert(tables.sequence)
-        .values({ organizationId: orgA.id, name: "AB Fallback Sequence", createdByUserId: orgA.userId })
+        .values({
+          organizationId: orgA.id,
+          name: "AB Fallback Sequence",
+          createdByUserId: orgA.userId,
+        })
         .returning();
 
       // Step with config but NO variantB

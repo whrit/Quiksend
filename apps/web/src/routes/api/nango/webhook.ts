@@ -160,7 +160,10 @@ export const Route = createFileRoute("/api/nango/webhook")({
               .onConflictDoNothing()
               .returning({ eventId: tables.nangoWebhookProcessed.eventId });
             if (!claimed) {
-              logger.info({ eventId, connectionId: payload.connectionId }, "duplicate Nango sync webhook");
+              logger.info(
+                { eventId, connectionId: payload.connectionId },
+                "duplicate Nango sync webhook",
+              );
               return Response.json({ duplicate: true });
             }
             logger.info(
@@ -171,9 +174,7 @@ export const Route = createFileRoute("/api/nango/webhook")({
           }
 
           const model =
-            payload.model === "Company" || payload.model === "Account"
-              ? payload.model
-              : "Contact";
+            payload.model === "Company" || payload.model === "Account" ? payload.model : "Contact";
 
           // Claim + outbox in one tx: claim is not terminal until outbox commits
           const claimed = await db.transaction(async (tx) => {
@@ -196,7 +197,10 @@ export const Route = createFileRoute("/api/nango/webhook")({
           });
 
           if (!claimed) {
-            logger.info({ eventId, connectionId: payload.connectionId }, "duplicate Nango sync webhook");
+            logger.info(
+              { eventId, connectionId: payload.connectionId },
+              "duplicate Nango sync webhook",
+            );
             return Response.json({ duplicate: true });
           }
 
@@ -252,7 +256,10 @@ export const Route = createFileRoute("/api/nango/webhook")({
           });
 
           if (!claimed) {
-            logger.info({ eventId, connectionId: payload.connectionId }, "duplicate Nango auth webhook");
+            logger.info(
+              { eventId, connectionId: payload.connectionId },
+              "duplicate Nango auth webhook",
+            );
             return Response.json({ duplicate: true });
           }
 

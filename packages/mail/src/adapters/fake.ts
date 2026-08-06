@@ -1,10 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type {
-  IdentityHealth,
-  MailboxAdapter,
-  OutboundEmail,
-  SendResult,
-} from "../adapter.ts";
+import type { IdentityHealth, MailboxAdapter, OutboundEmail, SendResult } from "../adapter.ts";
 
 /**
  * In-memory adapter for unit tests. Records every send so tests can assert on

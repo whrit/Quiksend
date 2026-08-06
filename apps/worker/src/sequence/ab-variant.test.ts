@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { EnrollmentContext, StepContext } from "./context.ts";
 import { effectiveStepConfig } from "./context.ts";
 
+const createMockEnrollmentContext = (abBucket: "A" | "B"): Partial<EnrollmentContext> => ({
+  enrollment: {
+    id: "enrollment-1",
+    abBucket,
+  } as any,
+});
+
 describe("effectiveStepConfig", () => {
   const mockConfigA = {
     subject: "Subject A",
@@ -23,13 +30,6 @@ describe("effectiveStepConfig", () => {
     businessDaysOnly: false,
     config: mockConfigA,
     variantB,
-  });
-
-  const createMockEnrollmentContext = (abBucket: "A" | "B"): Partial<EnrollmentContext> => ({
-    enrollment: {
-      id: "enrollment-1",
-      abBucket,
-    } as any,
   });
 
   it("returns config when abBucket is A", () => {

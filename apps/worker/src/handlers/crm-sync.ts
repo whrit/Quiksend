@@ -63,12 +63,23 @@ export async function registerCrmSyncHandler(): Promise<void> {
       await db
         .update(tables.syncState)
         .set({ status: "running", error: null })
-        .where(and(eq(tables.syncState.id, syncRow.id), eq(tables.syncState.organizationId, organizationId)));
+        .where(
+          and(
+            eq(tables.syncState.id, syncRow.id),
+            eq(tables.syncState.organizationId, organizationId),
+          ),
+        );
     }
 
     const syncStateId = syncRow.id;
-    const syncStateScope = and(eq(tables.syncState.id, syncStateId), eq(tables.syncState.organizationId, organizationId));
-    const connectionScope = and(eq(tables.crmConnection.id, connectionId), eq(tables.crmConnection.organizationId, organizationId));
+    const syncStateScope = and(
+      eq(tables.syncState.id, syncStateId),
+      eq(tables.syncState.organizationId, organizationId),
+    );
+    const connectionScope = and(
+      eq(tables.crmConnection.id, connectionId),
+      eq(tables.crmConnection.organizationId, organizationId),
+    );
     const fieldMapping = connection.fieldMapping as FieldMapping;
     const ctx = {
       organizationId,

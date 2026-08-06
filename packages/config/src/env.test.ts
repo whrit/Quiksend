@@ -267,5 +267,4 @@ describe("EnvSchema", () => {
     });
     expect(result.success).toBe(true);
   });
-
 });

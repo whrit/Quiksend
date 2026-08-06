@@ -110,12 +110,8 @@ describe("citation validation", () => {
   });
 
   it("normalizes trailing slashes and fragments for comparison", () => {
-    expect(normalizeSourceUrl("https://example.com/path/")).toBe(
-      "https://example.com/path/",
-    );
-    expect(normalizeSourceUrl("https://example.com/path#section")).toBe(
-      "https://example.com/path",
-    );
+    expect(normalizeSourceUrl("https://example.com/path/")).toBe("https://example.com/path/");
+    expect(normalizeSourceUrl("https://example.com/path#section")).toBe("https://example.com/path");
     expect(normalizeSourceUrl("https://example.com/path?q=1#frag")).toBe(
       "https://example.com/path?q=1",
     );

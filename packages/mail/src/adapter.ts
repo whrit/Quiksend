@@ -54,7 +54,6 @@ export interface SendResult {
   readonly metadataReconciled: boolean;
 }
 
-
 export interface IdentityHealth {
   readonly domain: string;
   readonly spf: DnsCheck;

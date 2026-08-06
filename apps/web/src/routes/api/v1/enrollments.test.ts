@@ -240,7 +240,13 @@ describe("POST /api/v1/enrollments — insert failure propagation", () => {
       });
 
       // Access the route handler through TanStack's Route.options
-      const handler = (Route as unknown as { options: { server: { handlers: { POST: (ctx: { request: Request }) => Promise<Response> } } } }).options.server.handlers.POST;
+      const handler = (
+        Route as unknown as {
+          options: {
+            server: { handlers: { POST: (ctx: { request: Request }) => Promise<Response> } };
+          };
+        }
+      ).options.server.handlers.POST;
 
       try {
         const response = await handler({ request });

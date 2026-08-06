@@ -21,10 +21,7 @@ export function normalizeSourceUrl(raw: string): string {
  * Reject generated facts whose source_url does not match any URL actually
  * fetched in this run. Non-web sources (crm://) are exempt.
  */
-export function validateCitations(
-  facts: ResearchFact[],
-  fetchedUrls: string[],
-): void {
+export function validateCitations(facts: ResearchFact[], fetchedUrls: string[]): void {
   const allowed = new Set(fetchedUrls.map(normalizeSourceUrl));
   const fabricated = facts.filter(
     (f) => !f.source_url.startsWith("crm://") && !allowed.has(normalizeSourceUrl(f.source_url)),

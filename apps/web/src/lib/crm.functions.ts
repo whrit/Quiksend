@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isAdminOrOwner } from "@quiksend/core";
-import { db, type DbTx, withTenantTransaction } from "@quiksend/db";
+import { withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { getNango, getProviderConfig } from "@quiksend/integrations";
 import type { CrmProvider, FieldMapping } from "@quiksend/integrations/providers";

@@ -74,9 +74,7 @@ describe("tenancy guard", () => {
       WHERE schemaname = 'public'
         AND policyname = 'tenant_isolation'
     `;
-    const tablesWithPolicy = new Set(
-      result.map((r) => r["tablename"] as string),
-    );
+    const tablesWithPolicy = new Set(result.map((r) => r["tablename"] as string));
 
     const missing = RLS_SCOPED_TABLES.filter((t) => !tablesWithPolicy.has(t));
     expect(missing).toEqual([]);
@@ -90,9 +88,7 @@ describe("tenancy guard", () => {
       WHERE relrowsecurity = true
         AND relnamespace = 'public'::regnamespace
     `;
-    const rlsEnabled = new Set(
-      result.map((r) => r["relname"] as string),
-    );
+    const rlsEnabled = new Set(result.map((r) => r["relname"] as string));
     const inventory = new Set(RLS_SCOPED_TABLES);
     const unlisted = [...rlsEnabled].filter((t) => !inventory.has(t));
     expect(unlisted).toEqual([]);

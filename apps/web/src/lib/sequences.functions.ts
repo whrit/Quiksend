@@ -6,7 +6,7 @@ import {
   type EnrollmentSnapshot,
   type EnrollmentState,
 } from "@quiksend/core/state-machine";
-import { db, type DbTx, withTenantTransaction } from "@quiksend/db";
+import { type DbTx, withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { and, asc, desc, eq, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -240,7 +240,11 @@ function serializeEnrollment(row: EnrollmentRow) {
   };
 }
 
-async function loadSequenceOrThrow(tx: DbTx, id: string, organizationId: string): Promise<SequenceRow> {
+async function loadSequenceOrThrow(
+  tx: DbTx,
+  id: string,
+  organizationId: string,
+): Promise<SequenceRow> {
   const row = await tx.query.sequence.findFirst({
     where: and(
       eq(tables.sequence.id, id),
@@ -252,7 +256,11 @@ async function loadSequenceOrThrow(tx: DbTx, id: string, organizationId: string)
   return row;
 }
 
-async function loadSteps(tx: DbTx, sequenceId: string, organizationId: string): Promise<SequenceStepRow[]> {
+async function loadSteps(
+  tx: DbTx,
+  sequenceId: string,
+  organizationId: string,
+): Promise<SequenceStepRow[]> {
   return tx.query.sequenceStep.findMany({
     where: and(
       eq(tables.sequenceStep.sequenceId, sequenceId),
@@ -1171,7 +1179,8 @@ export const listEnrollments = createServerFn({ method: "GET" })
       });
 
       return Object.assign(items, {
-        nextCursor: hasMore && last ? { createdAt: last.createdAt.toISOString(), id: last.id } : null,
+        nextCursor:
+          hasMore && last ? { createdAt: last.createdAt.toISOString(), id: last.id } : null,
       });
     });
   });

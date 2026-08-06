@@ -1,4 +1,4 @@
-import { db, type DbTx, withTenantTransaction } from "@quiksend/db";
+import { type DbTx, withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { and, eq, or, sql } from "drizzle-orm";
 import { z } from "zod";

@@ -22,7 +22,10 @@ export async function registerAiResearchHandler(): Promise<void> {
       ),
     });
     if (!prospect) {
-      logger.warn({ prospectId, organizationId }, "ai.research: prospect not found or org mismatch, skipping");
+      logger.warn(
+        { prospectId, organizationId },
+        "ai.research: prospect not found or org mismatch, skipping",
+      );
       return;
     }
 

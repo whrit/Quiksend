@@ -1,7 +1,6 @@
 import { emailDomain } from "@quiksend/core";
 import { computeSchedule } from "@quiksend/core/schedule";
 import type { MailboxSchedule, SendingWindow, StepKind, Weekday } from "@quiksend/core/schedule";
-import { logger } from "@quiksend/config";
 import { type DbTx, withTenantTransaction } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { createFileRoute } from "@tanstack/react-router";
@@ -64,13 +63,17 @@ function computeNextRunAt(
   stepIndex: number,
   anchor: Date,
 ): Date | null {
-  const specs: { index: number; kind: StepKind; delayMinutes: number; businessDaysOnly: boolean }[] =
-    steps.map((s) => ({
-      index: s.stepIndex,
-      kind: s.stepType as StepKind,
-      delayMinutes: s.delayMinutes,
-      businessDaysOnly: s.businessDaysOnly,
-    }));
+  const specs: {
+    index: number;
+    kind: StepKind;
+    delayMinutes: number;
+    businessDaysOnly: boolean;
+  }[] = steps.map((s) => ({
+    index: s.stepIndex,
+    kind: s.stepType as StepKind,
+    delayMinutes: s.delayMinutes,
+    businessDaysOnly: s.businessDaysOnly,
+  }));
   const schedule = toMailboxSchedule(mailbox.sendWindow, mailbox, settings);
   const result = computeSchedule(specs, schedule, anchor);
   return result[stepIndex]?.scheduledAt ?? null;
