@@ -2,9 +2,30 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { db } from "@quiksend/db";
 import { logger } from "@quiksend/config";
 
-vi.mock("@quiksend/db");
-vi.mock("@quiksend/queue");
-vi.mock("@quiksend/config");
+vi.mock("@quiksend/db", () => ({
+  db: {
+    select: vi.fn<() => unknown>(),
+    update: vi.fn<() => unknown>(),
+    insert: vi.fn<() => unknown>(),
+  },
+}));
+vi.mock("@quiksend/db/tables", () => ({
+  tables: {
+    message: { id: {}, enrollmentId: {}, status: {}, createdAt: {} },
+    enrollment: { id: {}, state: {}, updatedAt: {} },
+  },
+}));
+vi.mock("@quiksend/queue", () => ({
+  registerHandler: vi.fn<() => Promise<void>>(),
+  getBoss: vi.fn<() => Promise<unknown>>(),
+}));
+vi.mock("@quiksend/config", () => ({
+  logger: {
+    info: vi.fn<() => void>(),
+    warn: vi.fn<() => void>(),
+    error: vi.fn<() => void>(),
+  },
+}));
 
 import { handleHealthReconcile } from "./health-reconcile";
 

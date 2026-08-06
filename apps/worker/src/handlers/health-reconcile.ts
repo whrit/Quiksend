@@ -1,4 +1,6 @@
-import { db, message, enrollment } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { tables } from "@quiksend/db/tables";
+const { message, enrollment } = tables;
 import { registerHandler, getBoss } from "@quiksend/queue";
 import { logger } from "@quiksend/config";
 import { eq, and, lt, ne, isNull } from "drizzle-orm";
@@ -47,11 +49,11 @@ export async function handleHealthReconcile(): Promise<void> {
   const staleEnrollments = await db
     .select({
       id: enrollment.id,
-      status: enrollment.status,
+      state: enrollment.state,
       updatedAt: enrollment.updatedAt,
     })
     .from(enrollment)
-    .where(and(eq(enrollment.status, "active"), lt(enrollment.updatedAt, oneHourAgo)))
+    .where(and(eq(enrollment.state, "active"), lt(enrollment.updatedAt, oneHourAgo)))
     .limit(100);
 
   if (staleEnrollments.length > 0) {

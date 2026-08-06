@@ -5,9 +5,42 @@ import { isSendSuppressed, listAuditLog } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { truncateAppTables } from "@quiksend/db/testing";
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type * as QuiksendQueue from "@quiksend/queue";
+
+// `emailVerification.sendOnSignUp` enqueues a verification email via
+// `enqueueWithRetries`; mocked out for the same reason `auth.test.ts` mocks it.
+const enqueueWithRetriesMock = vi.hoisted(() =>
+  vi.fn<() => Promise<string>>().mockResolvedValue("job_1"),
+);
+vi.mock("@quiksend/queue", async (importOriginal) => {
+  const actual = await importOriginal<typeof QuiksendQueue>();
+  return { ...actual, enqueueWithRetries: enqueueWithRetriesMock };
+});
 import { Route as ExportRoute } from "./export.ts";
 import { Route as OrganizationDeleteRoute } from "./organization-delete.ts";
+
+type RouteHandler = (ctx: { request: Request }) => Promise<Response>;
+
+function resolveHandler(route: unknown, method: "GET" | "POST"): RouteHandler {
+  if (route && typeof route === "object" && "options" in route) {
+    const opts = route.options;
+    if (opts && typeof opts === "object" && "server" in opts) {
+      const server = opts.server;
+      if (server && typeof server === "object" && "handlers" in server) {
+        const handlers = server.handlers;
+        if (handlers && typeof handlers === "object" && method in handlers) {
+          const fn = (handlers as Record<string, unknown>)[method];
+          if (typeof fn === "function") return fn as RouteHandler;
+        }
+      }
+    }
+  }
+  throw new Error(`${method} handler not exported`);
+}
+
+const exportGet = resolveHandler(ExportRoute, "GET");
+const deletePost = resolveHandler(OrganizationDeleteRoute, "POST");
 
 /**
  * These routes gate on a REAL Better Auth session (cookie), not an API key —
@@ -32,21 +65,28 @@ const createdUserIds: string[] = [];
 
 async function createActor(label: string, role: "owner" | "member"): Promise<TestActor> {
   const email = `${label}-${randomUUID().slice(0, 8)}@lifecycle.test`;
-  const signUpResponse = await auth.api.signUpEmail({
+  const signedUp = await auth.api.signUpEmail({
     body: { email, password: TEST_PASSWORD, name: `${label} user` },
+  });
+  const userId = signedUp.user.id;
+  createdUserIds.push(userId);
+
+  // `requireEmailVerification: true` blocks sign-in until we flip this flag —
+  // same pattern as `apps/web/src/lib/api-keys-tenancy.test.ts` and
+  // `packages/auth/src/auth.test.ts`.
+  await db.update(tables.user).set({ emailVerified: true }).where(eq(tables.user.id, userId));
+
+  const signedIn = await auth.api.signInEmail({
+    body: { email, password: TEST_PASSWORD },
     asResponse: true,
   });
-  if (!signUpResponse.ok) {
-    throw new Error(`signUpEmail failed: ${signUpResponse.status} ${await signUpResponse.text()}`);
+  if (!signedIn.ok) {
+    throw new Error(`signInEmail failed: ${signedIn.status} ${await signedIn.text()}`);
   }
-  const cookie = signUpResponse.headers
+  const cookie = signedIn.headers
     .getSetCookie()
     .map((c) => c.split(";")[0])
     .join("; ");
-  const signedUp = (await signUpResponse.json()) as { user?: { id?: string } };
-  const userId = signedUp.user?.id;
-  if (!userId) throw new Error("signUpEmail did not return a user id");
-  createdUserIds.push(userId);
 
   const organizationId = `org_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
   await db.insert(tables.organization).values({
@@ -62,6 +102,7 @@ async function createActor(label: string, role: "owner" | "member"): Promise<Tes
     role,
     createdAt: new Date(),
   });
+  await db.update(tables.user).set({ emailVerified: true }).where(eq(tables.user.id, userId));
   await db
     .update(tables.session)
     .set({ activeOrganizationId: organizationId })
@@ -105,7 +146,7 @@ function deleteRequest(cookie: string, password: string): Request {
 describe("GET /api/v1/export", () => {
   it("rejects a plain member — admin or owner required", async () => {
     const member = await createActor("export-member", "member");
-    const response = await ExportRoute.options.server.handlers.GET({
+    const response = await exportGet({
       request: exportRequest(member.cookie),
     });
     expect(response.status).toBe(403);
@@ -131,7 +172,7 @@ describe("GET /api/v1/export", () => {
       events: ["message.sent"],
     });
 
-    const response = await ExportRoute.options.server.handlers.GET({
+    const response = await exportGet({
       request: exportRequest(owner.cookie),
     });
     expect(response.status).toBe(200);
@@ -163,7 +204,7 @@ describe("GET /api/v1/export", () => {
       firstName: "OnlyA",
     });
 
-    const response = await ExportRoute.options.server.handlers.GET({
+    const response = await exportGet({
       request: exportRequest(ownerB.cookie),
     });
     const body = JSON.parse(await response.text()) as { organization: { id: string } | null };
@@ -175,7 +216,7 @@ describe("GET /api/v1/export", () => {
 describe("POST /api/v1/organization-delete", () => {
   it("rejects a plain member — owner required", async () => {
     const member = await createActor("delete-member", "member");
-    const response = await OrganizationDeleteRoute.options.server.handlers.POST({
+    const response = await deletePost({
       request: deleteRequest(member.cookie, TEST_PASSWORD),
     });
     expect(response.status).toBe(403);
@@ -187,7 +228,7 @@ describe("POST /api/v1/organization-delete", () => {
 
   it("rejects an incorrect password without disabling sending", async () => {
     const owner = await createActor("delete-badpw", "owner");
-    const response = await OrganizationDeleteRoute.options.server.handlers.POST({
+    const response = await deletePost({
       request: deleteRequest(owner.cookie, "definitely-wrong-password"),
     });
     expect(response.status).toBe(401);
@@ -205,13 +246,13 @@ describe("POST /api/v1/organization-delete", () => {
     });
     expect(before).toBe(false);
 
-    const response = await OrganizationDeleteRoute.options.server.handlers.POST({
+    const response = await deletePost({
       request: deleteRequest(owner.cookie, TEST_PASSWORD),
     });
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { status: string; sendingDisabled: boolean };
-    expect(body.status).toBe("deletion_scheduled");
-    expect(body.sendingDisabled).toBe(true);
+    const body = (await response.json()) as { data: { status: string; sendingDisabled: boolean } };
+    expect(body.data.status).toBe("deletion_scheduled");
+    expect(body.data.sendingDisabled).toBe(true);
 
     // Immediate: every send path shares this one check.
     expect(
@@ -237,7 +278,7 @@ describe("POST /api/v1/organization-delete", () => {
     const ownerA = await createActor("delete-a", "owner");
     const ownerB = await createActor("delete-b", "owner");
 
-    const response = await OrganizationDeleteRoute.options.server.handlers.POST({
+    const response = await deletePost({
       request: deleteRequest(ownerB.cookie, TEST_PASSWORD),
     });
     expect(response.status).toBe(200);

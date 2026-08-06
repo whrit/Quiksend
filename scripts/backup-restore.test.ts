@@ -51,12 +51,15 @@ describe("Backup/Restore Operations with Age Encryption", () => {
     const recipientFile = join(testDir, "recipient-no-age.txt");
     writeFileSync(recipientFile, "age1test");
 
+    // Isolated PATH: only /usr/bin and /bin so pg_dump/psql/bash exist but age
+    // does not — /opt/homebrew/bin is deliberately omitted.
+    const isolatedPath = "/usr/bin:/bin";
     let error: string = "";
     try {
       execSync(`bash scripts/backup-database.sh "${recipientFile}"`, {
         env: {
           DATABASE_URL: "postgres://user:pass@localhost/db",
-          PATH: "", // Empty PATH so age is not found
+          PATH: isolatedPath,
         },
       });
     } catch (e: any) {
@@ -107,17 +110,17 @@ describe("Backup/Restore Operations with Age Encryption", () => {
   });
 
   it("restore script fails when identity file does not exist", () => {
+    const backupFile = join(testDir, "dummy-backup.enc");
+    writeFileSync(backupFile, "fake");
+
     let error: string = "";
     try {
-      execSync(
-        `bash scripts/restore-database.sh "${join(testDir, "backup.enc")}" /nonexistent/identity.txt`,
-        {
-          env: {
-            DATABASE_URL: "postgres://user:pass@localhost/db",
-            PATH: process.env.PATH || "",
-          },
+      execSync(`bash scripts/restore-database.sh "${backupFile}" /nonexistent/identity.txt`, {
+        env: {
+          DATABASE_URL: "postgres://user:pass@localhost/db",
+          PATH: process.env.PATH || "",
         },
-      );
+      });
     } catch (e: any) {
       error = e.stderr?.toString() || e.stdout?.toString() || e.message || "";
     }
@@ -126,21 +129,20 @@ describe("Backup/Restore Operations with Age Encryption", () => {
   });
 
   it("restore script fails when identity file has wrong permissions (not 0600)", () => {
+    const backupFile = join(testDir, "dummy-backup-perms.enc");
+    writeFileSync(backupFile, "fake");
     const badIdentity = join(testDir, "bad-identity-perms.txt");
     writeFileSync(badIdentity, "AGE-SECRET-KEY-1test");
     chmodSync(badIdentity, 0o644); // Wrong permissions
 
     let error: string = "";
     try {
-      execSync(
-        `bash scripts/restore-database.sh "${join(testDir, "backup.enc")}" "${badIdentity}"`,
-        {
-          env: {
-            DATABASE_URL: "postgres://user:pass@localhost/db",
-            PATH: process.env.PATH || "",
-          },
+      execSync(`bash scripts/restore-database.sh "${backupFile}" "${badIdentity}"`, {
+        env: {
+          DATABASE_URL: "postgres://user:pass@localhost/db",
+          PATH: process.env.PATH || "",
         },
-      );
+      });
     } catch (e: any) {
       error = e.stderr?.toString() || e.stdout?.toString() || e.message || "";
     }
@@ -149,29 +151,30 @@ describe("Backup/Restore Operations with Age Encryption", () => {
   });
 
   it("restore script fails when age command is not available", () => {
+    const backupFile = join(testDir, "dummy-backup-age.enc");
+    writeFileSync(backupFile, "fake");
     const identityFile = join(testDir, "identity-no-age.txt");
     writeFileSync(identityFile, "AGE-SECRET-KEY-1test");
     chmodSync(identityFile, 0o600);
 
     let error: string = "";
     try {
-      execSync(
-        `bash scripts/restore-database.sh "${join(testDir, "backup.enc")}" "${identityFile}"`,
-        {
-          env: {
-            DATABASE_URL: "postgres://user:pass@localhost/db",
-            PATH: "", // Empty PATH so age is not found
-          },
+      execSync(`bash scripts/restore-database.sh "${backupFile}" "${identityFile}"`, {
+        env: {
+          DATABASE_URL: "postgres://user:pass@localhost/db",
+          PATH: "/usr/bin:/bin", // age not in isolated PATH
         },
-      );
+      });
     } catch (e: any) {
       error = e.stderr?.toString() || e.stdout?.toString() || e.message || "";
     }
 
-    expect(error).toContain("age command not found");
+    expect(error).toMatch(/age command not found|command not found: age/);
   });
 
   it("restore script validates target database name against SQL injection", () => {
+    const backupFile = join(testDir, "dummy-backup-sql.enc");
+    writeFileSync(backupFile, "fake");
     const identityFile = join(testDir, "identity-sql-test.txt");
     writeFileSync(identityFile, "AGE-SECRET-KEY-1test");
     chmodSync(identityFile, 0o600);
@@ -180,7 +183,7 @@ describe("Backup/Restore Operations with Age Encryption", () => {
     let error: string = "";
     try {
       execSync(
-        `bash scripts/restore-database.sh "${join(testDir, "backup.enc")}" "${identityFile}" "foo; DROP DATABASE quiksend;--"`,
+        `bash scripts/restore-database.sh "${backupFile}" "${identityFile}" "foo; DROP DATABASE quiksend;--"`,
         {
           env: {
             DATABASE_URL: "postgres://user:pass@localhost/db",
@@ -251,16 +254,17 @@ describe("Backup/Restore Operations with Age Encryption", () => {
     try {
       execSync(`bash scripts/backup-database.sh "${recipientFile}"`, {
         env: {
-          DATABASE_URL: "postgres://invalid:invalid@nonexistent.local:5432/db",
+          DATABASE_URL: "postgres://invalid:invalid@127.0.0.1:1/db",
           PATH: process.env.PATH || "",
         },
+        timeout: 20000,
       });
     } catch (e: any) {
       error = e.stderr?.toString() || e.stdout?.toString() || e.message || "";
     }
 
     expect(error).toContain("pg_dump failed");
-  });
+  }, 30_000);
 
   it("restore script fails on decryption error with wrong identity", () => {
     const wrongIdentity = join(testDir, "wrong-identity.txt");

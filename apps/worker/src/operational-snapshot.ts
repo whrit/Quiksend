@@ -115,7 +115,8 @@ export async function collectSnapshot(): Promise<OperationalSnapshot> {
       ) b) AS reconciliation_failure_count
   `);
 
-  const row = r.rows?.[0] ?? r[0];
+  const rows = r as unknown as Array<Record<string, unknown>>;
+  const row = rows[0];
   return {
     queueAgeMinutes: sanitize(row?.queue_age_minutes),
     stuckSendingCount: sanitize(row?.stuck_sending_count),

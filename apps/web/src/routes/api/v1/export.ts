@@ -2,7 +2,7 @@ import { db, recordAudit } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { createFileRoute } from "@tanstack/react-router";
 import { and, asc, eq, gt } from "drizzle-orm";
-import { withAdminSession } from "@/lib/api/v1/lifecycle-auth.ts";
+import { withAdminSession } from "../../../lib/api/v1/lifecycle-auth.ts";
 
 /**
  * Streamed organization data export (Task 5). Covers exactly the documented

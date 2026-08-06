@@ -15,7 +15,7 @@ function errorMessages(result: {
 
 const validProductionBase = {
   NODE_ENV: "production" as const,
-  DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
+  DATABASE_URL: "postgres://app:secure@prod.db.internal:5432/quiksend",
   BETTER_AUTH_SECRET: "a".repeat(32),
   BETTER_AUTH_URL: "https://app.quiksend.io",
   NANGO_WEBHOOK_SECRET: "nango-secret",
@@ -105,7 +105,6 @@ describe("EnvSchema", () => {
       DATABASE_URL: "postgres://app:secure@prod.db:5432/quiksend",
       BETTER_AUTH_URL: "https://quiksend.example.com",
       BETTER_AUTH_SECRET: "a".repeat(32),
-      BETTER_AUTH_URL: "https://app.quiksend.io",
       NANGO_WEBHOOK_SECRET: "nango-secret",
       MAILBOX_ENCRYPTION_KEY: "mailbox-key",
       UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",

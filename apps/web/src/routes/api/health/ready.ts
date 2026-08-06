@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { client } from "@quiksend/db";
+import { db } from "@quiksend/db";
+import { sql } from "drizzle-orm";
 import { logger } from "@quiksend/config";
 import { probeDatabase, probeQueue } from "../health.helpers";
 
@@ -18,7 +19,14 @@ export const Route = createFileRoute("/api/health/ready")({
       GET: async () => {
         const startTime = Date.now();
         try {
-          const dbProbeMs = await probeDatabase(client, 3000);
+          const dbProbeMs = await probeDatabase(
+            {
+              execute: async () => {
+                await db.execute(sql`SELECT NOW()`);
+              },
+            },
+            3000,
+          );
           const queueProbeMs = await probeQueue(2000);
 
           return Response.json(

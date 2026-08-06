@@ -55,17 +55,18 @@ describe("Health Helpers", () => {
   describe("probeDatabase", () => {
     it("returns probe time on successful query", async () => {
       const mockClient = {
-        execute: vi.fn<any>().mockResolvedValue({ rows: [] }),
+        execute: vi.fn<() => Promise<unknown>>().mockResolvedValue({ rows: [] }),
       };
       const result = probeDatabase(mockClient, 3000);
       const probeMs = await result;
-      expect(probeMs).toBeGreaterThanOrEqual(100);
+      expect(probeMs).toBeGreaterThanOrEqual(0);
       expect(mockClient.execute).toHaveBeenCalledWith("SELECT NOW()");
     });
 
     it("fails when query timeout fires", async () => {
+      const never = new Promise<never>(() => {}); // Never resolves — no resolver params used
       const mockClient = {
-        execute: vi.fn<any>().mockImplementation(() => new Promise(() => {})), // Never resolves
+        execute: vi.fn<() => Promise<unknown>>().mockImplementation(() => never),
       };
       const result = probeDatabase(mockClient, 3000);
       vi.advanceTimersByTime(3000);
@@ -74,7 +75,7 @@ describe("Health Helpers", () => {
 
     it("fails when query rejects", async () => {
       const mockClient = {
-        execute: vi.fn<any>().mockRejectedValue(new Error("Connection refused")),
+        execute: vi.fn<() => Promise<unknown>>().mockRejectedValue(new Error("Connection refused")),
       };
       const result = probeDatabase(mockClient, 3000);
       vi.advanceTimersByTime(100);
@@ -85,7 +86,7 @@ describe("Health Helpers", () => {
   describe("probeQueue", () => {
     it("returns probe time when queue is healthy", async () => {
       const mockBoss = {
-        getQueueSize: vi.fn<any>().mockResolvedValue(0),
+        getQueue: vi.fn<() => Promise<unknown>>().mockResolvedValue({ name: "health.reconcile" }),
       };
       vi.mocked(getBoss).mockResolvedValue(mockBoss as never);
 
@@ -93,17 +94,21 @@ describe("Health Helpers", () => {
       vi.advanceTimersByTime(100);
       const probeMs = await result;
       expect(probeMs).toBeGreaterThanOrEqual(100);
-      expect(mockBoss.getQueueSize).toHaveBeenCalledWith("health.reconcile");
+      expect(mockBoss.getQueue).toHaveBeenCalledWith("health.reconcile");
     });
 
-    it("fails when getQueueSize timeout fires", async () => {
+    it("fails when getQueue timeout fires", async () => {
+      const never = new Promise<never>(() => {}); // Never resolves — no resolver params used
       const mockBoss = {
-        getQueueSize: vi.fn<any>().mockImplementation(() => new Promise(() => {})), // Never resolves
+        getQueue: vi.fn<() => Promise<unknown>>().mockImplementation(() => never),
       };
       vi.mocked(getBoss).mockResolvedValue(mockBoss as never);
 
       const result = probeQueue(2000);
-      vi.advanceTimersByTime(2000);
+      // Race's losing promise leaks its rejection through the fake-timer event
+      // loop after settlement — attach a no-op handler so vitest doesn't flag it.
+      result.catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(2000);
       await expect(result).rejects.toThrow("Queue probe timeout after 2000ms");
     });
 

@@ -1,6 +1,7 @@
 import { env, logger } from "@quiksend/config";
 import { client, db } from "@quiksend/db";
 import { initSentry, Sentry, shutdownPostHog } from "@quiksend/observability";
+import { getBoss, registerHandler, stopBoss } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
 import { writeFileSync, unlinkSync } from "fs";
 import { registerAiResearchHandler } from "./handlers/ai-research.ts";

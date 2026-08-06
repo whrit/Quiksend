@@ -51,9 +51,10 @@ async function deleteBatchById(
   cutoff: Date,
   batchSize: number,
 ) {
+  const cutoffIso = cutoff.toISOString();
   const rows = await db.execute(sql`
     DELETE FROM ${sql.identifier(table)}
-    WHERE id IN (SELECT id FROM ${sql.identifier(table)} WHERE created_at < ${cutoff} LIMIT ${batchSize})
+    WHERE id IN (SELECT id FROM ${sql.identifier(table)} WHERE created_at < ${cutoffIso}::timestamptz LIMIT ${batchSize})
     RETURNING id
   `);
   return rows.length;

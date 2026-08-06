@@ -37,7 +37,7 @@ if [ ! -f "$IDENTITY_FILE" ]; then
 fi
 
 # Validate permissions: identity file MUST be 0600 (rw-------)
-local_perms=$(stat -f %A "$IDENTITY_FILE" 2>/dev/null || stat -c %a "$IDENTITY_FILE" 2>/dev/null || echo "unknown")
+local_perms=$(stat -c %a "$IDENTITY_FILE" 2>/dev/null || stat -f %Lp "$IDENTITY_FILE" 2>/dev/null || echo "unknown")
 if [ "$local_perms" != "600" ] && [ "$local_perms" != "rw-------" ]; then
   echo "ERROR: Identity file must have permissions 0600 (rw-------), got $local_perms" >&2
   exit 1

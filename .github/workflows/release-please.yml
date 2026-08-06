@@ -129,29 +129,20 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
         run: |
-          # Get current release notes
-          CURRENT_BODY=$(gh release view "$TAG" --json body -q .body)
-          
-          # Generate rollback command
+          CURRENT_BODY=$(gh release view "$TAG" --json body -q .body || echo "")
           PREV_TAG=$(git describe --tags --abbrev=0 --exclude "$TAG" 2>/dev/null || echo "v0.0.0")
-          ROLLBACK_CMD="kubectl set image deployment/quiksend-web web=ghcr.io/\$OWNER/quiksend-web:${PREV_TAG}"
-          
-          # Append rollback notes to existing body
-          NEW_BODY="${CURRENT_BODY}
-
-## Rollback Command
-
-If this release requires rollback to the previous version:
-
-\`\`\`bash
-export OWNER=\$(git config --get remote.origin.url | cut -d'/' -f4)
-$ROLLBACK_CMD
-kubectl rollout status deployment/quiksend-web
-\`\`\`
-
-Replace \`deployment/quiksend-web\` with your actual deployment name/namespace."
-          
-          gh release edit "$TAG" --notes "$NEW_BODY"
+          {
+            printf '%s\n\n' "$CURRENT_BODY"
+            printf '## Rollback Command\n\n'
+            printf 'If this release requires rollback to the previous version:\n\n'
+            printf '```bash\n'
+            printf 'export OWNER=$(git config --get remote.origin.url | cut -d/ -f4)\n'
+            printf 'kubectl set image deployment/quiksend-web web=ghcr.io/$OWNER/quiksend-web:%s\n' "$PREV_TAG"
+            printf 'kubectl rollout status deployment/quiksend-web\n'
+            printf '```\n\n'
+            printf 'Replace `deployment/quiksend-web` with your actual deployment name/namespace.\n'
+          } > /tmp/release-notes.md
+          gh release edit "$TAG" --notes-file /tmp/release-notes.md
 
       - name: Upload SBOMs to release
         env:

@@ -45,7 +45,7 @@ const METADATA_CHAR_LIMIT = 4096;
 
 /** Key names that must never reach the audit table, even if a caller forgets to scrub them. */
 const SECRET_KEY_PATTERN =
-  /password|secret|token|apikey|api_key|credential|hash|smtp_config|imap|refresh_token|access_token|body|bodyhtml|bodytext/i;
+  /password|secret|token|apikey|api_key|credential|hash|smtp_?config|imap|refresh_?token|access_?token|body|bodyhtml|bodytext|(^|_)key(_|$)/i;
 
 /**
  * Defense-in-depth redaction: strips keys that look secret-shaped and bounds

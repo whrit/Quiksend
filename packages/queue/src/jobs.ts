@@ -218,8 +218,6 @@ export type OpsSnapshotPayload = Record<string, never>;
 export const retentionPurgeSchema = z.object({});
 export type RetentionPurgePayload = Record<string, never>;
 
-
-
 // ── mail.send_transactional — durable transactional email delivery (auth) ──────
 // Payload carries only message content, never SMTP credentials — the worker
 // reads relay auth from its own env at send time.

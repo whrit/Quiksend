@@ -3,8 +3,8 @@ import { tables } from "@quiksend/db/tables";
 import { enqueue } from "@quiksend/queue";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { withOwnerReauth } from "@/lib/api/v1/lifecycle-auth.ts";
-import { jsonData, jsonError, parseJsonBody } from "@/lib/api/v1/middleware.ts";
+import { withOwnerReauth } from "../../../lib/api/v1/lifecycle-auth.ts";
+import { jsonData, jsonError, parseJsonBody } from "../../../lib/api/v1/middleware.ts";
 
 /**
  * Organization deletion (Task 5). Owner role + fresh password

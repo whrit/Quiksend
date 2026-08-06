@@ -27,7 +27,7 @@ export async function raceWithTimeout<T>(
       }),
     ]);
   } finally {
-    clearTimeout(timeoutId);
+    if (timeoutId !== null) clearTimeout(timeoutId);
   }
 }
 
@@ -59,10 +59,10 @@ export async function probeDatabase(
 export async function probeQueue(timeoutMs: number = 2000): Promise<number> {
   const start = Date.now();
   const boss = await getBoss();
-  // getQueueSize queries the queue state table — tests real DB connectivity
+  // getQueue queries the queue metadata table — tests real DB connectivity
   // not just pg-boss instance cache
   await raceWithTimeout(
-    boss.getQueueSize("health.reconcile"),
+    boss.getQueue("health.reconcile"),
     timeoutMs,
     `Queue probe timeout after ${timeoutMs}ms`,
   );

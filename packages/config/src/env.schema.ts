@@ -190,8 +190,7 @@ export const EnvSchema = z
     message: "SMTP_USER and SMTP_PASS must be set together, or not at all",
   })
   .refine(
-    (env) =>
-      env.NODE_ENV !== "production" || !env.DATABASE_URL?.includes("quiksend:quiksend@"),
+    (env) => env.NODE_ENV !== "production" || !env.DATABASE_URL?.includes("quiksend:quiksend@"),
     {
       message: "DATABASE_URL must not use default credentials (quiksend:quiksend) in production",
     },
