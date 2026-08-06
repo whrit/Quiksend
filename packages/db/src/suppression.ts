@@ -49,7 +49,10 @@ export async function isSendSuppressed(input: {
         and(
           eq(tables.suppression.organizationId, input.organizationId),
           or(
-            and(eq(tables.suppression.valueType, "email"), eq(tables.suppression.value, normalized)),
+            and(
+              eq(tables.suppression.valueType, "email"),
+              eq(tables.suppression.value, normalized),
+            ),
             and(eq(tables.suppression.valueType, "domain"), eq(tables.suppression.value, domain)),
           ),
         ),

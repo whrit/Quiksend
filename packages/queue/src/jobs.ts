@@ -238,7 +238,6 @@ export interface MailSendTransactionalPayload {
 // ── outbox.dispatch — process transactional outbox intents ─────────────────────
 export const outboxDispatchSchema = z.object({});
 export type OutboxDispatchPayload = Record<string, never>;
-
 export interface JobPayloadMap {
   "hello.ping": HelloPingPayload;
   "sequence.tick": SequenceTickPayload;

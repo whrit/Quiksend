@@ -9,8 +9,7 @@ async function main(): Promise<void> {
   // Use MIGRATIONS_FOLDER env var if provided (e.g., in bundled Docker image),
   // otherwise default to sibling drizzle folder relative to this source file.
   const migrationsFolder =
-    process.env.MIGRATIONS_FOLDER ||
-    join(import.meta.dirname, "..", "drizzle");
+    process.env.MIGRATIONS_FOLDER || join(import.meta.dirname, "..", "drizzle");
   const sql = postgres(env.DATABASE_URL, { max: 1 });
   const db = drizzle(sql);
 

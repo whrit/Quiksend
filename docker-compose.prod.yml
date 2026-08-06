@@ -30,7 +30,7 @@ networks:
   db:
     driver: bridge
     internal: true
-  
+
   # Public network — Caddy TLS ingress, reverse proxy to internal services
   public:
     driver: bridge
@@ -48,13 +48,14 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "443:443/udp"  # HTTP/3 QUIC
+      - "443:443/udp" # HTTP/3 QUIC
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - quiksend-caddy-data:/data
       - quiksend-caddy-config:/config
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:2019/config || exit 1"]
+      test:
+        ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:2019/config || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3

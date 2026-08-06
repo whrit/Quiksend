@@ -57,7 +57,6 @@ export async function resolveDefaultActiveOrganizationId(userId: string): Promis
   return firstMembership?.organizationId ?? null;
 }
 
-
 /**
  * Case-insensitive match against the configured Quiksend Systems operator
  * bootstrap identity (`SYSTEM_ADMIN_EMAIL`). Unset in local development —

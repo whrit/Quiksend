@@ -1,7 +1,6 @@
 import { env, logger } from "@quiksend/config";
 import { client, db } from "@quiksend/db";
 import { initSentry, Sentry, shutdownPostHog } from "@quiksend/observability";
-import { enqueue, getBoss, registerHandler, stopBoss } from "@quiksend/queue";
 import { sql } from "drizzle-orm";
 import { writeFileSync, unlinkSync } from "fs";
 import { registerAiResearchHandler } from "./handlers/ai-research.ts";
@@ -27,7 +26,10 @@ import { registerSeedPoolLegitMailHandler } from "./handlers/seed-pool-legit-mai
 import { registerMailTransactionalSendHandler } from "./handlers/mail-transactional-send.ts";
 import { registerHealthReconcileHandler } from "./handlers/health-reconcile.ts";
 import { registerRetentionPurgeHandler } from "./handlers/retention-purge.ts";
-import { registerOperationalSnapshotHandler, shutdownOperationalSnapshot } from "./operational-snapshot.ts";
+import {
+  registerOperationalSnapshotHandler,
+  shutdownOperationalSnapshot,
+} from "./operational-snapshot.ts";
 
 /**
  * Worker entrypoint. Boots pg-boss, registers job handlers, and idles waiting
@@ -40,17 +42,17 @@ let heartbeatInterval: NodeJS.Timeout | undefined;
 
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, "Worker shutting down");
-  
+
   // Clear heartbeat timer
   clearInterval(heartbeatInterval);
-  
+
   // Remove heartbeat file
   try {
     unlinkSync("/tmp/worker-ready");
   } catch {
     // File may not exist, ignore error
   }
-  
+
   try {
     shutdownOperationalSnapshot();
     await stopBoss();
@@ -109,7 +111,7 @@ async function main(): Promise<void> {
       logger.error({ err }, "Failed to write heartbeat file");
     }
   }, 30_000);
-  
+
   // Write initial heartbeat file (all initialization complete)
   await registerHealthReconcileHandler();
   await registerOperationalSnapshotHandler();

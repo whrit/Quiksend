@@ -7,7 +7,7 @@
 
 import * as esbuild from "esbuild";
 
-const result = await esbuild.build({
+void esbuild.build({
   entryPoints: ["src/migrate.ts"],
   bundle: true,
   platform: "node",
@@ -18,5 +18,3 @@ const result = await esbuild.build({
   logLevel: "info",
   minify: false,
 });
-
-console.log("Migration bundle complete:", result);

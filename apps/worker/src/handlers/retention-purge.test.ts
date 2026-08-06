@@ -20,8 +20,20 @@ describe("runRetentionPurge", () => {
       const recent = new Date(now.getTime() - DAY_MS);
 
       await db.insert(tables.event).values([
-        { organizationId: orgA.id, type: "test.old", entityType: "test", entityId: randomUUID(), createdAt: old },
-        { organizationId: orgB.id, type: "test.old", entityType: "test", entityId: randomUUID(), createdAt: old },
+        {
+          organizationId: orgA.id,
+          type: "test.old",
+          entityType: "test",
+          entityId: randomUUID(),
+          createdAt: old,
+        },
+        {
+          organizationId: orgB.id,
+          type: "test.old",
+          entityType: "test",
+          entityId: randomUUID(),
+          createdAt: old,
+        },
         {
           organizationId: orgA.id,
           type: "test.recent",
@@ -33,7 +45,12 @@ describe("runRetentionPurge", () => {
 
       const [endpoint] = await db
         .insert(tables.webhookEndpoint)
-        .values({ organizationId: orgA.id, url: "https://example.com/hook", secret: "s", events: ["message.sent"] })
+        .values({
+          organizationId: orgA.id,
+          url: "https://example.com/hook",
+          secret: "s",
+          events: ["message.sent"],
+        })
         .returning();
 
       await db.insert(tables.webhookDelivery).values([
@@ -44,7 +61,13 @@ describe("runRetentionPurge", () => {
           payload: {},
           createdAt: new Date(now.getTime() - 60 * DAY_MS),
         },
-        { organizationId: orgA.id, endpointId: endpoint!.id, eventType: "message.sent", payload: {}, createdAt: recent },
+        {
+          organizationId: orgA.id,
+          endpointId: endpoint!.id,
+          eventType: "message.sent",
+          payload: {},
+          createdAt: recent,
+        },
       ]);
 
       const summary = await runRetentionPurge({ now });
@@ -61,7 +84,12 @@ describe("runRetentionPurge", () => {
     await withTestOrgs(async ({ orgA }) => {
       const [mailbox] = await db
         .insert(tables.mailbox)
-        .values({ organizationId: orgA.id, ownerUserId: orgA.userId, provider: "smtp", address: "a@example.com" })
+        .values({
+          organizationId: orgA.id,
+          ownerUserId: orgA.userId,
+          provider: "smtp",
+          address: "a@example.com",
+        })
         .returning();
       await db.insert(tables.message).values({ organizationId: orgA.id, mailboxId: mailbox!.id });
 
@@ -76,7 +104,12 @@ describe("runRetentionPurge", () => {
       const now = new Date();
       const [mailbox] = await db
         .insert(tables.mailbox)
-        .values({ organizationId: orgA.id, ownerUserId: orgA.userId, provider: "smtp", address: "a@example.com" })
+        .values({
+          organizationId: orgA.id,
+          ownerUserId: orgA.userId,
+          provider: "smtp",
+          address: "a@example.com",
+        })
         .returning();
       await db.insert(tables.message).values({ organizationId: orgA.id, mailboxId: mailbox!.id });
       await db.insert(tables.organizationLifecycle).values({
@@ -97,16 +130,28 @@ describe("runRetentionPurge", () => {
 
       const [mailboxA] = await db
         .insert(tables.mailbox)
-        .values({ organizationId: orgA.id, ownerUserId: orgA.userId, provider: "smtp", address: "a@example.com" })
+        .values({
+          organizationId: orgA.id,
+          ownerUserId: orgA.userId,
+          provider: "smtp",
+          address: "a@example.com",
+        })
         .returning();
       await db
         .insert(tables.message)
-        .values(Array.from({ length: 5 }, () => ({ organizationId: orgA.id, mailboxId: mailboxA!.id })));
+        .values(
+          Array.from({ length: 5 }, () => ({ organizationId: orgA.id, mailboxId: mailboxA!.id })),
+        );
 
       // Org B is untouched by org A's deletion — must survive every assertion below.
       const [mailboxB] = await db
         .insert(tables.mailbox)
-        .values({ organizationId: orgB.id, ownerUserId: orgB.userId, provider: "smtp", address: "b@example.com" })
+        .values({
+          organizationId: orgB.id,
+          ownerUserId: orgB.userId,
+          provider: "smtp",
+          address: "b@example.com",
+        })
         .returning();
       await db.insert(tables.message).values({ organizationId: orgB.id, mailboxId: mailboxB!.id });
 
@@ -146,7 +191,10 @@ describe("runRetentionPurge", () => {
 
       // Suppression hash retained as compliance evidence.
       expect(
-        await db.select().from(tables.suppression).where(eq(tables.suppression.organizationId, orgA.id)),
+        await db
+          .select()
+          .from(tables.suppression)
+          .where(eq(tables.suppression.organizationId, orgA.id)),
       ).toHaveLength(1);
 
       // Purge completion recorded in the audit trail (minimal compliance evidence).

@@ -13,10 +13,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 // Mock config logger before importing anything that pulls it
 vi.mock("@quiksend/config", () => ({
   logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
+    info: vi.fn<any>(),
+    warn: vi.fn<any>(),
+    error: vi.fn<any>(),
+    debug: vi.fn<any>(),
   },
   env: {
     NODE_ENV: "test",
@@ -28,8 +28,8 @@ vi.mock("@quiksend/config", () => ({
 
 // Mock queue (no circular issues)
 vi.mock("@quiksend/queue", () => ({
-  registerHandler: vi.fn(),
-  getBoss: vi.fn().mockResolvedValue({ schedule: vi.fn() }),
+  registerHandler: vi.fn<any>(),
+  getBoss: vi.fn<any>().mockResolvedValue({ schedule: vi.fn<any>() }),
 }));
 
 import { logger } from "@quiksend/config";
@@ -38,8 +38,8 @@ import {
   evaluateAlerts,
   SNAPSHOT_KEYS,
   THRESHOLDS,
-  _resetAlertState,
-  _getAlertState,
+  resetAlertState,
+  getAlertState,
   type OperationalSnapshot,
 } from "./operational-snapshot";
 
@@ -59,7 +59,7 @@ function makeSnapshot(overrides: Partial<OperationalSnapshot> = {}): Operational
 describe("operational-snapshot", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    _resetAlertState();
+    resetAlertState();
   });
 
   // ── sanitize ────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ describe("operational-snapshot", () => {
 
     it("snapshot has no extra keys beyond SNAPSHOT_KEYS", () => {
       const snap = makeSnapshot();
-      expect(Object.keys(snap).sort()).toEqual([...SNAPSHOT_KEYS].sort());
+      expect(Object.keys(snap).toSorted()).toEqual([...SNAPSHOT_KEYS].toSorted());
     });
 
     it("contains no sensitive field names", () => {
@@ -203,12 +203,12 @@ describe("operational-snapshot", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
-    it("clears all alert state on _resetAlertState", () => {
+    it("clears all alert state on resetAlertState", () => {
       evaluateAlerts(makeSnapshot({ stuckSendingCount: THRESHOLDS.stuckSendingCount + 1 }));
-      expect(_getAlertState().get("stuckSendingCount")).toBe(true);
+      expect(getAlertState().get("stuckSendingCount")).toBe(true);
 
-      _resetAlertState();
-      expect(_getAlertState().size).toBe(0);
+      resetAlertState();
+      expect(getAlertState().size).toBe(0);
 
       vi.mocked(logger.warn).mockClear();
       evaluateAlerts(makeSnapshot({ stuckSendingCount: THRESHOLDS.stuckSendingCount + 1 }));

@@ -48,8 +48,9 @@ export const THRESHOLDS: Readonly<Record<keyof OperationalSnapshot, number>> = {
   reconciliationFailureCount: 3,
 };
 
-export const SNAPSHOT_KEYS: readonly (keyof OperationalSnapshot)[] =
-  Object.keys(THRESHOLDS) as (keyof OperationalSnapshot)[];
+export const SNAPSHOT_KEYS: readonly (keyof OperationalSnapshot)[] = Object.keys(
+  THRESHOLDS,
+) as (keyof OperationalSnapshot)[];
 
 // ── Alert state (in-memory, resets on restart) ──────────────────────────────
 
@@ -161,10 +162,7 @@ export async function handleOperationalSnapshot(): Promise<void> {
   const snapshot = await collectSnapshot();
 
   // Emit fixed-key structured log — no sensitive fields
-  logger.info(
-    { ...snapshot, event: "ops.snapshot" },
-    "Operational snapshot collected",
-  );
+  logger.info({ ...snapshot, event: "ops.snapshot" }, "Operational snapshot collected");
 
   evaluateAlerts(snapshot);
 }
@@ -185,10 +183,10 @@ export function shutdownOperationalSnapshot(): void {
 }
 
 /** Visible for tests */
-export function _getAlertState(): ReadonlyMap<keyof OperationalSnapshot, boolean> {
+export function getAlertState(): ReadonlyMap<keyof OperationalSnapshot, boolean> {
   return alertFired;
 }
 
-export function _resetAlertState(): void {
+export function resetAlertState(): void {
   alertFired.clear();
 }

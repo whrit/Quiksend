@@ -46,7 +46,11 @@ export interface RetentionPurgeSummary {
 const DEFAULT_BATCH_SIZE = 500;
 const DEFAULT_MAX_BATCHES_PER_ORG = 20;
 
-async function deleteBatchById(table: "event" | "webhook_delivery", cutoff: Date, batchSize: number) {
+async function deleteBatchById(
+  table: "event" | "webhook_delivery",
+  cutoff: Date,
+  batchSize: number,
+) {
   const rows = await db.execute(sql`
     DELETE FROM ${sql.identifier(table)}
     WHERE id IN (SELECT id FROM ${sql.identifier(table)} WHERE created_at < ${cutoff} LIMIT ${batchSize})

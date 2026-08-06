@@ -70,11 +70,11 @@ psql -c "DROP DATABASE quiksend_staging;"
 
 ## Common Issues
 
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| "Decryption failed" | Wrong identity file or corrupted backup | Verify identity in 1Password; try alternate backup date |
-| pg_restore "permission denied" | User lacks DDL privs | Use `quiksend_migrator` role, not `quiksend_app` |
-| Temp cleanup fails | Disk full | `df -h /tmp`; `rm -rf /tmp/.quiksend-*` |
+| Symptom                        | Cause                                   | Fix                                                     |
+| ------------------------------ | --------------------------------------- | ------------------------------------------------------- |
+| "Decryption failed"            | Wrong identity file or corrupted backup | Verify identity in 1Password; try alternate backup date |
+| pg_restore "permission denied" | User lacks DDL privs                    | Use `quiksend_migrator` role, not `quiksend_app`        |
+| Temp cleanup fails             | Disk full                               | `df -h /tmp`; `rm -rf /tmp/.quiksend-*`                 |
 
 ## Testing
 

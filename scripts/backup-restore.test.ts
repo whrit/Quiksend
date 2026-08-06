@@ -56,7 +56,7 @@ describe("Backup/Restore Operations with Age Encryption", () => {
       execSync(`bash scripts/backup-database.sh "${recipientFile}"`, {
         env: {
           DATABASE_URL: "postgres://user:pass@localhost/db",
-          PATH: "",  // Empty PATH so age is not found
+          PATH: "", // Empty PATH so age is not found
         },
       });
     } catch (e: any) {
@@ -93,15 +93,12 @@ describe("Backup/Restore Operations with Age Encryption", () => {
 
     let error: string = "";
     try {
-      execSync(
-        `bash scripts/restore-database.sh /nonexistent/backup.enc "${identityFile}"`,
-        {
-          env: {
-            DATABASE_URL: "postgres://user:pass@localhost/db",
-            PATH: process.env.PATH || "",
-          },
+      execSync(`bash scripts/restore-database.sh /nonexistent/backup.enc "${identityFile}"`, {
+        env: {
+          DATABASE_URL: "postgres://user:pass@localhost/db",
+          PATH: process.env.PATH || "",
         },
-      );
+      });
     } catch (e: any) {
       error = e.stderr?.toString() || e.stdout?.toString() || e.message || "";
     }
@@ -131,7 +128,7 @@ describe("Backup/Restore Operations with Age Encryption", () => {
   it("restore script fails when identity file has wrong permissions (not 0600)", () => {
     const badIdentity = join(testDir, "bad-identity-perms.txt");
     writeFileSync(badIdentity, "AGE-SECRET-KEY-1test");
-    chmodSync(badIdentity, 0o644);  // Wrong permissions
+    chmodSync(badIdentity, 0o644); // Wrong permissions
 
     let error: string = "";
     try {
@@ -163,7 +160,7 @@ describe("Backup/Restore Operations with Age Encryption", () => {
         {
           env: {
             DATABASE_URL: "postgres://user:pass@localhost/db",
-            PATH: "",  // Empty PATH so age is not found
+            PATH: "", // Empty PATH so age is not found
           },
         },
       );
@@ -219,28 +216,28 @@ describe("Backup/Restore Operations with Age Encryption", () => {
   it("temp plaintext file permissions are 0600 during write, then 0400 read-only", () => {
     // Fixture test: verify permission sequence is correct
     const testFile = join(testDir, "perm-sequence.txt");
-    
+
     // Create with 0600 (rw-------)
     writeFileSync(testFile, "test");
     chmodSync(testFile, 0o600);
-    
+
     // Verify it's writable (can write to it)
     writeFileSync(testFile, "modified", { flag: "w" });
     let content = readFileSync(testFile, "utf-8");
     expect(content).toBe("modified");
-    
+
     // Change to 0400 (r---------)
     chmodSync(testFile, 0o400);
-    
+
     // Verify it's readable
     content = readFileSync(testFile, "utf-8");
     expect(content).toBe("modified");
-    
+
     // Verify it's NOT writable (would fail on macOS/Linux)
     let canWrite = true;
     try {
       writeFileSync(testFile, "should-fail", { flag: "w" });
-    } catch (e) {
+    } catch {
       canWrite = false;
     }
     expect(canWrite).toBe(false);
@@ -275,15 +272,12 @@ describe("Backup/Restore Operations with Age Encryption", () => {
 
     let error: string = "";
     try {
-      execSync(
-        `bash scripts/restore-database.sh "${fakeBackup}" "${wrongIdentity}"`,
-        {
-          env: {
-            DATABASE_URL: "postgres://user:pass@localhost/db",
-            PATH: process.env.PATH || "",
-          },
+      execSync(`bash scripts/restore-database.sh "${fakeBackup}" "${wrongIdentity}"`, {
+        env: {
+          DATABASE_URL: "postgres://user:pass@localhost/db",
+          PATH: process.env.PATH || "",
         },
-      );
+      });
     } catch (e: any) {
       error = e.stderr?.toString() || e.stdout?.toString() || e.message || "";
     }

@@ -5869,6 +5869,7 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+
     "public.auth_rate_bucket": {
       "name": "auth_rate_bucket",
       "schema": "",
@@ -5953,6 +5954,7 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+
     }
   },
   "enums": {

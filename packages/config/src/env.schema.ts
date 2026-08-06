@@ -172,6 +172,9 @@ export const EnvSchema = z
         "BETTER_AUTH_URL is required in production and must be a public HTTPS URL (no localhost, loopback, or unspecified addresses)",
     },
   )
+  .refine((env) => env.NODE_ENV !== "production" || !env.BETTER_AUTH_URL?.includes("localhost"), {
+    message: "BETTER_AUTH_URL must not be localhost in production",
+  })
   .refine(
     (env) =>
       env.NODE_ENV !== "production" ||
@@ -193,17 +196,14 @@ export const EnvSchema = z
       message: "DATABASE_URL must not use default credentials (quiksend:quiksend) in production",
     },
   )
-  .refine(
-    (env) => env.NODE_ENV !== "production" || env.SMTP_HOST !== "mailpit",
-    {
-      message: 'SMTP_HOST must not be "mailpit" in production; set to a real SMTP provider',
-    },
-  )
+  .refine((env) => env.NODE_ENV !== "production" || env.SMTP_HOST !== "mailpit", {
+    message: 'SMTP_HOST must not be "mailpit" in production; set to a real SMTP provider',
+  })
   .refine(
     (env) => {
       if (env.NODE_ENV !== "production") return true;
       if (!env.MAILBOX_ENCRYPTION_KEY) return true;
-      
+
       try {
         // Validate base64 and check decoded length is 32 bytes
         const decoded = Buffer.from(env.MAILBOX_ENCRYPTION_KEY, "base64");
@@ -213,20 +213,19 @@ export const EnvSchema = z
       }
     },
     {
-      message:
-        "MAILBOX_ENCRYPTION_KEY must be valid base64 that decodes to exactly 32 bytes",
+      message: "MAILBOX_ENCRYPTION_KEY must be valid base64 that decodes to exactly 32 bytes",
     },
   )
   .refine(
     (env) => {
       if (env.NODE_ENV !== "production") return true;
       if (!env.UNSUBSCRIBE_TOKEN_SECRET) return true;
-      
+
       // Validate either raw string >= 32 bytes OR base64 that decodes to >= 32 bytes
       if (env.UNSUBSCRIBE_TOKEN_SECRET.length >= 32) {
         return true; // Assume raw string
       }
-      
+
       try {
         const decoded = Buffer.from(env.UNSUBSCRIBE_TOKEN_SECRET, "base64");
         return decoded.length >= 32;
@@ -235,9 +234,8 @@ export const EnvSchema = z
       }
     },
     {
-      message:
-        "UNSUBSCRIBE_TOKEN_SECRET must be >= 32 bytes (raw or base64-decoded)",
+      message: "UNSUBSCRIBE_TOKEN_SECRET must be >= 32 bytes (raw or base64-decoded)",
     },
-  )
+  );
 
 export type Env = z.infer<typeof EnvSchema>;

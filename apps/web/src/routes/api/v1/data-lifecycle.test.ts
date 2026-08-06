@@ -105,7 +105,9 @@ function deleteRequest(cookie: string, password: string): Request {
 describe("GET /api/v1/export", () => {
   it("rejects a plain member — admin or owner required", async () => {
     const member = await createActor("export-member", "member");
-    const response = await ExportRoute.options.server.handlers.GET({ request: exportRequest(member.cookie) });
+    const response = await ExportRoute.options.server.handlers.GET({
+      request: exportRequest(member.cookie),
+    });
     expect(response.status).toBe(403);
   });
 
@@ -114,7 +116,11 @@ describe("GET /api/v1/export", () => {
 
     const [prospect] = await db
       .insert(tables.prospect)
-      .values({ organizationId: owner.organizationId, email: "lead@example.com", firstName: "Lead" })
+      .values({
+        organizationId: owner.organizationId,
+        email: "lead@example.com",
+        firstName: "Lead",
+      })
       .returning();
 
     const secretValue = `whsec_${randomUUID()}`;
@@ -125,7 +131,9 @@ describe("GET /api/v1/export", () => {
       events: ["message.sent"],
     });
 
-    const response = await ExportRoute.options.server.handlers.GET({ request: exportRequest(owner.cookie) });
+    const response = await ExportRoute.options.server.handlers.GET({
+      request: exportRequest(owner.cookie),
+    });
     expect(response.status).toBe(200);
     const text = await response.text();
     const body = JSON.parse(text) as {
@@ -140,7 +148,9 @@ describe("GET /api/v1/export", () => {
     expect(body.webhookEndpoints[0]).not.toHaveProperty("secret");
 
     const auditRows = await listAuditLog({ organizationId: owner.organizationId });
-    expect(auditRows.some((r) => r.action === "organization.export" && r.actorId === owner.userId)).toBe(true);
+    expect(
+      auditRows.some((r) => r.action === "organization.export" && r.actorId === owner.userId),
+    ).toBe(true);
   });
 
   it("org B's export never includes org A's data — the target org always comes from the caller's own session", async () => {
@@ -153,7 +163,9 @@ describe("GET /api/v1/export", () => {
       firstName: "OnlyA",
     });
 
-    const response = await ExportRoute.options.server.handlers.GET({ request: exportRequest(ownerB.cookie) });
+    const response = await ExportRoute.options.server.handlers.GET({
+      request: exportRequest(ownerB.cookie),
+    });
     const body = JSON.parse(await response.text()) as { organization: { id: string } | null };
     expect(body.organization?.id).toBe(ownerB.organizationId);
     expect(body.organization?.id).not.toBe(ownerA.organizationId);
@@ -179,13 +191,18 @@ describe("POST /api/v1/organization-delete", () => {
       request: deleteRequest(owner.cookie, "definitely-wrong-password"),
     });
     expect(response.status).toBe(401);
-    expect(await isSendSuppressed({ organizationId: owner.organizationId, email: "x@example.com" })).toBe(false);
+    expect(
+      await isSendSuppressed({ organizationId: owner.organizationId, email: "x@example.com" }),
+    ).toBe(false);
   });
 
   it("owner + correct password immediately disables sending, marks deletion, audits, and queues purge", async () => {
     const owner = await createActor("delete-owner", "owner");
 
-    const before = await isSendSuppressed({ organizationId: owner.organizationId, email: "x@example.com" });
+    const before = await isSendSuppressed({
+      organizationId: owner.organizationId,
+      email: "x@example.com",
+    });
     expect(before).toBe(false);
 
     const response = await OrganizationDeleteRoute.options.server.handlers.POST({
@@ -197,7 +214,9 @@ describe("POST /api/v1/organization-delete", () => {
     expect(body.sendingDisabled).toBe(true);
 
     // Immediate: every send path shares this one check.
-    expect(await isSendSuppressed({ organizationId: owner.organizationId, email: "x@example.com" })).toBe(true);
+    expect(
+      await isSendSuppressed({ organizationId: owner.organizationId, email: "x@example.com" }),
+    ).toBe(true);
 
     const lifecycle = await db.query.organizationLifecycle.findFirst({
       where: eq(tables.organizationLifecycle.organizationId, owner.organizationId),
@@ -208,7 +227,9 @@ describe("POST /api/v1/organization-delete", () => {
 
     const auditRows = await listAuditLog({ organizationId: owner.organizationId });
     expect(
-      auditRows.some((r) => r.action === "organization.delete_requested" && r.actorId === owner.userId),
+      auditRows.some(
+        (r) => r.action === "organization.delete_requested" && r.actorId === owner.userId,
+      ),
     ).toBe(true);
   });
 
@@ -225,7 +246,9 @@ describe("POST /api/v1/organization-delete", () => {
       where: eq(tables.organizationLifecycle.organizationId, ownerA.organizationId),
     });
     expect(lifecycleA).toBeUndefined();
-    expect(await isSendSuppressed({ organizationId: ownerA.organizationId, email: "x@example.com" })).toBe(false);
+    expect(
+      await isSendSuppressed({ organizationId: ownerA.organizationId, email: "x@example.com" }),
+    ).toBe(false);
 
     const lifecycleB = await db.query.organizationLifecycle.findFirst({
       where: eq(tables.organizationLifecycle.organizationId, ownerB.organizationId),

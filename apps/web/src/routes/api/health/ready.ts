@@ -1,7 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { client } from '@quiksend/db'
-import { logger } from '@quiksend/config'
-import { probeDatabase, probeQueue } from '../health.helpers'
+import { createFileRoute } from "@tanstack/react-router";
+import { client } from "@quiksend/db";
+import { logger } from "@quiksend/config";
+import { probeDatabase, probeQueue } from "../health.helpers";
 
 /**
  * Readiness probe: 200 if all critical dependencies are healthy, 503 otherwise.
@@ -12,33 +12,33 @@ import { probeDatabase, probeQueue } from '../health.helpers'
  * Does NOT leak internal error details. Errors are logged but response is generic.
  * Total probe time bounded to 5 seconds.
  */
-export const Route = createFileRoute('/api/health/ready')({
+export const Route = createFileRoute("/api/health/ready")({
   server: {
     handlers: {
       GET: async () => {
-        const startTime = Date.now()
+        const startTime = Date.now();
         try {
-          const dbProbeMs = await probeDatabase(client, 3000)
-          const queueProbeMs = await probeQueue(2000)
+          const dbProbeMs = await probeDatabase(client, 3000);
+          const queueProbeMs = await probeQueue(2000);
 
           return Response.json(
             {
-              status: 'ready',
+              status: "ready",
               timestamp: new Date().toISOString(),
               db_probe_ms: dbProbeMs,
               queue_probe_ms: queueProbeMs,
               elapsed_ms: Date.now() - startTime,
             },
-            { status: 200 }
-          )
+            { status: 200 },
+          );
         } catch (err) {
-          logger.warn({ err }, 'Readiness probe failed')
+          logger.warn({ err }, "Readiness probe failed");
           return Response.json(
-            { status: 'not_ready', message: 'Service unavailable' },
-            { status: 503 }
-          )
+            { status: "not_ready", message: "Service unavailable" },
+            { status: 503 },
+          );
         }
       },
     },
   },
-})
+});

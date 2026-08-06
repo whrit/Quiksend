@@ -66,7 +66,9 @@ export const Route = createFileRoute("/api/v1/export")({
                   .from(tables.organization)
                   .where(eq(tables.organization.id, orgId))
                   .limit(1);
-                controller.enqueue(encoder.encode(`{"organization":${JSON.stringify(org ?? null)}`));
+                controller.enqueue(
+                  encoder.encode(`{"organization":${JSON.stringify(org ?? null)}`),
+                );
 
                 await writeJsonArray(controller, encoder, "members", (afterId) =>
                   db

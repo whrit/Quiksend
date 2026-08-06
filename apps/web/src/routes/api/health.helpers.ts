@@ -1,11 +1,11 @@
-import { getBoss } from '@quiksend/queue'
+import { getBoss } from "@quiksend/queue";
 
 /**
  * Database client with execute method (postgres-js).
  */
 export type DatabaseClient = {
-  execute(sql: string): Promise<unknown>
-}
+  execute(sql: string): Promise<unknown>;
+};
 
 /**
  * Race a promise against a bounded timeout.
@@ -14,20 +14,20 @@ export type DatabaseClient = {
 export async function raceWithTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
-  timeoutMessage: string
+  timeoutMessage: string,
 ): Promise<T> {
-  let timeoutId: NodeJS.Timeout | null = null
+  let timeoutId: NodeJS.Timeout | null = null;
   try {
     return await Promise.race([
       promise,
       new Promise<T>((_, reject) => {
         timeoutId = setTimeout(() => {
-          reject(new Error(timeoutMessage))
-        }, timeoutMs)
+          reject(new Error(timeoutMessage));
+        }, timeoutMs);
       }),
-    ])
+    ]);
   } finally {
-    clearTimeout(timeoutId)
+    clearTimeout(timeoutId);
   }
 }
 
@@ -39,15 +39,15 @@ export async function raceWithTimeout<T>(
  */
 export async function probeDatabase(
   client: DatabaseClient,
-  timeoutMs: number = 3000
+  timeoutMs: number = 3000,
 ): Promise<number> {
-  const start = Date.now()
+  const start = Date.now();
   await raceWithTimeout(
-    client.execute('SELECT NOW()'),
+    client.execute("SELECT NOW()"),
     timeoutMs,
-    `DB probe timeout after ${timeoutMs}ms`
-  )
-  return Date.now() - start
+    `DB probe timeout after ${timeoutMs}ms`,
+  );
+  return Date.now() - start;
 }
 
 /**
@@ -57,14 +57,14 @@ export async function probeDatabase(
  * @returns Probe time in milliseconds
  */
 export async function probeQueue(timeoutMs: number = 2000): Promise<number> {
-  const start = Date.now()
-  const boss = await getBoss()
+  const start = Date.now();
+  const boss = await getBoss();
   // getQueueSize queries the queue state table — tests real DB connectivity
   // not just pg-boss instance cache
   await raceWithTimeout(
-    boss.getQueueSize('health.reconcile'),
+    boss.getQueueSize("health.reconcile"),
     timeoutMs,
-    `Queue probe timeout after ${timeoutMs}ms`
-  )
-  return Date.now() - start
+    `Queue probe timeout after ${timeoutMs}ms`,
+  );
+  return Date.now() - start;
 }

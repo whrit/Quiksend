@@ -1,5 +1,3 @@
-import "@tanstack/react-start/server-only";
-
 import { auth } from "@quiksend/auth";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
@@ -37,10 +35,15 @@ async function resolveActiveMembership(request: Request): Promise<Resolved> {
   }
 
   const membership = await db.query.member.findFirst({
-    where: and(eq(tables.member.userId, session.user.id), eq(tables.member.organizationId, organizationId)),
+    where: and(
+      eq(tables.member.userId, session.user.id),
+      eq(tables.member.organizationId, organizationId),
+    ),
   });
   if (!membership) {
-    return { error: jsonError("NOT_A_MEMBER", "Caller is not a member of the active workspace", 403) };
+    return {
+      error: jsonError("NOT_A_MEMBER", "Caller is not a member of the active workspace", 403),
+    };
   }
 
   return {

@@ -1,4 +1,13 @@
-import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { organization, user } from "./auth.ts";
 
 /** Per-IP leaky-bucket counter for unauthenticated auth endpoint rate limiting. */
