@@ -1,4 +1,4 @@
-import { and, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { asOrganizationId, asUserId, type OrgContext } from "@quiksend/core";
 import { db } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";

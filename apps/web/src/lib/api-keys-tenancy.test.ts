@@ -14,7 +14,9 @@ import { resolveApiKey } from "./api/v1/middleware.ts";
 // (see `packages/auth/src/auth.ts`); real `enqueueWithRetries` would hit
 // pg-boss for no reason in a unit test, so it's mocked out like
 // `packages/auth/src/auth.test.ts` does for the same flow.
-const enqueueWithRetriesMock = vi.hoisted(() => vi.fn().mockResolvedValue("job_1"));
+const enqueueWithRetriesMock = vi.hoisted(() =>
+  vi.fn<() => Promise<string>>().mockResolvedValue("job_1"),
+);
 vi.mock("@quiksend/queue", async (importOriginal) => {
   const actual = await importOriginal<typeof QuiksendQueue>();
   return { ...actual, enqueueWithRetries: enqueueWithRetriesMock };
@@ -43,16 +45,24 @@ async function signUpAndAuthenticate(password = "correct horse battery staple"):
 }> {
   const email = `${makeId("user")}@test.local`;
   const signedUp = await auth.api.signUpEmail({ body: { email, password, name: email } });
-  await db.update(tables.user).set({ emailVerified: true }).where(eq(tables.user.id, signedUp.user.id));
+  await db
+    .update(tables.user)
+    .set({ emailVerified: true })
+    .where(eq(tables.user.id, signedUp.user.id));
   const signedIn = await auth.api.signInEmail({ body: { email, password }, returnHeaders: true });
   const headers = await headersFromSetCookie(signedIn.headers.get("set-cookie"));
   return { userId: signedUp.user.id, headers };
 }
 
 /** Adds a fresh, real, authenticated user to an existing org at the given role. */
-async function addMemberToOrg(orgId: string, role: MemberRole): Promise<{ userId: string; headers: Headers }> {
+async function addMemberToOrg(
+  orgId: string,
+  role: MemberRole,
+): Promise<{ userId: string; headers: Headers }> {
   const { userId, headers } = await signUpAndAuthenticate();
-  await db.insert(tables.member).values({ id: makeId("mem"), organizationId: orgId, userId, role, createdAt: new Date() });
+  await db
+    .insert(tables.member)
+    .values({ id: makeId("mem"), organizationId: orgId, userId, role, createdAt: new Date() });
   return { userId, headers };
 }
 
@@ -64,9 +74,16 @@ async function createOrgWithRole(role: MemberRole): Promise<{
   orgContext: OrgContext;
 }> {
   const orgId = makeId("org");
-  await db.insert(tables.organization).values({ id: orgId, name: `Org ${orgId}`, slug: orgId, createdAt: new Date() });
+  await db
+    .insert(tables.organization)
+    .values({ id: orgId, name: `Org ${orgId}`, slug: orgId, createdAt: new Date() });
   const { userId, headers } = await addMemberToOrg(orgId, role);
-  return { orgId, userId, headers, orgContext: { userId: asUserId(userId), organizationId: asOrganizationId(orgId), role } };
+  return {
+    orgId,
+    userId,
+    headers,
+    orgContext: { userId: asUserId(userId), organizationId: asOrganizationId(orgId), role },
+  };
 }
 
 function bearerRequest(key: string): Request {
@@ -78,7 +95,11 @@ function bearerRequest(key: string): Request {
 describe("api key tenancy", () => {
   it("creates a key through the production server-function path — organizationId is the referenceId, not metadata", async () => {
     const owner = await createOrgWithRole("owner");
-    const created = await createApiKeyForOrg(owner.orgContext, { name: "Org A key" }, owner.headers);
+    const created = await createApiKeyForOrg(
+      owner.orgContext,
+      { name: "Org A key" },
+      owner.headers,
+    );
 
     expect(created.key).toBeTruthy();
     const ctx = await resolveApiKey(bearerRequest(created.key));
@@ -102,9 +123,15 @@ describe("api key tenancy", () => {
   it("org B cannot revoke org A's API key", async () => {
     const orgA = await createOrgWithRole("owner");
     const orgB = await createOrgWithRole("owner");
-    const created = await createApiKeyForOrg(orgA.orgContext, { name: "Protected key" }, orgA.headers);
+    const created = await createApiKeyForOrg(
+      orgA.orgContext,
+      { name: "Protected key" },
+      orgA.headers,
+    );
 
-    await expect(revokeApiKeyForOrg(orgB.orgContext, created.id, orgB.headers)).rejects.toThrow(/not found/i);
+    await expect(revokeApiKeyForOrg(orgB.orgContext, created.id, orgB.headers)).rejects.toThrow(
+      /not found/i,
+    );
 
     const stillListed = await listApiKeysForOrg(orgA.orgContext, orgA.headers);
     expect(stillListed.find((key) => key.id === created.id)).toBeDefined();
@@ -112,7 +139,11 @@ describe("api key tenancy", () => {
 
   it("revoke never lists — a key beyond any list page boundary still revokes", async () => {
     const owner = await createOrgWithRole("owner");
-    const created = await createApiKeyForOrg(owner.orgContext, { name: "Beyond page 1" }, owner.headers);
+    const created = await createApiKeyForOrg(
+      owner.orgContext,
+      { name: "Beyond page 1" },
+      owner.headers,
+    );
 
     // The old implementation pre-listed the org's keys capped at
     // `LIST_API_KEYS_LIMIT` (100) and searched the page client-side before
@@ -165,8 +196,16 @@ describe("api key tenancy", () => {
   it("two orgs can each create API keys with the same display name", async () => {
     const orgA = await createOrgWithRole("owner");
     const orgB = await createOrgWithRole("owner");
-    const keyA = await createApiKeyForOrg(orgA.orgContext, { name: "Integration key" }, orgA.headers);
-    const keyB = await createApiKeyForOrg(orgB.orgContext, { name: "Integration key" }, orgB.headers);
+    const keyA = await createApiKeyForOrg(
+      orgA.orgContext,
+      { name: "Integration key" },
+      orgA.headers,
+    );
+    const keyB = await createApiKeyForOrg(
+      orgB.orgContext,
+      { name: "Integration key" },
+      orgB.headers,
+    );
 
     expect(keyA.id).toBeDefined();
     expect(keyB.id).toBeDefined();
@@ -175,7 +214,11 @@ describe("api key tenancy", () => {
 
   it("admin can create, list, and revoke API keys through the app path", async () => {
     const admin = await createOrgWithRole("admin");
-    const created = await createApiKeyForOrg(admin.orgContext, { name: "Admin key" }, admin.headers);
+    const created = await createApiKeyForOrg(
+      admin.orgContext,
+      { name: "Admin key" },
+      admin.headers,
+    );
     expect(created.key).toBeTruthy();
 
     const keys = await listApiKeysForOrg(admin.orgContext, admin.headers);
@@ -189,13 +232,15 @@ describe("api key tenancy", () => {
   it("member is denied through the app path", async () => {
     const member = await createOrgWithRole("member");
 
-    await expect(createApiKeyForOrg(member.orgContext, { name: "x" }, member.headers)).rejects.toThrow(
+    await expect(
+      createApiKeyForOrg(member.orgContext, { name: "x" }, member.headers),
+    ).rejects.toThrow(/admin or owner/i);
+    await expect(listApiKeysForOrg(member.orgContext, member.headers)).rejects.toThrow(
       /admin or owner/i,
     );
-    await expect(listApiKeysForOrg(member.orgContext, member.headers)).rejects.toThrow(/admin or owner/i);
-    await expect(revokeApiKeyForOrg(member.orgContext, "key_missing", member.headers)).rejects.toThrow(
-      /admin or owner/i,
-    );
+    await expect(
+      revokeApiKeyForOrg(member.orgContext, "key_missing", member.headers),
+    ).rejects.toThrow(/admin or owner/i);
   });
 
   it("member is denied through Better Auth's raw endpoint; owner and admin succeed", async () => {
@@ -208,7 +253,7 @@ describe("api key tenancy", () => {
         body: { name: "member raw key", organizationId: member.orgId },
         headers: member.headers,
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/permission|forbidden|denied/i);
 
     const ownerCreated = await auth.api.createApiKey({
       body: { name: "owner raw key", organizationId: owner.orgId },
@@ -226,7 +271,7 @@ describe("api key tenancy", () => {
     // grant, member denial for list and delete too, not just create.
     await expect(
       auth.api.listApiKeys({ query: { organizationId: member.orgId }, headers: member.headers }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/permission|forbidden|denied/i);
     const ownerList = await auth.api.listApiKeys({
       query: { organizationId: owner.orgId },
       headers: owner.headers,
@@ -238,9 +283,15 @@ describe("api key tenancy", () => {
     // list-scoping tests above already cover.
     const memberInAdminOrg = await addMemberToOrg(admin.orgId, "member");
     await expect(
-      auth.api.deleteApiKey({ body: { keyId: adminCreated.id }, headers: memberInAdminOrg.headers }),
-    ).rejects.toThrow();
-    const deleted = await auth.api.deleteApiKey({ body: { keyId: adminCreated.id }, headers: admin.headers });
+      auth.api.deleteApiKey({
+        body: { keyId: adminCreated.id },
+        headers: memberInAdminOrg.headers,
+      }),
+    ).rejects.toThrow(/permission|forbidden|denied/i);
+    const deleted = await auth.api.deleteApiKey({
+      body: { keyId: adminCreated.id },
+      headers: admin.headers,
+    });
     expect(deleted.success).toBe(true);
   });
 });

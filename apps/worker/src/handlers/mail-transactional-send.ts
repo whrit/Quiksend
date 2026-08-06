@@ -14,11 +14,16 @@ import type { MailSendTransactionalPayload } from "@quiksend/queue";
  * defaults give this job 5 attempts with exponential backoff (see
  * `packages/queue/src/boss.ts`).
  */
-export async function handleMailSendTransactional(payload: MailSendTransactionalPayload): Promise<void> {
+export async function handleMailSendTransactional(
+  payload: MailSendTransactionalPayload,
+): Promise<void> {
   try {
     await sendTransactionalEmail(payload);
   } catch (err) {
-    logger.error({ err, to: payload.to, subject: payload.subject }, "Failed to send transactional email");
+    logger.error(
+      { err, to: payload.to, subject: payload.subject },
+      "Failed to send transactional email",
+    );
     throw err;
   }
 }

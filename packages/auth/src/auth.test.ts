@@ -131,7 +131,10 @@ async function signUpAndAuthenticate(
   password = "correct horse battery staple",
 ): Promise<{ userId: string; headers: Headers }> {
   const signedUp = await auth.api.signUpEmail({ body: { email, password, name: email } });
-  await db.update(tables.user).set({ emailVerified: true }).where(eq(tables.user.id, signedUp.user.id));
+  await db
+    .update(tables.user)
+    .set({ emailVerified: true })
+    .where(eq(tables.user.id, signedUp.user.id));
   const signedIn = await auth.api.signInEmail({ body: { email, password }, returnHeaders: true });
   const headers = await headersFromSetCookie(signedIn.headers.get("set-cookie"));
   return { userId: signedUp.user.id, headers };
@@ -230,7 +233,9 @@ describe("email verification", () => {
     const result = await auth.api.signUpEmail({ body: { email, password, name: email } });
     createdUserIds.push(result.user.id);
 
-    await expect(auth.api.signInEmail({ body: { email, password } })).rejects.toThrow();
+    await expect(auth.api.signInEmail({ body: { email, password } })).rejects.toThrow(
+      /verify|verification|not verified/i,
+    );
   });
 
   it("allows sign-in once the account is verified", async () => {
@@ -286,20 +291,29 @@ describe("password reset", () => {
     // sign-in already created one session; add a second to prove *all*
     // sessions are revoked, not just the one active during the flow.
     await createSession(userId, null);
-    const beforeSessions = await db.query.session.findMany({ where: eq(tables.session.userId, userId) });
+    const beforeSessions = await db.query.session.findMany({
+      where: eq(tables.session.userId, userId),
+    });
     expect(beforeSessions.length).toBeGreaterThanOrEqual(2);
 
     await auth.api.requestPasswordReset({ body: { email } });
     const verification = await db.query.verification.findFirst({
-      where: and(eq(tables.verification.value, userId), gt(tables.verification.expiresAt, new Date())),
+      where: and(
+        eq(tables.verification.value, userId),
+        gt(tables.verification.expiresAt, new Date()),
+      ),
     });
     expect(verification).toBeDefined();
     const token = verification!.identifier.replace("reset-password:", "");
 
-    const result = await auth.api.resetPassword({ body: { newPassword: "another strong password", token } });
+    const result = await auth.api.resetPassword({
+      body: { newPassword: "another strong password", token },
+    });
     expect(result.status).toBe(true);
 
-    const afterSessions = await db.query.session.findMany({ where: eq(tables.session.userId, userId) });
+    const afterSessions = await db.query.session.findMany({
+      where: eq(tables.session.userId, userId),
+    });
     expect(afterSessions).toHaveLength(0);
     // The reset itself doesn't leave the caller signed in on this headers set.
     expect(await auth.api.getSession({ headers })).toBeNull();
@@ -342,7 +356,10 @@ describe("enqueueTransactionalEmail", () => {
   it("resolves cleanly on a real job id", async () => {
     enqueueWithRetriesMock.mockResolvedValueOnce("job_42");
     await expect(enqueueTransactionalEmail(payload)).resolves.toBeUndefined();
-    expect(enqueueWithRetriesMock).toHaveBeenCalledExactlyOnceWith("mail.send_transactional", payload);
+    expect(enqueueWithRetriesMock).toHaveBeenCalledExactlyOnceWith(
+      "mail.send_transactional",
+      payload,
+    );
   });
 });
 
@@ -353,8 +370,10 @@ describe("invitation-only signup", () => {
 
     await expect(
       auth.api.signUpEmail({ body: { email, password: "whatever password", name: email } }),
-    ).rejects.toThrow();
-    const user = await db.query.user.findFirst({ where: eq(tables.user.email, email.toLowerCase()) });
+    ).rejects.toThrow(/invitation|invited/i);
+    const user = await db.query.user.findFirst({
+      where: eq(tables.user.email, email.toLowerCase()),
+    });
     expect(user).toBeUndefined();
   });
 
@@ -385,8 +404,10 @@ describe("invitation-only signup", () => {
     });
 
     await expect(
-      auth.api.signUpEmail({ body: { email: invitedEmail, password: "whatever password", name: invitedEmail } }),
-    ).rejects.toThrow();
+      auth.api.signUpEmail({
+        body: { email: invitedEmail, password: "whatever password", name: invitedEmail },
+      }),
+    ).rejects.toThrow(/invitation|expired/i);
   });
 
   it("allows signup for the configured system-admin bootstrap email", async () => {
@@ -427,7 +448,7 @@ describe("organization creation", () => {
 
     await expect(
       auth.api.createOrganization({ headers, body: { name: "Rogue Org", slug: makeId("rogue") } }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/not allowed|permission|forbidden|denied/i);
   });
 
   it("allows organization creation for the bootstrap admin", async () => {

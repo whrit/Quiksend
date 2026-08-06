@@ -34,7 +34,8 @@ function getTransport(): Transporter {
       port: env.SMTP_PORT ?? 1025,
       secure: env.SMTP_SECURE ?? false,
       requireTLS: env.SMTP_REQUIRE_TLS ?? false,
-      auth: env.SMTP_USER && env.SMTP_PASS ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
+      auth:
+        env.SMTP_USER && env.SMTP_PASS ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
     });
   }
   return transport;

@@ -99,7 +99,9 @@ describe("EnvSchema", () => {
       // SMTP_FROM and TLS deliberately omitted.
     });
     expect(result.success).toBe(false);
-    const message = result.success ? "" : (result.error.issues.find((i) => i.message.includes("SMTP"))?.message ?? "");
+    const message = result.success
+      ? ""
+      : (result.error.issues.find((i) => i.message.includes("SMTP"))?.message ?? "");
     expect(message).toContain("SMTP_FROM");
     expect(message).toContain("SMTP_SECURE");
   });
@@ -119,9 +121,10 @@ describe("EnvSchema", () => {
       NODE_ENV: "production",
       DATABASE_URL: "postgres://quiksend:quiksend@localhost:5432/quiksend",
       BETTER_AUTH_SECRET: "a".repeat(32),
+      BETTER_AUTH_URL: "https://app.quiksend.io",
       NANGO_WEBHOOK_SECRET: "nango-secret",
-      MAILBOX_ENCRYPTION_KEY: "mailbox-key",
-      UNSUBSCRIBE_TOKEN_SECRET: "unsub-secret",
+      MAILBOX_ENCRYPTION_KEY: "7+v7Obw4LLnu6Caweg07W89jcuFWXkxo1R4kD8lKm4Y=",
+      UNSUBSCRIBE_TOKEN_SECRET: "+6gGXPHFvKZLSvt6bBbAPR28KrwZzFKh/71HkdcUY5A=",
       SYSTEM_ADMIN_EMAIL: "admin@quiksend.example",
       SMTP_HOST: "smtp.quiksend.example",
       SMTP_FROM: "no-reply@quiksend.example",
@@ -175,7 +178,8 @@ describe("EnvSchema", () => {
   it("forces engine test hooks off in production even when set", () => {
     const parsed = EnvSchema.parse({
       NODE_ENV: "production",
-      DATABASE_URL: "postgres://quiksend_prod:R4nd0m-Str0ng-Db-Passw0rd@db.internal.quiksend.example:5432/quiksend",
+      DATABASE_URL:
+        "postgres://quiksend_prod:R4nd0m-Str0ng-Db-Passw0rd@db.internal.quiksend.example:5432/quiksend",
       BETTER_AUTH_SECRET: "a".repeat(32),
       BETTER_AUTH_URL: "https://app.quiksend.io",
       NANGO_WEBHOOK_SECRET: "nango-secret",

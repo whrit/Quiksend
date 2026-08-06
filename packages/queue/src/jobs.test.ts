@@ -51,7 +51,7 @@ describe("mailSendTransactionalSchema", () => {
     // The schema's own keys are the payload's entire allowed surface for
     // callers reading types — this just documents that surface stays at
     // exactly {to, subject, text, html}.
-    expect(Object.keys(mailSendTransactionalSchema.shape).sort()).toEqual([
+    expect(Object.keys(mailSendTransactionalSchema.shape).toSorted()).toEqual([
       "html",
       "subject",
       "text",

@@ -101,7 +101,12 @@ describe("sendTransactionalEmail", () => {
   });
 
   it("falls back to a dev-only *.local From address when SMTP_FROM is unset", async () => {
-    await sendTransactionalEmail({ to: "a@example.com", subject: "s", text: "t", html: "<p>t</p>" });
+    await sendTransactionalEmail({
+      to: "a@example.com",
+      subject: "s",
+      text: "t",
+      html: "<p>t</p>",
+    });
     expect(sendMail).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ from: expect.stringContaining("@quiksend.local") }),
     );
@@ -110,7 +115,12 @@ describe("sendTransactionalEmail", () => {
   it("uses the configured SMTP_FROM / SMTP_FROM_NAME instead of the dev fallback", async () => {
     mockEnv.SMTP_FROM = "no-reply@quiksend.example";
     mockEnv.SMTP_FROM_NAME = "Quiksend Security";
-    await sendTransactionalEmail({ to: "a@example.com", subject: "s", text: "t", html: "<p>t</p>" });
+    await sendTransactionalEmail({
+      to: "a@example.com",
+      subject: "s",
+      text: "t",
+      html: "<p>t</p>",
+    });
     expect(sendMail).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ from: '"Quiksend Security" <no-reply@quiksend.example>' }),
     );
@@ -121,7 +131,12 @@ describe("sendTransactionalEmail", () => {
     mockEnv.SMTP_PASS = "relay-pass";
     mockEnv.SMTP_SECURE = true;
     mockEnv.SMTP_REQUIRE_TLS = true;
-    await sendTransactionalEmail({ to: "a@example.com", subject: "s", text: "t", html: "<p>t</p>" });
+    await sendTransactionalEmail({
+      to: "a@example.com",
+      subject: "s",
+      text: "t",
+      html: "<p>t</p>",
+    });
     expect(createTransport).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         secure: true,

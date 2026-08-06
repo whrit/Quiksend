@@ -33,6 +33,8 @@ export function toInvitationSummary(invitation: {
  * Cancelled/accepted/rejected invitations are history, not actionable — the
  * members page only ever needs the ones still awaiting a response.
  */
-export function selectPendingInvitations<T extends { status: string }>(invitations: readonly T[]): T[] {
+export function selectPendingInvitations<T extends { status: string }>(
+  invitations: readonly T[],
+): T[] {
   return invitations.filter((invitation) => invitation.status === "pending");
 }

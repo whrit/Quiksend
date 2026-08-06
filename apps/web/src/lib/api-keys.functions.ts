@@ -69,7 +69,13 @@ export async function createApiKeyForOrg(
   orgContext: OrgContext,
   data: { name: string; expiresIn?: number },
   authHeaders?: HeadersInit,
-): Promise<{ id: string; name: string | null; key: string; prefix: string | null; expiresAt: Date | null }> {
+): Promise<{
+  id: string;
+  name: string | null;
+  key: string;
+  prefix: string | null;
+  expiresAt: Date | null;
+}> {
   if (!isAdminOrOwner(orgContext)) {
     throw new Error("Admin or owner role required to manage API keys");
   }
@@ -100,7 +106,9 @@ export async function createApiKeyForOrg(
 export const createApiKey = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(createApiKeySchema)
-  .handler(async ({ data, context }) => createApiKeyForOrg(context.orgContext, data, context.authHeaders));
+  .handler(async ({ data, context }) =>
+    createApiKeyForOrg(context.orgContext, data, context.authHeaders),
+  );
 
 export async function revokeApiKeyForOrg(
   orgContext: OrgContext,
@@ -129,7 +137,7 @@ export async function revokeApiKeyForOrg(
     // without telling a caller whether a key id exists in someone else's
     // workspace.
     if (err instanceof APIError && (err.status === "NOT_FOUND" || err.status === "FORBIDDEN")) {
-      throw new Error("API key not found in this workspace");
+      throw new Error("API key not found in this workspace", { cause: err });
     }
     throw err;
   }
@@ -140,7 +148,9 @@ export async function revokeApiKeyForOrg(
 export const revokeApiKey = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ keyId: z.string().min(1) }))
-  .handler(async ({ data, context }) => revokeApiKeyForOrg(context.orgContext, data.keyId, context.authHeaders));
+  .handler(async ({ data, context }) =>
+    revokeApiKeyForOrg(context.orgContext, data.keyId, context.authHeaders),
+  );
 
 export const getApiUsageSummary = createServerFn({ method: "GET" })
   .middleware([authMiddleware])

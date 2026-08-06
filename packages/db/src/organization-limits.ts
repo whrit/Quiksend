@@ -40,7 +40,8 @@ export async function getOrganizationLimits(
   if (!row) return { deliverabilityPro: false, ...DEFAULT_LIMITS };
 
   return {
-    deliverabilityPro: row.deliverabilityProUntil != null && row.deliverabilityProUntil.getTime() > Date.now(),
+    deliverabilityPro:
+      row.deliverabilityProUntil != null && row.deliverabilityProUntil.getTime() > Date.now(),
     mailboxLimit: row.mailboxLimit,
     apiRequestsPerDay: row.apiRequestsPerDay,
     aiResearchPerMonth: row.aiResearchPerMonth,
@@ -149,7 +150,14 @@ export async function consumePeriodicQuota(
       : resource === "aiResearch"
         ? limits.aiResearchPerMonth
         : limits.dnsChecksPerDay;
-  return consumeInTx(executor, organizationId, resource, currentPeriod(PERIOD_UNIT[resource]), limit, 1);
+  return consumeInTx(
+    executor,
+    organizationId,
+    resource,
+    currentPeriod(PERIOD_UNIT[resource]),
+    limit,
+    1,
+  );
 }
 
 /**
@@ -175,4 +183,3 @@ export async function releaseMailboxSlotInTx(tx: DbTx, organizationId: string): 
       ),
     );
 }
-

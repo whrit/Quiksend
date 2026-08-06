@@ -44,8 +44,13 @@ type ResetValues = z.infer<typeof resetSchema>;
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { token, error: resetError, invitationId, invitedEmail, organizationName } =
-    Route.useSearch();
+  const {
+    token,
+    error: resetError,
+    invitationId,
+    invitedEmail,
+    organizationName,
+  } = Route.useSearch();
   const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset">(
     token ? "reset" : invitationId ? "signup" : "signin",
   );
@@ -161,7 +166,6 @@ function LoginPage() {
     setInfo("If an account exists for that email, a reset link has been queued for delivery.");
   });
 
-
   const onResetSubmit = resetForm.handleSubmit(async (values) => {
     if (!token) {
       setError("Reset link is invalid or expired.");
@@ -205,10 +209,10 @@ function LoginPage() {
         title="Joining workspace…"
         subtitle={`Finishing up — you'll land in ${organizationName ?? "your workspace"} shortly.`}
       >
-        <div className="mt-6 flex justify-center" role="status" aria-live="polite">
+        <output className="mt-6 flex justify-center" aria-live="polite">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />
           <span className="sr-only">Joining workspace…</span>
-        </div>
+        </output>
       </AuthShell>
     );
   }
@@ -232,7 +236,9 @@ function LoginPage() {
               required
               aria-required="true"
               aria-invalid={Boolean(forgotForm.formState.errors.email)}
-              aria-describedby={forgotForm.formState.errors.email ? "forgot-email-error" : undefined}
+              aria-describedby={
+                forgotForm.formState.errors.email ? "forgot-email-error" : undefined
+              }
               {...forgotForm.register("email")}
             />
             {forgotForm.formState.errors.email && (
@@ -287,7 +293,9 @@ function LoginPage() {
               required
               aria-required="true"
               aria-invalid={Boolean(resetForm.formState.errors.password)}
-              aria-describedby={resetForm.formState.errors.password ? "new-password-error" : undefined}
+              aria-describedby={
+                resetForm.formState.errors.password ? "new-password-error" : undefined
+              }
               {...resetForm.register("password")}
             />
             {resetForm.formState.errors.password && (
@@ -314,7 +322,11 @@ function LoginPage() {
               {...resetForm.register("confirmPassword")}
             />
             {resetForm.formState.errors.confirmPassword && (
-              <p id="confirm-password-error" role="alert" className="text-[0.6875rem] text-destructive">
+              <p
+                id="confirm-password-error"
+                role="alert"
+                className="text-[0.6875rem] text-destructive"
+              >
                 {resetForm.formState.errors.confirmPassword.message}
               </p>
             )}
@@ -536,13 +548,12 @@ function AuthError({ message }: { message: string }) {
 
 function AuthInfo({ message }: { message: string }) {
   return (
-    <div
-      role="status"
+    <output
       aria-live="polite"
       aria-atomic="true"
       className="rounded-[4px] border border-border bg-[color:var(--paper-050)] px-2.5 py-1.5 text-[0.6875rem] text-muted-foreground"
     >
       {message}
-    </div>
+    </output>
   );
 }

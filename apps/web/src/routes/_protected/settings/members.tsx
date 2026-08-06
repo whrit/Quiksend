@@ -12,7 +12,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -271,8 +277,8 @@ function MembersPage() {
           <DialogHeader>
             <DialogTitle>Cancel invitation?</DialogTitle>
             <DialogDescription>
-              <strong>{cancelTarget?.email}</strong> won&apos;t be able to use this invitation
-              link anymore. You can invite them again at any time.
+              <strong>{cancelTarget?.email}</strong> won&apos;t be able to use this invitation link
+              anymore. You can invite them again at any time.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -286,7 +292,9 @@ function MembersPage() {
               aria-busy={canceling}
               onClick={() => void confirmCancel()}
             >
-              {canceling ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+              {canceling ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
               Cancel invitation
             </Button>
           </DialogFooter>

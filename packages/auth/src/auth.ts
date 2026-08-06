@@ -8,7 +8,12 @@ import { enqueueWithRetries } from "@quiksend/queue";
 import { APIError, betterAuth } from "better-auth";
 import { organization } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
-import { adminAc, defaultStatements, memberAc, ownerAc } from "better-auth/plugins/organization/access";
+import {
+  adminAc,
+  defaultStatements,
+  memberAc,
+  ownerAc,
+} from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, gt } from "drizzle-orm";
 
@@ -59,7 +64,9 @@ export async function resolveDefaultActiveOrganizationId(userId: string): Promis
  * outside production.
  */
 function isSystemAdminEmail(email: string): boolean {
-  return Boolean(env.SYSTEM_ADMIN_EMAIL) && email.toLowerCase() === env.SYSTEM_ADMIN_EMAIL?.toLowerCase();
+  return (
+    Boolean(env.SYSTEM_ADMIN_EMAIL) && email.toLowerCase() === env.SYSTEM_ADMIN_EMAIL?.toLowerCase()
+  );
 }
 
 /** Whether `email` has a pending, unexpired organization invitation. */
@@ -107,11 +114,17 @@ export async function enqueueTransactionalEmail(payload: {
   try {
     jobId = await enqueueWithRetries("mail.send_transactional", payload);
   } catch (err) {
-    logger.error({ err, to: payload.to, subject: payload.subject }, "Failed to enqueue transactional email");
+    logger.error(
+      { err, to: payload.to, subject: payload.subject },
+      "Failed to enqueue transactional email",
+    );
     throw err;
   }
   if (!jobId) {
-    logger.error({ to: payload.to, subject: payload.subject }, "Transactional email enqueue returned no job id");
+    logger.error(
+      { to: payload.to, subject: payload.subject },
+      "Transactional email enqueue returned no job id",
+    );
     throw new Error("Failed to enqueue transactional email");
   }
 }
@@ -135,8 +148,14 @@ const organizationStatement = {
 } as const;
 const organizationAc = createAccessControl(organizationStatement);
 const organizationRoles = {
-  owner: organizationAc.newRole({ ...ownerAc.statements, apiKey: ["create", "read", "update", "delete"] }),
-  admin: organizationAc.newRole({ ...adminAc.statements, apiKey: ["create", "read", "update", "delete"] }),
+  owner: organizationAc.newRole({
+    ...ownerAc.statements,
+    apiKey: ["create", "read", "update", "delete"],
+  }),
+  admin: organizationAc.newRole({
+    ...adminAc.statements,
+    apiKey: ["create", "read", "update", "delete"],
+  }),
   member: organizationAc.newRole({ ...memberAc.statements, apiKey: [] }),
 };
 

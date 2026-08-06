@@ -3,7 +3,11 @@ import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { authMiddleware } from "./org-fn.ts";
-import { requireAdminOrOwner, selectPendingInvitations, toInvitationSummary } from "./invitations.server.ts";
+import {
+  requireAdminOrOwner,
+  selectPendingInvitations,
+  toInvitationSummary,
+} from "./invitations.server.ts";
 
 const INVITABLE_ROLES = z.enum(["member", "admin"]);
 
@@ -68,7 +72,9 @@ export const acceptInvitation = createServerFn({ method: "POST" })
       body: { invitationId: data.invitationId },
     });
     if (!result?.invitation) {
-      throw new Error("Invitation could not be accepted — it may have expired or already been used");
+      throw new Error(
+        "Invitation could not be accepted — it may have expired or already been used",
+      );
     }
     return { organizationId: result.invitation.organizationId };
   });

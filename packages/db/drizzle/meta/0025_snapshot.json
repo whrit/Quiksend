@@ -1,6 +1,6 @@
 {
-  "id": "ab799873-934c-471c-859d-5ed90e85bd63",
-  "prevId": "d73958f6-2141-4676-8983-210562731abd",
+  "id": "d73958f6-2141-4676-8983-210562731abd",
+  "prevId": "2a7c619f-8149-4ab3-ac25-51912e3e0ba2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1254,13 +1254,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
-        },
-        "ingestion_complete": {
-          "name": "ingestion_complete",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "sentiment": {
           "name": "sentiment",
@@ -3720,7 +3713,7 @@
           "name": "created_by_user_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
@@ -3931,7 +3924,7 @@
           "tableTo": "user",
           "columnsFrom": ["created_by_user_id"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -5954,159 +5947,6 @@
         "nango_webhook_processed_event_id_connection_id_pk": {
           "name": "nango_webhook_processed_event_id_connection_id_pk",
           "columns": ["event_id", "connection_id"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.organization_limit": {
-      "name": "organization_limit",
-      "schema": "",
-      "columns": {
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "deliverability_pro_until": {
-          "name": "deliverability_pro_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "mailbox_limit": {
-          "name": "mailbox_limit",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 5
-        },
-        "api_requests_per_day": {
-          "name": "api_requests_per_day",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 10000
-        },
-        "ai_research_per_month": {
-          "name": "ai_research_per_month",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1000
-        },
-        "dns_checks_per_day": {
-          "name": "dns_checks_per_day",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 5000
-        },
-        "import_rows_per_job": {
-          "name": "import_rows_per_job",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 5000
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "organization_limit_organization_id_organization_id_fk": {
-          "name": "organization_limit_organization_id_organization_id_fk",
-          "tableFrom": "organization_limit",
-          "tableTo": "organization",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.organization_usage": {
-      "name": "organization_usage",
-      "schema": "",
-      "columns": {
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "resource": {
-          "name": "resource",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "period": {
-          "name": "period",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "count": {
-          "name": "count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "organization_usage_org_idx": {
-          "name": "organization_usage_org_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "organization_usage_organization_id_organization_id_fk": {
-          "name": "organization_usage_organization_id_organization_id_fk",
-          "tableFrom": "organization_usage",
-          "tableTo": "organization",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "organization_usage_organization_id_resource_period_pk": {
-          "name": "organization_usage_organization_id_resource_period_pk",
-          "columns": ["organization_id", "resource", "period"]
         }
       },
       "uniqueConstraints": {},

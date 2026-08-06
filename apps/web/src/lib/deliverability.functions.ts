@@ -13,7 +13,10 @@ import type { EmailGateway } from "@quiksend/mail";
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { parseWorkspaceCanaryConfig } from "./canary-injection.ts";
-import { getOrganizationLimits, stripProtectedMetadataKeys } from "@quiksend/db/organization-limits";
+import {
+  getOrganizationLimits,
+  stripProtectedMetadataKeys,
+} from "@quiksend/db/organization-limits";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./org-fn.ts";
 
