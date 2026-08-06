@@ -106,6 +106,12 @@ function startOfLocalDay(at: Date, tz: TimeZone): Date {
 function utcAtLocalHour(dateStr: string, hour: number, tz: TimeZone): Date {
   const wholeHour = Math.floor(hour);
   const minutes = Math.floor((hour - wholeHour) * 60);
+  // Hour 24 means end-of-day: use the next day at 00:00, since `fromZonedTime`
+  // wraps `T24:00:00` back to same-day midnight, which collapses `[N, 24]` ranges.
+  if (wholeHour >= 24) {
+    const next = fromZonedTime(`${dateStr}T00:00:00`, tz);
+    return addDays(next, 1);
+  }
   const hh = String(wholeHour).padStart(2, "0");
   const mm = String(minutes).padStart(2, "0");
   return fromZonedTime(`${dateStr}T${hh}:${mm}:00`, tz);

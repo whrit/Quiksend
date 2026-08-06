@@ -3,10 +3,14 @@ import { EnvSchema } from "./env.schema.ts";
 
 function errorMessages(result: {
   success: boolean;
-  error?: { issues: Array<{ message?: string }> };
+  error?: { issues: Array<{ message?: string; path?: readonly PropertyKey[] }> };
 }): string {
   if (result.success) return "";
-  return result.error?.issues.map(({ message }) => message ?? "").join(" ") ?? "";
+  return (
+    result.error?.issues
+      .map(({ message, path }) => `${(path ?? []).map(String).join(".")} ${message ?? ""}`)
+      .join(" ") ?? ""
+  );
 }
 
 describe("EnvSchema", () => {
@@ -23,7 +27,7 @@ describe("EnvSchema", () => {
     expect(result.success).toBe(false);
     if (result.success) throw new Error("expected failure");
     const messages = errorMessages(result);
-    expect(messages).toContain("Required");
+    expect(messages).toContain("DATABASE_URL");
   });
 
   it("coerces SMTP_PORT to a number", () => {
@@ -185,7 +189,7 @@ describe("EnvSchema", () => {
     expect(result.success).toBe(false);
     if (result.success) throw new Error("expected failure");
     const messages = errorMessages(result);
-    expect(messages).toContain("not permitted");
+    expect(messages).toContain("localhost, loopback, or unspecified addresses");
   });
 
   it("rejects unspecified (0.0.0.0) BETTER_AUTH_URL in production", () => {
@@ -201,7 +205,7 @@ describe("EnvSchema", () => {
     expect(result.success).toBe(false);
     if (result.success) throw new Error("expected failure");
     const messages = errorMessages(result);
-    expect(messages).toContain("not permitted");
+    expect(messages).toContain("localhost, loopback, or unspecified addresses");
   });
 
   it("allows localhost BETTER_AUTH_URL in development", () => {

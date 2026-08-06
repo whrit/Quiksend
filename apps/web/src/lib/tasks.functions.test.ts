@@ -156,7 +156,7 @@ describe("task server functions", () => {
     await withTestOrgs(async ({ orgA, orgB }) => {
       const { task } = await seedTaskGraph(orgA.id, orgA.userId);
       const ctx = await getTaskContextCore(task.id, orgB.id);
-      expect(ctx).toBeNull();
+      expect(ctx).toBeUndefined();
     });
   });
 

@@ -47,7 +47,7 @@ describe("message safety schema", () => {
             providerMessageId,
             status: "sent",
           }),
-        ).rejects.toMatchObject({ code: "23505" });
+        ).rejects.toMatchObject({ cause: { code: "23505" } });
       });
     });
 

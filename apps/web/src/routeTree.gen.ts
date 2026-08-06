@@ -15,6 +15,7 @@ import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProtectedDashboardRouteImport } from './routes/_protected/dashboard'
 import { Route as ProtectedComposeRouteImport } from './routes/_protected/compose'
+import { Route as ProtectedTasksIndexRouteImport } from './routes/_protected/tasks/index'
 import { Route as ProtectedSequencesIndexRouteImport } from './routes/_protected/sequences/index'
 import { Route as ProtectedProspectsIndexRouteImport } from './routes/_protected/prospects/index'
 import { Route as ProtectedInboxIndexRouteImport } from './routes/_protected/inbox/index'
@@ -80,6 +81,11 @@ const ProtectedDashboardRoute = ProtectedDashboardRouteImport.update({
 const ProtectedComposeRoute = ProtectedComposeRouteImport.update({
   id: '/compose',
   path: '/compose',
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedTasksIndexRoute = ProtectedTasksIndexRouteImport.update({
+  id: '/tasks/',
+  path: '/tasks/',
   getParentRoute: () => ProtectedRoute,
 } as any)
 const ProtectedSequencesIndexRoute = ProtectedSequencesIndexRouteImport.update({
@@ -314,6 +320,7 @@ export interface FileRoutesByFullPath {
   '/inbox/': typeof ProtectedInboxIndexRoute
   '/prospects/': typeof ProtectedProspectsIndexRoute
   '/sequences/': typeof ProtectedSequencesIndexRoute
+  '/tasks/': typeof ProtectedTasksIndexRoute
   '/prospects/$id/generate': typeof ProtectedProspectsIdGenerateRoute
   '/sequences/$id/analytics': typeof ProtectedSequencesIdAnalyticsRoute
   '/sequences/$id/edit': typeof ProtectedSequencesIdEditRoute
@@ -358,6 +365,7 @@ export interface FileRoutesByTo {
   '/inbox': typeof ProtectedInboxIndexRoute
   '/prospects': typeof ProtectedProspectsIndexRoute
   '/sequences': typeof ProtectedSequencesIndexRoute
+  '/tasks': typeof ProtectedTasksIndexRoute
   '/prospects/$id/generate': typeof ProtectedProspectsIdGenerateRoute
   '/sequences/$id/analytics': typeof ProtectedSequencesIdAnalyticsRoute
   '/sequences/$id/edit': typeof ProtectedSequencesIdEditRoute
@@ -404,6 +412,7 @@ export interface FileRoutesById {
   '/_protected/inbox/': typeof ProtectedInboxIndexRoute
   '/_protected/prospects/': typeof ProtectedProspectsIndexRoute
   '/_protected/sequences/': typeof ProtectedSequencesIndexRoute
+  '/_protected/tasks/': typeof ProtectedTasksIndexRoute
   '/_protected/prospects/$id/generate': typeof ProtectedProspectsIdGenerateRoute
   '/_protected/sequences/$id/analytics': typeof ProtectedSequencesIdAnalyticsRoute
   '/_protected/sequences/$id/edit': typeof ProtectedSequencesIdEditRoute
@@ -450,6 +459,7 @@ export interface FileRouteTypes {
     | '/inbox/'
     | '/prospects/'
     | '/sequences/'
+    | '/tasks/'
     | '/prospects/$id/generate'
     | '/sequences/$id/analytics'
     | '/sequences/$id/edit'
@@ -494,6 +504,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/prospects'
     | '/sequences'
+    | '/tasks'
     | '/prospects/$id/generate'
     | '/sequences/$id/analytics'
     | '/sequences/$id/edit'
@@ -539,6 +550,7 @@ export interface FileRouteTypes {
     | '/_protected/inbox/'
     | '/_protected/prospects/'
     | '/_protected/sequences/'
+    | '/_protected/tasks/'
     | '/_protected/prospects/$id/generate'
     | '/_protected/sequences/$id/analytics'
     | '/_protected/sequences/$id/edit'
@@ -617,6 +629,13 @@ declare module '@tanstack/react-router' {
       path: '/compose'
       fullPath: '/compose'
       preLoaderRoute: typeof ProtectedComposeRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/tasks/': {
+      id: '/_protected/tasks/'
+      path: '/tasks'
+      fullPath: '/tasks/'
+      preLoaderRoute: typeof ProtectedTasksIndexRouteImport
       parentRoute: typeof ProtectedRoute
     }
     '/_protected/sequences/': {
@@ -906,6 +925,7 @@ interface ProtectedRouteChildren {
   ProtectedInboxIndexRoute: typeof ProtectedInboxIndexRoute
   ProtectedProspectsIndexRoute: typeof ProtectedProspectsIndexRoute
   ProtectedSequencesIndexRoute: typeof ProtectedSequencesIndexRoute
+  ProtectedTasksIndexRoute: typeof ProtectedTasksIndexRoute
   ProtectedSequencesIdAnalyticsRoute: typeof ProtectedSequencesIdAnalyticsRoute
   ProtectedSequencesIdEditRoute: typeof ProtectedSequencesIdEditRoute
   ProtectedSequencesIdEnrollRoute: typeof ProtectedSequencesIdEnrollRoute
@@ -935,6 +955,7 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedInboxIndexRoute: ProtectedInboxIndexRoute,
   ProtectedProspectsIndexRoute: ProtectedProspectsIndexRoute,
   ProtectedSequencesIndexRoute: ProtectedSequencesIndexRoute,
+  ProtectedTasksIndexRoute: ProtectedTasksIndexRoute,
   ProtectedSequencesIdAnalyticsRoute: ProtectedSequencesIdAnalyticsRoute,
   ProtectedSequencesIdEditRoute: ProtectedSequencesIdEditRoute,
   ProtectedSequencesIdEnrollRoute: ProtectedSequencesIdEnrollRoute,
