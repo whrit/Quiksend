@@ -130,6 +130,10 @@ describe("per-step message attribution", () => {
         .insert(tables.prospect)
         .values({ organizationId: orgA.id, email: "target@ab-test" })
         .returning();
+      const [prospectB] = await db
+        .insert(tables.prospect)
+        .values({ organizationId: orgA.id, email: "target-b@ab-test" })
+        .returning();
 
       const [sequence] = await db
         .insert(tables.sequence)
@@ -178,7 +182,7 @@ describe("per-step message attribution", () => {
         .values({
           organizationId: orgA.id,
           sequenceId: sequence!.id,
-          prospectId: prospect!.id,
+          prospectId: prospectB!.id,
           mailboxId: mailbox!.id,
           state: "active",
           abBucket: "B",
@@ -203,7 +207,7 @@ describe("per-step message attribution", () => {
       await db.insert(tables.message).values({
         organizationId: orgA.id,
         mailboxId: mailbox!.id,
-        prospectId: prospect!.id,
+        prospectId: prospectB!.id,
         enrollmentId: enrollmentB!.id,
         sequenceStepIndex: 0,
         direction: "outbound",

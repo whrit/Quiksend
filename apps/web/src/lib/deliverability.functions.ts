@@ -225,7 +225,6 @@ export const setWorkspaceCanaryConfig = createServerFn({ method: "POST" })
         .where(eq(tables.organization.id, organizationId));
       return mergeCanaryConfig(next.canary_defaults as CanaryConfig);
     });
-
   });
 
 export const getProviderManagedSeedGateways = createServerFn({ method: "GET" })

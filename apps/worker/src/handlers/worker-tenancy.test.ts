@@ -242,9 +242,10 @@ describe("worker tenancy", () => {
           .values({
             organizationId: orgA.id,
             email: "seed-a@seedpool.test",
-            gateway: "google",
+            gateway: "google_workspace",
+            provider: "imap",
+            imapConfig: "{}",
             active: false,
-            imapConfig: {},
           })
           .returning();
 
@@ -276,9 +277,10 @@ describe("worker tenancy", () => {
           .values({
             organizationId: orgA.id,
             email: "seed-noop@seedpool.test",
-            gateway: "google",
+            gateway: "google_workspace",
+            provider: "imap",
+            imapConfig: "{}",
             active: false,
-            imapConfig: {},
           })
           .returning();
 

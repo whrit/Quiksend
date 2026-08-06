@@ -40,7 +40,7 @@ describe("withTenantTransaction", () => {
             name: "Cross-tenant write",
           }),
         ),
-      ).rejects.toThrow(/row-level security/i);
+      ).rejects.toMatchObject({ cause: { message: expect.stringMatching(/row-level security/i) } });
     });
   });
 

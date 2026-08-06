@@ -57,14 +57,22 @@ export type EnrollmentExclusionReason =
 
 /** True only for the enrollment uniqueness constraint; other 23505s propagate. */
 export function isEnrollmentDuplicate(err: unknown): boolean {
+  // Drizzle 0.45 wraps postgres errors in DrizzleQueryError; the code/constraint
+  // live on `.cause`. Older callers may still pass the raw postgres error.
+  const pg = getPgError(err);
   return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    err.code === "23505" &&
-    "constraint_name" in err &&
-    err.constraint_name === "enrollment_org_sequence_prospect_uidx"
+    pg !== null &&
+    pg.code === "23505" &&
+    pg.constraint_name === "enrollment_org_sequence_prospect_uidx"
   );
+}
+
+function getPgError(err: unknown): { code?: string; constraint_name?: string } | null {
+  if (typeof err !== "object" || err === null) return null;
+  const candidate = err as { code?: string; constraint_name?: string; cause?: unknown };
+  if (candidate.code === "23505") return candidate;
+  if (candidate.cause) return getPgError(candidate.cause);
+  return null;
 }
 
 export type EntryCondition = {
@@ -973,7 +981,6 @@ export const enrollProspects = createServerFn({ method: "POST" })
         mailboxIds: mailboxes.map((m) => m.id),
         sequenceCanaryConfig: seq.canaryConfig,
         workspaceCanaryConfig: parseWorkspaceCanaryConfig(org?.metadata),
-        isProEntitled: isDeliverabilityProEntitled(org?.metadata),
       });
 
       return {
@@ -982,7 +989,6 @@ export const enrollProspects = createServerFn({ method: "POST" })
         canariesCreated,
       };
     });
-
   });
 
 export const previewSchedule = createServerFn({ method: "POST" })

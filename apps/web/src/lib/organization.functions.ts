@@ -229,10 +229,12 @@ export const setPostalAddress = createServerFn({ method: "POST" })
         existing = {};
       }
     }
-    const next = { ...existing, postal_address: data.postalAddress };
-    await db
-      .update(tables.organization)
-      .set({ metadata: JSON.stringify(next) })
-      .where(eq(tables.organization.id, organizationId));
+    const next = stripProtectedMetadataKeys({ ...existing, postal_address: data.postalAddress });
+    await withTenantTransaction(organizationId, async (tx) => {
+      await tx
+        .update(tables.organization)
+        .set({ metadata: JSON.stringify(next) })
+        .where(eq(tables.organization.id, organizationId));
+    });
     return { postalAddress: data.postalAddress };
   });

@@ -159,113 +159,113 @@ describe("enrollment exclusion — DB behavior", () => {
       }
       expect(isEnrollmentDuplicate(caughtErr)).toBe(true);
     });
+  });
 
-    it("archived sequence blocks enrollment", async () => {
-      await withTestOrgs(async ({ orgA }) => {
-        const { sequence, prospect } = await scaffold(orgA);
+  it("archived sequence blocks enrollment", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const { sequence, prospect } = await scaffold(orgA);
 
-        // Archive the sequence
-        await db
-          .update(tables.sequence)
-          .set({ status: "archived" })
-          .where(eq(tables.sequence.id, sequence.id));
+      // Archive the sequence
+      await db
+        .update(tables.sequence)
+        .set({ status: "archived" })
+        .where(eq(tables.sequence.id, sequence.id));
 
-        // Verify archived
-        const archived = await db.query.sequence.findFirst({
-          where: eq(tables.sequence.id, sequence.id),
-        });
-        expect(archived?.status).toBe("archived");
-
-        // No enrollment should exist
-        const enrollments = await db.query.enrollment.findMany({
-          where: and(
-            eq(tables.enrollment.sequenceId, sequence.id),
-            eq(tables.enrollment.prospectId, prospect.id),
-          ),
-        });
-        expect(enrollments).toHaveLength(0);
+      // Verify archived
+      const archived = await db.query.sequence.findFirst({
+        where: eq(tables.sequence.id, sequence.id),
       });
+      expect(archived?.status).toBe("archived");
+
+      // No enrollment should exist
+      const enrollments = await db.query.enrollment.findMany({
+        where: and(
+          eq(tables.enrollment.sequenceId, sequence.id),
+          eq(tables.enrollment.prospectId, prospect.id),
+        ),
+      });
+      expect(enrollments).toHaveLength(0);
     });
+  });
 
-    it("active enrollment loads after sequence is archived", async () => {
-      await withTestOrgs(async ({ orgA }) => {
-        const { mailbox, prospect, sequence } = await scaffold(orgA);
+  it("active enrollment loads after sequence is archived", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const { mailbox, prospect, sequence } = await scaffold(orgA);
 
-        // Enroll while active
-        const [enrollment] = await db
-          .insert(tables.enrollment)
-          .values({
-            organizationId: orgA.id,
-            sequenceId: sequence.id,
-            prospectId: prospect.id,
-            mailboxId: mailbox.id,
-            state: "active",
-            currentStepIndex: 0,
-            createdByUserId: orgA.userId,
-          })
-          .returning();
-        if (!enrollment) throw new Error("enrollment setup failed");
+      // Enroll while active
+      const [enrollment] = await db
+        .insert(tables.enrollment)
+        .values({
+          organizationId: orgA.id,
+          sequenceId: sequence.id,
+          prospectId: prospect.id,
+          mailboxId: mailbox.id,
+          state: "active",
+          currentStepIndex: 0,
+          createdByUserId: orgA.userId,
+        })
+        .returning();
+      if (!enrollment) throw new Error("enrollment setup failed");
 
-        // Archive the sequence
-        await db
-          .update(tables.sequence)
-          .set({ status: "archived" })
-          .where(eq(tables.sequence.id, sequence.id));
+      // Archive the sequence
+      await db
+        .update(tables.sequence)
+        .set({ status: "archived" })
+        .where(eq(tables.sequence.id, sequence.id));
 
-        // Enrollment still loads (no status filter)
-        const loaded = await db.query.enrollment.findFirst({
-          where: eq(tables.enrollment.id, enrollment.id),
-        });
-        expect(loaded).toBeDefined();
-        expect(loaded!.state).toBe("active");
-
-        // Sequence loads for the enrollment (no status filter)
-        const seq = await db.query.sequence.findFirst({
-          where: eq(tables.sequence.id, loaded!.sequenceId),
-        });
-        expect(seq).toBeDefined();
-        expect(seq!.status).toBe("archived");
+      // Enrollment still loads (no status filter)
+      const loaded = await db.query.enrollment.findFirst({
+        where: eq(tables.enrollment.id, enrollment.id),
       });
+      expect(loaded).toBeDefined();
+      expect(loaded!.state).toBe("active");
+
+      // Sequence loads for the enrollment (no status filter)
+      const seq = await db.query.sequence.findFirst({
+        where: eq(tables.sequence.id, loaded!.sequenceId),
+      });
+      expect(seq).toBeDefined();
+      expect(seq!.status).toBe("archived");
     });
+  });
 
-    it("deleted prospect is excluded from enrollment", async () => {
-      await withTestOrgs(async ({ orgA }) => {
-        const { prospect } = await scaffold(orgA);
+  it("deleted prospect is excluded from enrollment", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const { prospect } = await scaffold(orgA);
 
-        // Soft-delete the prospect
-        await db
-          .update(tables.prospect)
-          .set({ deletedAt: new Date() })
-          .where(eq(tables.prospect.id, prospect.id));
+      // Soft-delete the prospect
+      await db
+        .update(tables.prospect)
+        .set({ deletedAt: new Date() })
+        .where(eq(tables.prospect.id, prospect.id));
 
-        // Query with deletedAt IS NULL excludes it
-        const found = await db.query.prospect.findFirst({
-          where: and(
-            eq(tables.prospect.id, prospect.id),
-            eq(tables.prospect.organizationId, orgA.id),
-          ),
-        });
-        // The prospect exists but is soft-deleted
-        expect(found).toBeDefined();
-        expect(found!.deletedAt).not.toBeNull();
+      // Query with deletedAt IS NULL excludes it
+      const found = await db.query.prospect.findFirst({
+        where: and(
+          eq(tables.prospect.id, prospect.id),
+          eq(tables.prospect.organizationId, orgA.id),
+        ),
       });
+      // The prospect exists but is soft-deleted
+      expect(found).toBeDefined();
+      expect(found!.deletedAt).not.toBeNull();
     });
+  });
 
-    it("suppressed prospect is excluded from enrollment", async () => {
-      await withTestOrgs(async ({ orgA }) => {
-        const { prospect } = await scaffold(orgA);
+  it("suppressed prospect is excluded from enrollment", async () => {
+    await withTestOrgs(async ({ orgA }) => {
+      const { prospect } = await scaffold(orgA);
 
-        // Mark prospect as bounced
-        await db
-          .update(tables.prospect)
-          .set({ status: "bounced" })
-          .where(eq(tables.prospect.id, prospect.id));
+      // Mark prospect as bounced
+      await db
+        .update(tables.prospect)
+        .set({ status: "bounced" })
+        .where(eq(tables.prospect.id, prospect.id));
 
-        const updated = await db.query.prospect.findFirst({
-          where: eq(tables.prospect.id, prospect.id),
-        });
-        expect(updated!.status).toBe("bounced");
+      const updated = await db.query.prospect.findFirst({
+        where: eq(tables.prospect.id, prospect.id),
       });
+      expect(updated!.status).toBe("bounced");
     });
   });
 });

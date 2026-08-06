@@ -8,11 +8,10 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import {
   injectCanariesForEnrollment,
-  isDeliverabilityProEntitled,
   parseWorkspaceCanaryConfig,
-} from "@/lib/canary-injection.ts";
-import { isEnrollmentDuplicate } from "@/lib/sequences.functions.ts";
-import { jsonData, jsonError, parseJsonBody, withApiAuth } from "@/lib/api/v1/middleware.ts";
+} from "../../../lib/canary-injection.ts";
+import { isEnrollmentDuplicate } from "../../../lib/sequences.functions.ts";
+import { jsonData, jsonError, parseJsonBody, withApiAuth } from "../../../lib/api/v1/middleware.ts";
 
 type SequenceSettings = {
   timezone: string;
@@ -44,15 +43,15 @@ function toMailboxSchedule(
   const window: SendingWindow = {};
   for (const [day, ranges] of Object.entries(sw.window ?? {})) {
     window[day as Weekday] = ranges.map(([start, end]) => ({
-      startMinute: start,
-      endMinute: end,
+      startHour: start,
+      endHour: end,
     }));
   }
   return {
     dailyCap: mailbox.dailyCap,
-    throttleSeconds: Math.max(mailbox.throttleSeconds, settings.throttle_seconds),
+    minGapSeconds: Math.max(mailbox.throttleSeconds, settings.throttle_seconds),
     timezone: settings.timezone,
-    sendWindow: window,
+    window,
   };
 }
 
@@ -238,7 +237,6 @@ export const Route = createFileRoute("/api/v1/enrollments")({
               mailboxIds: mailboxes.map((m) => m.id),
               sequenceCanaryConfig: seq.canaryConfig,
               workspaceCanaryConfig: parseWorkspaceCanaryConfig(org?.metadata),
-              isProEntitled: isDeliverabilityProEntitled(org?.metadata),
             });
 
             return jsonData(
@@ -252,7 +250,6 @@ export const Route = createFileRoute("/api/v1/enrollments")({
               201,
             );
           });
-
         }),
     },
   },

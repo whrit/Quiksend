@@ -22,8 +22,9 @@ async function enqueueCrmWriteback(organizationId: string, prospectId: string): 
   await enqueue("crm.writeback", {
     organizationId,
     connectionId: prospect.crmConnectionId,
-    prospectId,
+    entityId: prospectId,
     eventType: "status",
+    idempotencyKey: `unsubscribe:${prospectId}`,
   });
 }
 
