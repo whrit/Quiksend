@@ -22,10 +22,11 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     tanstackStart({
-      // Tests colocated with route files (e.g. `apps/web/src/routes/api/v1/*.test.ts`)
-      // are not routes. The router's `routeFileIgnorePrefix: "-"` doesn't cover them,
-      // so filter every `.test.ts`/`.test.tsx` file under `src/routes/` here.
-      router: { routeFileIgnorePattern: "\\.test\\.[tj]sx?$" },
+      // Colocated non-route files under `src/routes/` (`*.test.[tj]sx`,
+      // `*.helpers.[tj]sx`) are not routes. The router's `routeFileIgnorePrefix: "-"`
+      // doesn't cover them, so filter both categories here so future colocated
+      // tests/helpers don't need special renaming.
+      router: { routeFileIgnorePattern: "\\.(test|helpers)\\.[tj]sx?$" },
     }),
     nitro(),
     // react's plugin must come after start's plugin

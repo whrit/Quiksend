@@ -1,4 +1,3 @@
-import { env, logger } from "@quiksend/config";
 import * as Sentry from "@sentry/react";
 import { createIsomorphicFn } from "@tanstack/react-start";
 
@@ -6,20 +5,22 @@ import { createIsomorphicFn } from "@tanstack/react-start";
  * Sentry init for the web app. Server-side captures the errors that were
  * silently swallowed before: server-fn 500s, API route throws, SSR loader
  * failures. Client-side is intentionally a no-op here — `@quiksend/config`
- * is a server-only module (it reads `process.env`) and the schema does not
- * expose a `VITE_SENTRY_DSN` we could safely read in the browser bundle.
+ * is a server-only module (it reads `process.env` eagerly) and the schema
+ * does not expose a `VITE_SENTRY_DSN` we could safely read in the browser
+ * bundle.
  *
- * The `createIsomorphicFn().server(...)` wrapper is a compile-time split
- * inserted by TanStack Start's Vite plugin: on the client bundle the whole
- * body — and thus the `@quiksend/config` import — is dead-code eliminated,
- * so this module is safe to import from `__root.tsx` which runs on both
- * sides.
+ * `createIsomorphicFn().server(...)` elides the callback body on the client,
+ * but a static top-level `import "@quiksend/config"` would still evaluate its
+ * side-effectful `env = loadEnv()` in the browser and crash. The dynamic
+ * `import()` below keeps that module edge server-only so the client bundle
+ * never touches `@quiksend/config`.
  */
 let initialized = false;
 
-export const initSentry = createIsomorphicFn().server(() => {
+export const initSentry = createIsomorphicFn().server(async () => {
   if (initialized) return;
   initialized = true;
+  const { env, logger } = await import("@quiksend/config");
   if (!env.SENTRY_DSN) {
     logger.debug({ service: "web" }, "SENTRY_DSN not set; Sentry disabled on web");
     return;

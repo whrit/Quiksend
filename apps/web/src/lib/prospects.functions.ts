@@ -1,4 +1,4 @@
-import { db } from "@quiksend/db";
+import { db, type DbTx } from "@quiksend/db";
 import { tables } from "@quiksend/db/tables";
 import { enqueue, enqueueWithRetries } from "@quiksend/queue";
 import { getOrganizationLimits } from "@quiksend/db/organization-limits";
@@ -22,7 +22,6 @@ type ImportErrorRow = typeof tables.importError.$inferSelect;
 
 const NON_TERMINAL_ENROLLMENT_STATES = ["active", "waiting", "waiting_manual", "paused"];
 
-type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Stop nonterminal enrollments through core `stop` transition + web effect
